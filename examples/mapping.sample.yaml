@@ -1,0 +1,13 @@
+nodes:
+  - ip: 10.10.1.11
+    alias: MME_FRA_A
+    role: mme
+    site: fra
+  - ip: 10.20.8.44
+    alias: HSS_CORE_1
+    role: hss
+    site: dc1
+  - hostname: pcrf.lab.local
+    alias: PCRF_LAB
+    role: pcrf
+    site: lab

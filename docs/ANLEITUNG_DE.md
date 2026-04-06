@@ -4,7 +4,7 @@
 
 `pcap2llm` verarbeitet `.pcap`- und `.pcapng`-Dateien mit `tshark` und erzeugt daraus bereinigte, strukturierte Artefakte fuer die Analyse durch Menschen oder LLMs.
 
-Das Tool ist besonders fuer LTE-/EPC-Troubleshooting vorbereitet. Es reduziert die Paketdaten so, dass:
+Das Tool arbeitet profilbasiert und ist fuer LTE-/EPC-, 5G-Core- sowie Legacy-2G/3G-Analysen mit SS7 und GERAN vorbereitet. Es reduziert die Paketdaten so, dass:
 
 - Layer 2 standardmaessig ausgeblendet wird
 - IP-Kontext erhalten bleibt
@@ -123,11 +123,19 @@ Das erzeugt standardmaessig:
 
 ### Profil waehlen
 
-Aktuell ist vor allem dieses Profil vorgesehen:
+Verfuegbare Profile:
 
 ```bash
 --profile lte-core
+--profile 5g-core
+--profile 2g3g-ss7-geran
 ```
+
+Faustregel:
+
+- `lte-core` fuer LTE / EPC mit Diameter, GTPv2-C, S1AP und NAS-EPS
+- `5g-core` fuer 5G Core mit PFCP, NGAP, NAS-5GS und HTTP/2 SBI
+- `2g3g-ss7-geran` fuer Legacy-Signalisierung mit SS7, MAP, CAP, ISUP, BSSAP und GERAN ohne UTRAN
 
 ### Display-Filter verwenden
 
@@ -141,6 +149,13 @@ oder:
 
 ```bash
 --display-filter "s1ap || nas-eps"
+```
+
+Beispiele fuer andere Profile:
+
+```bash
+pcap2llm inspect sample-5g.pcapng --profile 5g-core -Y "pfcp || ngap || http2"
+pcap2llm inspect sample-ss7.pcapng --profile 2g3g-ss7-geran -Y "gsm_map || cap || bssap || isup"
 ```
 
 ### Ausgabeverzeichnis festlegen

@@ -14,6 +14,12 @@ Du brauchst:
 - Python 3.11+
 - `tshark` im `PATH`
 
+Verfuegbare Standardprofile:
+
+- `lte-core` fuer LTE / EPC
+- `5g-core` fuer 5G Core
+- `2g3g-ss7-geran` fuer SS7 plus GERAN ohne UTRAN
+
 ### 2. Installation
 
 Im Projektordner:
@@ -69,6 +75,13 @@ Mit Display-Filter:
 
 ```bash
 pcap2llm analyze sample.pcapng --profile lte-core -Y "diameter || gtpv2"
+```
+
+Fuer andere Netze zum Beispiel:
+
+```bash
+pcap2llm analyze sample-5g.pcapng --profile 5g-core -Y "pfcp || ngap || http2"
+pcap2llm analyze sample-ss7.pcapng --profile 2g3g-ss7-geran -Y "gsm_map || cap || bssap || isup"
 ```
 
 Mit Hosts-Datei und Alias-Mapping:

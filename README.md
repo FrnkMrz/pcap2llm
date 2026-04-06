@@ -2,6 +2,8 @@
 
 `pcap2llm` converts `.pcap` and `.pcapng` captures into compact, LLM-friendly artifacts for telecom troubleshooting. The initial profile targets LTE / EPC workflows and is designed so later 5G core profiles can slot in without reworking the CLI or data model.
 
+Eine deutsche Bedienungsanleitung findest du in [`docs/ANLEITUNG_DE.md`](/Users/frank/Library/Mobile%20Documents/com~apple~CloudDocs/GitHub/pcap4llm/docs/ANLEITUNG_DE.md).
+
 ## What It Produces
 
 For a normal `analyze` run the tool writes:

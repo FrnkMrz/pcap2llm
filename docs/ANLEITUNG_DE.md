@@ -181,6 +181,41 @@ Wenn du nur sehen willst, wie der Lauf geplant ist (kein tshark-Aufruf):
 pcap2llm analyze sample.pcapng --profile lte-core --dry-run
 ```
 
+### Ausgabemenge begrenzen (--max-packets / --all-packets)
+
+Standardmaessig schreibt `analyze` nur die ersten **1 000 Pakete** in `detail.json`. Die Inspektion und alle Statistiken in `summary.json` laufen jedoch immer auf dem vollstaendigen Export — das Limit betrifft ausschliesslich den Detail-Output.
+
+```bash
+# Standard: erste 1 000 Pakete
+pcap2llm analyze sample.pcapng --profile lte-core --out ./artifacts
+
+# Eigenes Limit
+pcap2llm analyze sample.pcapng --profile lte-core --max-packets 500 --out ./artifacts
+
+# Kein Limit – alle Pakete (Achtung: grosse detail.json bei langen Captures)
+pcap2llm analyze sample.pcapng --profile lte-core --all-packets --out ./artifacts
+```
+
+Wurde die Ausgabe gekuerzt, enthaelt `summary.json` einen `detail_truncated`-Eintrag:
+
+```json
+"detail_truncated": {
+  "included": 1000,
+  "total_exported": 47312,
+  "note": "detail.json contains only the first 1,000 of 47,312 packets. Use --all-packets to include all."
+}
+```
+
+Der `dry-run` zeigt das aktive Limit an:
+
+```bash
+pcap2llm analyze sample.pcapng --profile lte-core --max-packets 500 --dry-run
+# → "max_packets": 500
+
+pcap2llm analyze sample.pcapng --profile lte-core --all-packets --dry-run
+# → "max_packets": "unlimited"
+```
+
 ### TShark-Pfad und Two-Pass-Modus
 
 Falls `tshark` nicht im `PATH` liegt:
@@ -521,7 +556,25 @@ Der Key muss ein URL-sicherer Base64-kodierter 32-Byte-Wert sein:
 python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-### Leeres `detail.json` / keine Pakete
+### `detail.json` enthaelt weniger Pakete als erwartet
+
+Standardmaessig werden nur die ersten 1 000 Pakete in `detail.json` geschrieben. Pruefen:
+
+```bash
+# Wie viele Pakete wurden tatsaechlich exportiert?
+# → in summary.json unter capture_metadata.packet_count
+
+# Wurde gekuerzt?
+# → summary.json enthaelt dann "detail_truncated" mit total_exported
+
+# Alle Pakete aufnehmen:
+pcap2llm analyze sample.pcapng --profile lte-core --all-packets
+
+# Oder eigenes Limit:
+pcap2llm analyze sample.pcapng --profile lte-core --max-packets 5000
+```
+
+### Leeres `detail.json` / gar keine Pakete
 
 - Display-Filter pruefen: filtert er alles raus?
 - Zuerst ohne Filter testen

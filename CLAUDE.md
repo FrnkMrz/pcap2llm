@@ -26,6 +26,8 @@ ruff check .
 # CLI usage
 pcap2llm inspect sample.pcapng --profile lte-core
 pcap2llm analyze sample.pcapng --profile lte-core --out ./artifacts
+pcap2llm analyze sample.pcapng --profile lte-core --max-packets 500 --out ./artifacts
+pcap2llm analyze sample.pcapng --profile lte-core --all-packets --out ./artifacts
 pcap2llm init-config
 ```
 
@@ -46,7 +48,7 @@ pcap2llm init-config
 
 **Data models** (`models.py`) use Pydantic v2. Key types: `NormalizedPacket`, `InspectResult`, `ProfileDefinition`, `AnalyzeArtifacts`. `ProfileDefinition.max_conversations` (default 25) controls the conversation table size.
 
-**CLI** (`cli.py`) uses Typer with three commands: `inspect`, `analyze`, `init-config`. Exit code 1 on all errors; error text goes to stderr.
+**CLI** (`cli.py`) uses Typer with three commands: `inspect`, `analyze`, `init-config`. Exit code 1 on all errors; error text goes to stderr. Progress is shown via `rich` on TTYs (spinner + step counter); falls back to plain stderr lines in non-interactive environments.
 
 **Endpoint resolution** (`resolver.py`) supports Wireshark hosts files and custom YAML/JSON mapping files. Lookup order: exact IP → case-insensitive hostname → CIDR subnet → port-based role inference.
 
@@ -58,4 +60,6 @@ pcap2llm init-config
 - Encryption uses `cryptography.fernet` with key from `PCAP2LLM_VAULT_KEY` env var; validated early via `Protector.validate_vault_key()` before packet processing begins
 - `normalize_packets()` returns `(packets, dropped_count)` — malformed packets are logged and skipped
 - `summary.json` always contains `schema_version`, `generated_at`, and `capture_sha256`
+- `analyze_capture()` accepts `max_packets` (default 1000, 0 = unlimited) — inspection runs on all packets, only normalization onwards is sliced; truncation is recorded in `summary["detail_truncated"]`
+- Progress reporting uses an optional `on_stage(description, step, total)` callback; the CLI wires this to `rich.progress` on TTYs
 - All processing is local; no remote transmission

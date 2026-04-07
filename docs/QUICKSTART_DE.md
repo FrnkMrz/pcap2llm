@@ -61,12 +61,14 @@ Danach findest du im Ordner `./artifacts` typischerweise:
 | Datei | Inhalt |
 |---|---|
 | `summary.json` | Kompakter Ueberblick: Protokolle, Conversations, Anomalien, Timing |
-| `detail.json` | Normalisierte Paket-/Nachrichtendetails |
+| `detail.json` | Normalisierte Paket-/Nachrichtendetails (Standard: max. 1 000 Pakete) |
 | `summary.md` | Menschenlesbare Zusammenfassung |
 | `pseudonym_mapping.json` | Nur bei aktiver Pseudonymisierung |
 | `vault.json` | Nur bei aktiver Verschluesselung |
 
 `summary.json` enthaelt immer `schema_version`, `generated_at` (ISO 8601 UTC) und `capture_sha256` fuer Reproduzierbarkeit.
+
+> **Grosse Captures:** Standardmaessig werden nur die ersten 1 000 Pakete in `detail.json` geschrieben. `summary.json` und alle Statistiken basieren aber immer auf dem vollstaendigen Export. Wurde gekuerzt, erscheint in `summary.json` ein `detail_truncated`-Eintrag mit der Gesamtzahl.
 
 ### 5. Sinnvolle erste Sichtung
 
@@ -82,6 +84,16 @@ Nur Planung anzeigen:
 
 ```bash
 pcap2llm analyze sample.pcapng --profile lte-core --dry-run
+```
+
+Paketlimit steuern:
+
+```bash
+# Alle Pakete in detail.json aufnehmen (Achtung: grosse Dateien)
+pcap2llm analyze sample.pcapng --profile lte-core --all-packets
+
+# Eigenes Limit setzen
+pcap2llm analyze sample.pcapng --profile lte-core --max-packets 500
 ```
 
 Mit Display-Filter:

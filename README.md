@@ -23,6 +23,8 @@ For a normal `analyze` run the tool writes:
 
 Both JSON files include `schema_version`, `generated_at` (ISO 8601 UTC), and `capture_sha256` for reproducibility and audit.
 
+By default `detail.json` contains only the first **1 000 packets**. Use `--all-packets` to remove the limit or `--max-packets N` to set a custom value. Inspection and all summary statistics always run on the full capture regardless of this setting. When the output is truncated, `summary.json` contains a `detail_truncated` key explaining how many packets were exported vs. included.
+
 ## Design Goals
 
 - CLI-first and automation-friendly
@@ -56,12 +58,18 @@ pip install -e .[dev,encrypt]
 # Inspect metadata only
 pcap2llm inspect sample.pcapng --profile lte-core
 
-# Full analysis
+# Full analysis (default: first 1 000 packets in detail.json)
 pcap2llm analyze sample.pcapng \
   --profile lte-core \
   --hosts-file ./examples/wireshark_hosts.sample \
   --mapping-file ./examples/mapping.sample.yaml \
   --out ./artifacts
+
+# Include all packets in detail.json (large captures → large file)
+pcap2llm analyze sample.pcapng --profile lte-core --all-packets
+
+# Custom packet limit
+pcap2llm analyze sample.pcapng --profile lte-core --max-packets 500
 
 # Preview the plan without invoking tshark
 pcap2llm analyze sample.pcapng --profile lte-core --dry-run
@@ -196,7 +204,10 @@ python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().
 **`Expected an object at the root of <file>`**
 Your YAML config or mapping file has an invalid root type. The top-level element must be a mapping (`key: value`), not a list or scalar.
 
-**Empty `detail.json` / no packets**
+**`detail.json` contains fewer packets than expected**
+By default only the first 1 000 packets are written to `detail.json`. Use `--all-packets` to include everything, or increase the limit with `--max-packets N`. Check `summary.json` for a `detail_truncated` entry that shows the total exported count.
+
+**Empty `detail.json` / no packets at all**
 Check the display filter (`-Y`) — it may be filtering out all packets. Run without a filter first. Also verify the profile matches the traffic (e.g. use `5g-core` for 5G captures).
 
 ## Development

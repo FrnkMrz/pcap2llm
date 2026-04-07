@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
+from collections.abc import Callable
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Generator
 
 import typer
 
@@ -14,6 +18,55 @@ from pcap2llm.tshark_runner import TSharkError, TSharkRunner
 
 app = typer.Typer(help="Convert PCAP/PCAPNG captures into LLM-friendly artifacts.")
 logger = logging.getLogger("pcap2llm")
+
+# ---------------------------------------------------------------------------
+# Progress display
+# ---------------------------------------------------------------------------
+
+@contextmanager
+def _progress(total_steps: int) -> Generator[Callable[[str, int, int], None], None, None]:
+    """Yield an ``on_stage`` callback that drives a rich progress bar on stderr.
+
+    Falls back to plain-text status lines when the output is not a TTY or
+    when *rich* is unavailable.  The progress bar is always written to stderr
+    so it does not interfere with JSON output on stdout.
+    """
+    if not sys.stderr.isatty():
+        # Non-interactive: emit plain status lines instead.
+        def _plain(description: str, step: int, total: int) -> None:
+            print(f"[{step}/{total}] {description}", file=sys.stderr)
+
+        yield _plain
+        return
+
+    from rich.console import Console
+    from rich.progress import (
+        BarColumn,
+        MofNCompleteColumn,
+        Progress,
+        SpinnerColumn,
+        TextColumn,
+        TimeElapsedColumn,
+    )
+
+    console = Console(stderr=True)
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[bold cyan]{task.description:<45}"),
+        BarColumn(bar_width=20),
+        MofNCompleteColumn(),
+        TimeElapsedColumn(),
+        console=console,
+        transient=False,
+    ) as progress:
+        task_id = progress.add_task("Starting…", total=total_steps, completed=0)
+
+        def _on_stage(description: str, step: int, total: int) -> None:
+            progress.update(task_id, description=description, completed=step)
+
+        yield _on_stage
+        # Mark as fully complete when the caller's block exits normally.
+        progress.update(task_id, description="[green]Done ✓", completed=total_steps)
 
 
 def _configure_logging(verbose: bool, debug: bool) -> None:
@@ -108,14 +161,17 @@ def inspect_command(
         typer.echo(json.dumps({"command": command, "profile": profile.name}, indent=2))
         return
     try:
-        result = inspect_capture(
-            capture,
-            runner=runner,
-            profile=profile,
-            display_filter=display_filter or config_data.get("display_filter"),
-            extra_args=extra_args,
-            two_pass=effective_two_pass,
-        )
+        from pcap2llm.inspector import _INSPECT_STEPS
+        with _progress(_INSPECT_STEPS) as on_stage:
+            result = inspect_capture(
+                capture,
+                runner=runner,
+                profile=profile,
+                display_filter=display_filter or config_data.get("display_filter"),
+                extra_args=extra_args,
+                two_pass=effective_two_pass,
+                on_stage=on_stage,
+            )
     except TSharkError as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1) from exc
@@ -202,18 +258,21 @@ def analyze_command(
         return
 
     try:
-        artifacts = analyze_capture(
-            capture,
-            out_dir=out_dir,
-            runner=runner,
-            profile=profile,
-            privacy_modes=privacy_modes,
-            display_filter=effective_filter,
-            hosts_file=effective_hosts,
-            mapping_file=effective_mapping,
-            extra_args=extra_args,
-            two_pass=effective_two_pass,
-        )
+        from pcap2llm.pipeline import _ANALYZE_STEPS
+        with _progress(_ANALYZE_STEPS) as on_stage:
+            artifacts = analyze_capture(
+                capture,
+                out_dir=out_dir,
+                runner=runner,
+                profile=profile,
+                privacy_modes=privacy_modes,
+                display_filter=effective_filter,
+                hosts_file=effective_hosts,
+                mapping_file=effective_mapping,
+                extra_args=extra_args,
+                two_pass=effective_two_pass,
+                on_stage=on_stage,
+            )
     except (TSharkError, RuntimeError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1) from exc

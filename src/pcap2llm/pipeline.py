@@ -2,10 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
 from pcap2llm.models import AnalyzeArtifacts, ProfileDefinition
+
+# Signature: (description, current_step, total_steps)
+OnStage = Callable[[str, int, int], None]
+
+_ANALYZE_STEPS = 5
 from pcap2llm.normalizer import inspect_raw_packets, normalize_packets
 from pcap2llm.protector import Protector
 from pcap2llm.reducer import reduce_packets
@@ -26,13 +32,20 @@ def analyze_capture(
     mapping_file: Path | None = None,
     extra_args: list[str] | None = None,
     two_pass: bool = False,
+    on_stage: OnStage | None = None,
 ) -> AnalyzeArtifacts:
+    def _step(msg: str, i: int) -> None:
+        if on_stage:
+            on_stage(msg, i, _ANALYZE_STEPS)
+
+    _step("Exporting packets via TShark…", 0)
     raw_packets = runner.export_packets(
         capture_path,
         display_filter=display_filter,
         extra_args=extra_args,
         two_pass=two_pass,
     )
+    _step(f"Inspecting {len(raw_packets):,} packets…", 1)
     inspect_result = inspect_raw_packets(
         raw_packets,
         capture_path=capture_path,
@@ -46,14 +59,17 @@ def analyze_capture(
     protector = Protector(privacy_modes)
     protector.validate_vault_key()
 
+    _step("Normalizing packets…", 2)
     normalized, dropped = normalize_packets(
         raw_packets,
         resolver=resolver,
         profile=profile,
         privacy_modes=privacy_modes,
     )
+    _step("Reducing & protecting packets…", 3)
     reduced = reduce_packets(normalized, profile)
     protected_packets = protector.protect_packets(reduced)
+    _step("Building summary…", 4)
     summary = build_summary(
         inspect_result,
         protected_packets,

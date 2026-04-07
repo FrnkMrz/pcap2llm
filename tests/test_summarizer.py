@@ -66,7 +66,7 @@ def test_build_summary_notable_findings_include_anomaly_count() -> None:
     summary = build_summary(inspect_result, _make_detail_packets(), profile=profile, privacy_modes={})
 
     findings_text = " ".join(summary["probable_notable_findings"])
-    assert "2 transport anomalies" in findings_text
+    assert "2 anomalies" in findings_text
 
 
 def test_build_summary_no_anomalies_produces_findings() -> None:

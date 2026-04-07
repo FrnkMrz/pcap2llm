@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import os
 import re
 from collections import defaultdict
@@ -51,7 +52,6 @@ class Protector:
     def __init__(self, modes: dict[str, str]) -> None:
         self.modes = {key: normalize_mode(value) for key, value in modes.items()}
         self.pseudonyms: dict[str, dict[str, str]] = defaultdict(dict)
-        self._counters: dict[str, int] = defaultdict(int)
         self._fernet = None
         self._key_source: str | None = None
 
@@ -109,8 +109,13 @@ class Protector:
         existing = self.pseudonyms[data_class].get(original)
         if existing:
             return existing
-        self._counters[data_class] += 1
-        alias = f"{data_class.upper()}_{self._counters[data_class]:04d}"
+        # Hash-based pseudonym: stable across runs, no counter collisions.
+        # BLAKE2s with 4-byte digest gives a 8-character hex suffix; the
+        # 2^32 space comfortably covers realistic subscriber counts.
+        h = hashlib.blake2s(
+            f"{data_class}:{original}".encode("utf-8"), digest_size=4
+        ).hexdigest()
+        alias = f"{data_class.upper()}_{h}"
         self.pseudonyms[data_class][original] = alias
         return alias
 
@@ -158,3 +163,7 @@ class Protector:
                 "Keep the local vault key private; without it the values are not recoverable.",
             ],
         }
+
+    def pseudonym_audit(self) -> dict[str, int]:
+        """Return the number of unique values pseudonymized per data class."""
+        return {cls: len(mapping) for cls, mapping in self.pseudonyms.items() if mapping}

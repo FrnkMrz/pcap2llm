@@ -60,6 +60,9 @@ def analyze_capture(
     )
     if dropped:
         summary["dropped_packets"] = dropped
+    audit = protector.pseudonym_audit()
+    if audit:
+        summary["privacy_audit"] = {"pseudonymized_unique_values": audit}
     mapping_filename = "pseudonym_mapping.json" if protector.pseudonyms else None
     vault_filename = "vault.json" if protector.vault_metadata() else None
     markdown = build_markdown_summary(

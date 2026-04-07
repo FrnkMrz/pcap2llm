@@ -7,6 +7,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+from pcap2llm.app_anomaly import detect_app_anomalies
 from pcap2llm.models import CaptureMetadata, InspectResult, MessageContext, NormalizedPacket
 from pcap2llm.models import PrivacySummary, ProfileDefinition, TransportContext
 from pcap2llm.resolver import EndpointResolver
@@ -187,6 +188,9 @@ def inspect_raw_packets(
         except Exception as exc:  # noqa: BLE001
             logger.warning("Skipping malformed packet during inspection: %s", exc)
 
+    # Application-layer anomaly detection (stateful, runs over all packets)
+    anomalies.extend(detect_app_anomalies(raw_packets, profile.name))
+
     conversation_rows = [
         {
             "transport": proto,
@@ -244,8 +248,8 @@ def normalize_packets(
                     time_epoch=str(_field(layers, "frame.time_epoch") or ""),
                     top_protocol=top_protocol,
                     frame_protocols=_frame_protocols(layers),
-                    src=resolver.resolve(src_ip),
-                    dst=resolver.resolve(dst_ip),
+                    src=resolver.resolve(src_ip, service_port=transport.src_port),
+                    dst=resolver.resolve(dst_ip, service_port=transport.dst_port),
                     transport=transport,
                     privacy=PrivacySummary(modes=privacy_modes),
                     anomalies=transport.notes,

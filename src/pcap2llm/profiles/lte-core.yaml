@@ -44,6 +44,16 @@ full_detail_fields:
     - diameter.User_Name
     - diameter.msisdn
     - diameter.imsi
+    # Result / error fields
+    - diameter.flags
+    - diameter.hop_by_hop_id
+    - diameter.end_to_end_id
+    - diameter.Result-Code
+    - diameter.Experimental-Result-Code
+    # Charging / policy fields
+    - diameter.CC-Request-Type
+    - diameter.Rating-Group
+    - diameter.Service-Identifier
   gtpv2:
     - gtpv2.message_type
     - gtpv2.teid
@@ -51,22 +61,36 @@ full_detail_fields:
     - gtpv2.msisdn
     - gtpv2.apn
     - gtpv2.ebi
+    # Result / cause fields
+    - gtpv2.cause
+    - gtpv2.seq_no
+    # Bearer / access context
+    - gtpv2.rat_type
+    - gtpv2.pdn_type
+    - gtpv2.uli_ecgi_eci
   s1ap:
     - s1ap.procedureCode
     - s1ap.MME_UE_S1AP_ID
     - s1ap.ENB_UE_S1AP_ID
     - s1ap.nas_pdu
+    # Failure cause
+    - s1ap.cause
+    - s1ap.causeGroup
   nas-eps:
     - nas_eps.emm.message_type
     - nas_eps.esm.message_type
     - nas_eps.imsi
     - nas_eps.msisdn
     - nas_eps.apn
+    # Reject / failure cause
+    - nas_eps.emm.cause
+    - nas_eps.esm.cause
   dns:
     - dns.qry.name
     - dns.a
     - dns.aaaa
     - dns.resp.name
+    - dns.flags.rcode
 reduced_transport_fields:
   - proto
   - src_port

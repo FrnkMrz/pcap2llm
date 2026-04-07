@@ -39,29 +39,43 @@ full_detail_fields:
     - pfcp.pdr_id
     - pfcp.far_id
     - pfcp.qer_id
+    # Result / cause fields
+    - pfcp.cause
+    - pfcp.sequence_number
+    - pfcp.offending_ie
   ngap:
     - ngap.procedureCode
     - ngap.AMF_UE_NGAP_ID
     - ngap.RAN_UE_NGAP_ID
     - ngap.nas_pdu
+    # Failure cause
+    - ngap.cause
+    - ngap.causeGroup
   nas-5gs:
     - nas_5gs.mm.message_type
     - nas_5gs.sm.message_type
     - nas_5gs.dnn
     - nas_5gs.suci
     - nas_5gs.5g_tmsi
+    # Reject / failure cause
+    - nas_5gs.mm.5gmm_cause
+    - nas_5gs.sm.5gsm_cause
   http:
     - http2.headers.method
     - http2.headers.path
     - http2.headers.authority
+    - http2.headers.status
+    - http2.headers.content_type
     - http.request.method
     - http.request.uri
     - http.host
+    - http.response.code
   dns:
     - dns.qry.name
     - dns.a
     - dns.aaaa
     - dns.resp.name
+    - dns.flags.rcode
 reduced_transport_fields:
   - proto
   - src_port

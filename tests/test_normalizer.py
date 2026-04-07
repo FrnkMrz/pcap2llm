@@ -122,12 +122,13 @@ nodes:
 """.strip(),
         encoding="utf-8",
     )
-    packets = normalize_packets(
+    packets, dropped = normalize_packets(
         _sample_packet(),
         resolver=EndpointResolver(mapping_file=mapping),
         profile=profile,
         privacy_modes=profile.default_privacy_modes,
     )
+    assert dropped == 0
     assert packets[0].top_protocol == "diameter"
     assert packets[0].src.alias == "MME_FRA_A"
     assert packets[0].transport.proto == "sctp"
@@ -158,12 +159,13 @@ nodes:
 """.strip(),
         encoding="utf-8",
     )
-    packets = normalize_packets(
+    packets, dropped = normalize_packets(
         _sample_5g_packet(),
         resolver=EndpointResolver(mapping_file=mapping),
         profile=profile,
         privacy_modes=profile.default_privacy_modes,
     )
+    assert dropped == 0
     assert packets[0].top_protocol == "pfcp"
     assert packets[0].src.alias == "SMF_CORE_1"
     assert packets[0].transport.proto == "udp"
@@ -194,12 +196,13 @@ nodes:
 """.strip(),
         encoding="utf-8",
     )
-    packets = normalize_packets(
+    packets, dropped = normalize_packets(
         _sample_2g3g_packet(),
         resolver=EndpointResolver(mapping_file=mapping),
         profile=profile,
         privacy_modes=profile.default_privacy_modes,
     )
+    assert dropped == 0
     assert packets[0].top_protocol == "map"
     assert packets[0].src.alias == "MSC_LEGACY_1"
     assert packets[0].transport.proto == "sctp"

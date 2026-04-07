@@ -59,7 +59,12 @@ class TSharkRunner:
         payload = result.stdout.strip()
         if not payload:
             return []
-        decoded = json.loads(payload)
+        try:
+            decoded = json.loads(payload)
+        except json.JSONDecodeError as exc:
+            raise TSharkError(
+                f"tshark output is not valid JSON: {exc}"
+            ) from exc
         if not isinstance(decoded, list):
-            raise TSharkError("Unexpected tshark JSON structure")
+            raise TSharkError("Unexpected tshark JSON structure (expected a list)")
         return decoded

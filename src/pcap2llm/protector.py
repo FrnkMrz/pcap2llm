@@ -55,6 +55,29 @@ class Protector:
         self._fernet = None
         self._key_source: str | None = None
 
+    def validate_vault_key(self) -> None:
+        """Fail fast if encrypt mode is requested but the key is invalid.
+
+        Call this before starting packet processing so the user gets a clear
+        error message rather than a crash mid-pipeline.
+        """
+        if "encrypt" not in self.modes.values():
+            return
+        try:
+            from cryptography.fernet import Fernet
+        except ImportError as exc:
+            raise ProtectionError(
+                "Encryption mode requires the optional 'cryptography' dependency."
+            ) from exc
+        key = os.getenv("PCAP2LLM_VAULT_KEY")
+        if key:
+            try:
+                Fernet(key.encode("utf-8"))
+            except Exception as exc:
+                raise ProtectionError(
+                    f"PCAP2LLM_VAULT_KEY is not a valid Fernet key: {exc}"
+                ) from exc
+
     def _load_fernet(self) -> Any:
         if self._fernet is not None:
             return self._fernet
@@ -68,7 +91,12 @@ class Protector:
         key = os.getenv("PCAP2LLM_VAULT_KEY")
         if key:
             self._key_source = "PCAP2LLM_VAULT_KEY"
-            self._fernet = Fernet(key.encode("utf-8"))
+            try:
+                self._fernet = Fernet(key.encode("utf-8"))
+            except Exception as exc:
+                raise ProtectionError(
+                    f"PCAP2LLM_VAULT_KEY is not a valid Fernet key: {exc}"
+                ) from exc
             return self._fernet
 
         generated = Fernet.generate_key()

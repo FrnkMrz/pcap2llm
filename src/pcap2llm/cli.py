@@ -196,6 +196,20 @@ def analyze_command(
     two_pass: bool | None = typer.Option(None, "--two-pass/--no-two-pass", help="Override tshark two-pass mode."),
     tshark_path: str = typer.Option("tshark", "--tshark-path", help="TShark executable path."),
     tshark_arg: list[str] = typer.Option(None, "--tshark-arg", help="Extra argument passed to tshark."),
+    max_packets: int = typer.Option(
+        1000,
+        "--max-packets",
+        help=(
+            "Maximum number of packets written to detail.json (default: 1000). "
+            "Inspection and summary always use the full capture. "
+            "Use --all-packets to remove the limit entirely."
+        ),
+    ),
+    all_packets: bool = typer.Option(
+        False,
+        "--all-packets",
+        help="Include every exported packet in detail.json, ignoring --max-packets.",
+    ),
     ip_mode: str | None = typer.Option(None, "--ip-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
     hostname_mode: str | None = typer.Option(None, "--hostname-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
     subscriber_id_mode: str | None = typer.Option(None, "--subscriber-id-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
@@ -234,6 +248,7 @@ def analyze_command(
     effective_hosts = hosts_file or (Path(config_data["hosts_file"]) if config_data.get("hosts_file") else None)
     effective_mapping = mapping_file or (Path(config_data["mapping_file"]) if config_data.get("mapping_file") else None)
     effective_filter = display_filter or config_data.get("display_filter")
+    effective_max_packets = 0 if all_packets else max_packets
 
     if dry_run:
         typer.echo(
@@ -242,6 +257,7 @@ def analyze_command(
                     "capture": str(capture),
                     "profile": profile.name,
                     "display_filter": effective_filter,
+                    "max_packets": effective_max_packets if effective_max_packets > 0 else "unlimited",
                     "privacy_modes": privacy_modes,
                     "hosts_file": str(effective_hosts) if effective_hosts else None,
                     "mapping_file": str(effective_mapping) if effective_mapping else None,
@@ -271,6 +287,7 @@ def analyze_command(
                 mapping_file=effective_mapping,
                 extra_args=extra_args,
                 two_pass=effective_two_pass,
+                max_packets=effective_max_packets,
                 on_stage=on_stage,
             )
     except (TSharkError, RuntimeError) as exc:

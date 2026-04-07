@@ -20,6 +20,9 @@ from pcap2llm.summarizer import build_markdown_summary, build_summary
 from pcap2llm.tshark_runner import TSharkRunner
 
 
+_DEFAULT_MAX_PACKETS = 1000
+
+
 def analyze_capture(
     capture_path: Path,
     *,
@@ -32,8 +35,16 @@ def analyze_capture(
     mapping_file: Path | None = None,
     extra_args: list[str] | None = None,
     two_pass: bool = False,
+    max_packets: int = _DEFAULT_MAX_PACKETS,
     on_stage: OnStage | None = None,
 ) -> AnalyzeArtifacts:
+    """Run the full analysis pipeline.
+
+    *max_packets* controls how many packets end up in ``detail.json``.
+    Inspection (metadata, anomaly detection) always runs on the full capture
+    so that ``summary.json`` remains accurate.  Pass ``max_packets=0`` to
+    include every exported packet in the detail output.
+    """
     def _step(msg: str, i: int) -> None:
         if on_stage:
             on_stage(msg, i, _ANALYZE_STEPS)
@@ -45,7 +56,9 @@ def analyze_capture(
         extra_args=extra_args,
         two_pass=two_pass,
     )
-    _step(f"Inspecting {len(raw_packets):,} packets…", 1)
+    total_exported = len(raw_packets)
+
+    _step(f"Inspecting {total_exported:,} packets…", 1)
     inspect_result = inspect_raw_packets(
         raw_packets,
         capture_path=capture_path,
@@ -59,9 +72,14 @@ def analyze_capture(
     protector = Protector(privacy_modes)
     protector.validate_vault_key()
 
-    _step("Normalizing packets…", 2)
+    # Apply the packet limit *after* inspection so summary stats stay accurate.
+    truncated = max_packets > 0 and total_exported > max_packets
+    detail_packets = raw_packets[:max_packets] if truncated else raw_packets
+
+    detail_label = f"{len(detail_packets):,}" if not truncated else f"{max_packets:,}/{total_exported:,}"
+    _step(f"Normalizing {detail_label} packets…", 2)
     normalized, dropped = normalize_packets(
-        raw_packets,
+        detail_packets,
         resolver=resolver,
         profile=profile,
         privacy_modes=privacy_modes,
@@ -78,6 +96,15 @@ def analyze_capture(
     )
     if dropped:
         summary["dropped_packets"] = dropped
+    if truncated:
+        summary["detail_truncated"] = {
+            "included": max_packets,
+            "total_exported": total_exported,
+            "note": (
+                f"detail.json contains only the first {max_packets:,} of "
+                f"{total_exported:,} packets. Use --all-packets to include all."
+            ),
+        }
     audit = protector.pseudonym_audit()
     if audit:
         summary["privacy_audit"] = {"pseudonymized_unique_values": audit}

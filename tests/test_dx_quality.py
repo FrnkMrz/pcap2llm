@@ -285,23 +285,25 @@ class TestPrivacyModeHelp:
 
     def test_all_mode_options_in_help(self) -> None:
         help_text = self._help_text()
-        expected_options = [
+        # Typer may truncate long option names with "…", so we check only
+        # an unambiguous prefix of each option name rather than the full string.
+        expected_prefixes = [
             "--ip-mode",
             "--hostname-mode",
             "--imsi-mode",
             "--imei-mode",
             "--msisdn-mode",
-            "--subscriber-id-mode",
+            "--subscriber-id-m",   # --subscriber-id-mode
             "--email-mode",
             "--dn-mode",
             "--token-mode",
             "--uri-mode",
             "--apn-dnn-mode",
-            "--diameter-identity-mode",
+            "--diameter-identity",  # --diameter-identity-mode (may be truncated)
             "--payload-text-mode",
         ]
-        for opt in expected_options:
-            assert opt in help_text, f"Expected '{opt}' in analyze --help output"
+        for prefix in expected_prefixes:
+            assert prefix in help_text, f"Expected '{prefix}' in analyze --help output"
 
     def test_mode_help_shows_valid_values(self) -> None:
         help_text = self._help_text()
@@ -313,3 +315,155 @@ class TestPrivacyModeHelp:
         assert "off" in help_text or "alias" in help_text, (
             "Privacy mode help should mention aliases (off=keep or redact=mask)"
         )
+
+
+# ---------------------------------------------------------------------------
+# --max-packets / --all-packets
+# ---------------------------------------------------------------------------
+
+class TestMaxPackets:
+    runner = CliRunner()
+
+    def _make_raw_packets(self, n: int) -> list[dict]:
+        return [_make_raw_packet(number=str(i)) for i in range(1, n + 1)]
+
+    def test_default_limits_to_1000(self, tmp_path: Path) -> None:
+        from pcap2llm.pipeline import _DEFAULT_MAX_PACKETS
+        assert _DEFAULT_MAX_PACKETS == 1000
+
+    def test_truncation_when_over_limit(self, tmp_path: Path) -> None:
+        from pcap2llm.normalizer import normalize_packets
+        from pcap2llm.pipeline import analyze_capture
+        from pcap2llm.resolver import EndpointResolver
+        from pcap2llm.tshark_runner import TSharkRunner
+        from unittest.mock import patch
+
+        profile = load_profile("lte-core")
+        runner = TSharkRunner()
+        capture = tmp_path / "sample.pcapng"
+        capture.write_bytes(b"fake")
+        raw = self._make_raw_packets(50)
+
+        with patch.object(runner, "export_packets", return_value=raw):
+            artifacts = analyze_capture(
+                capture,
+                out_dir=tmp_path / "out",
+                runner=runner,
+                profile=profile,
+                privacy_modes={},
+                max_packets=10,
+            )
+
+        assert len(artifacts.detail["selected_packets"]) == 10
+        trunc = artifacts.summary.get("detail_truncated")
+        assert trunc is not None
+        assert trunc["included"] == 10
+        assert trunc["total_exported"] == 50
+
+    def test_no_truncation_when_under_limit(self, tmp_path: Path) -> None:
+        from pcap2llm.pipeline import analyze_capture
+        from pcap2llm.tshark_runner import TSharkRunner
+        from unittest.mock import patch
+
+        profile = load_profile("lte-core")
+        runner = TSharkRunner()
+        capture = tmp_path / "sample.pcapng"
+        capture.write_bytes(b"fake")
+        raw = self._make_raw_packets(5)
+
+        with patch.object(runner, "export_packets", return_value=raw):
+            artifacts = analyze_capture(
+                capture,
+                out_dir=tmp_path / "out",
+                runner=runner,
+                profile=profile,
+                privacy_modes={},
+                max_packets=1000,
+            )
+
+        assert len(artifacts.detail["selected_packets"]) == 5
+        assert "detail_truncated" not in artifacts.summary
+
+    def test_all_packets_zero_means_unlimited(self, tmp_path: Path) -> None:
+        from pcap2llm.pipeline import analyze_capture
+        from pcap2llm.tshark_runner import TSharkRunner
+        from unittest.mock import patch
+
+        profile = load_profile("lte-core")
+        runner = TSharkRunner()
+        capture = tmp_path / "sample.pcapng"
+        capture.write_bytes(b"fake")
+        raw = self._make_raw_packets(20)
+
+        with patch.object(runner, "export_packets", return_value=raw):
+            artifacts = analyze_capture(
+                capture,
+                out_dir=tmp_path / "out",
+                runner=runner,
+                profile=profile,
+                privacy_modes={},
+                max_packets=0,  # unlimited
+            )
+
+        assert len(artifacts.detail["selected_packets"]) == 20
+        assert "detail_truncated" not in artifacts.summary
+
+    def test_inspect_uses_full_packet_count_even_when_truncated(self, tmp_path: Path) -> None:
+        """summary.json must reflect ALL packets, not just the truncated set."""
+        from pcap2llm.pipeline import analyze_capture
+        from pcap2llm.tshark_runner import TSharkRunner
+        from unittest.mock import patch
+
+        profile = load_profile("lte-core")
+        runner = TSharkRunner()
+        capture = tmp_path / "sample.pcapng"
+        capture.write_bytes(b"fake")
+        raw = self._make_raw_packets(30)
+
+        with patch.object(runner, "export_packets", return_value=raw):
+            artifacts = analyze_capture(
+                capture,
+                out_dir=tmp_path / "out",
+                runner=runner,
+                profile=profile,
+                privacy_modes={},
+                max_packets=5,
+            )
+
+        # The summary should know about all 30 packets
+        assert artifacts.summary["capture_metadata"]["packet_count"] == 30
+        # But detail only has 5
+        assert len(artifacts.detail["selected_packets"]) == 5
+
+    def test_cli_all_packets_flag(self, tmp_path: Path) -> None:
+        capture = tmp_path / "sample.pcap"
+        capture.write_bytes(b"fake")
+        result = self.runner.invoke(
+            app,
+            ["analyze", str(capture), "--profile", "lte-core", "--all-packets", "--dry-run"],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["max_packets"] == "unlimited"
+
+    def test_cli_custom_max_packets(self, tmp_path: Path) -> None:
+        capture = tmp_path / "sample.pcap"
+        capture.write_bytes(b"fake")
+        result = self.runner.invoke(
+            app,
+            ["analyze", str(capture), "--profile", "lte-core", "--max-packets", "500", "--dry-run"],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["max_packets"] == 500
+
+    def test_cli_default_max_packets_in_dry_run(self, tmp_path: Path) -> None:
+        capture = tmp_path / "sample.pcap"
+        capture.write_bytes(b"fake")
+        result = self.runner.invoke(
+            app,
+            ["analyze", str(capture), "--profile", "lte-core", "--dry-run"],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["max_packets"] == 1000

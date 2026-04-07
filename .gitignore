@@ -6,6 +6,10 @@ __pycache__/
 dist/
 build/
 *.egg-info/
-artifacts/
 vault.key
 *.log
+*.pcap
+*.pcapng
+artifacts/
+output/
+tmp/

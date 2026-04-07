@@ -91,6 +91,14 @@ class InspectResult(BaseModel):
     anomalies: list[str] = Field(default_factory=list)
 
 
+class PrivacyProfileDefinition(BaseModel):
+    """Standalone privacy policy: maps each data class to a protection mode."""
+
+    name: str
+    description: str = ""
+    modes: dict[str, str] = Field(default_factory=dict)
+
+
 class ProfileDefinition(BaseModel):
     name: str
     description: str
@@ -99,7 +107,13 @@ class ProfileDefinition(BaseModel):
     protocol_aliases: dict[str, list[str]] = Field(default_factory=dict)
     full_detail_fields: dict[str, list[str]] = Field(default_factory=dict)
     reduced_transport_fields: list[str] = Field(default_factory=list)
-    default_privacy_modes: dict[str, str] = Field(default_factory=dict)
+    default_privacy_modes: dict[str, str] | None = Field(
+        default=None,
+        description=(
+            "Deprecated: move privacy configuration to a dedicated privacy profile "
+            "and use --privacy-profile / privacy_profile in the config file."
+        ),
+    )
     tshark: dict[str, Any] = Field(default_factory=dict)
     summary_heuristics: list[str] = Field(default_factory=list)
     max_conversations: int = Field(

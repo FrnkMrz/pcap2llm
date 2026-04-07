@@ -45,4 +45,4 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-pcap2llm = ["profiles/*.yaml"]
+pcap2llm = ["profiles/*.yaml", "privacy_profiles/*.yaml"]

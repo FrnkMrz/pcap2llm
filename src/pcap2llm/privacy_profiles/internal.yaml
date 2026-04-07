@@ -1,0 +1,18 @@
+name: internal
+description: >
+  Internal analysis — all identifiers kept as-is.
+  Use only within a trusted, air-gapped environment.
+modes:
+  ip: keep
+  hostname: keep
+  subscriber_id: keep
+  msisdn: keep
+  imsi: keep
+  imei: keep
+  email: keep
+  distinguished_name: keep
+  token: keep
+  uri: keep
+  apn_dnn: keep
+  diameter_identity: keep
+  payload_text: keep

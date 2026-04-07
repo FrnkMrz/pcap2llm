@@ -1,11 +1,14 @@
+import warnings
+
 from pcap2llm.profiles import load_profile
+from pcap2llm.privacy_profiles import load_privacy_profile
 
 
 def test_load_lte_core_profile() -> None:
     profile = load_profile("lte-core")
     assert profile.name == "lte-core"
     assert "diameter" in profile.relevant_protocols
-    assert profile.default_privacy_modes["token"] == "remove"
+    assert profile.default_privacy_modes is None
 
 
 def test_load_5g_core_profile() -> None:

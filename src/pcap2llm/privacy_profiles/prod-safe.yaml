@@ -1,0 +1,18 @@
+name: prod-safe
+description: >
+  Maximum protection for production captures.
+  All PII pseudonymized or removed; IP addresses masked.
+modes:
+  ip: mask
+  hostname: mask
+  subscriber_id: pseudonymize
+  msisdn: pseudonymize
+  imsi: pseudonymize
+  imei: pseudonymize
+  email: remove
+  distinguished_name: pseudonymize
+  token: remove
+  uri: remove
+  apn_dnn: keep
+  diameter_identity: pseudonymize
+  payload_text: remove

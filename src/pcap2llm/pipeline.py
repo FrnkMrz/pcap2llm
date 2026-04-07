@@ -67,6 +67,9 @@ def analyze_capture(
     )
     resolver = EndpointResolver(hosts_file=hosts_file, mapping_file=mapping_file)
 
+    # Normalise privacy_modes so the rest of the pipeline always sees a dict.
+    privacy_modes = privacy_modes or {}
+
     # Validate the vault key before starting expensive packet processing so
     # the user gets a clear error rather than a crash mid-pipeline.
     protector = Protector(privacy_modes)

@@ -75,20 +75,6 @@ reduced_transport_fields:
   - sctp_stream
   - anomaly
   - notes
-default_privacy_modes:
-  ip: keep
-  hostname: keep
-  subscriber_id: pseudonymize
-  msisdn: pseudonymize
-  imsi: pseudonymize
-  imei: mask
-  email: mask
-  distinguished_name: pseudonymize
-  token: remove
-  uri: mask
-  apn_dnn: keep
-  diameter_identity: pseudonymize
-  payload_text: mask
 tshark:
   two_pass: false
   extra_args: []

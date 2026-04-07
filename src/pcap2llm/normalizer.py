@@ -285,7 +285,7 @@ def normalize_packets(
                     src=resolver.resolve(src_ip, service_port=transport.src_port),
                     dst=resolver.resolve(dst_ip, service_port=transport.dst_port),
                     transport=transport,
-                    privacy=PrivacySummary(modes=privacy_modes),
+                    privacy=PrivacySummary(modes=privacy_modes or {}),
                     anomalies=transport.notes,
                     message=MessageContext(
                         protocol=top_protocol,

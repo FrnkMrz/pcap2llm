@@ -117,10 +117,36 @@ def _privacy_overrides(
     }
 
 
-def _build_modes(config_data: dict, profile_defaults: dict[str, str], overrides: dict[str, str | None]) -> dict[str, str]:
-    merged = dict(config_data.get("privacy_modes", {}))
-    merged.update({key: value for key, value in overrides.items() if value is not None})
-    return build_privacy_modes(profile_defaults, merged)
+def _build_modes(
+    base: dict[str, str],
+    config_overrides: dict[str, str | None],
+    cli_overrides: dict[str, str | None],
+) -> dict[str, str]:
+    """Merge base → config overrides → CLI flags (highest priority wins)."""
+    combined_overrides: dict[str, str | None] = {}
+    combined_overrides.update({k: v for k, v in config_overrides.items() if v is not None})
+    combined_overrides.update({k: v for k, v in cli_overrides.items() if v is not None})
+    return build_privacy_modes(base, combined_overrides)
+
+
+def _resolve_privacy_base(
+    cli_privacy_profile: str | None,
+    config_data: dict,
+    analysis_profile,  # ProfileDefinition
+) -> dict[str, str]:
+    """Return the base privacy modes from the highest-priority source available."""
+    name = cli_privacy_profile or config_data.get("privacy_profile")
+    if name:
+        from pcap2llm.privacy_profiles import load_privacy_profile
+        return load_privacy_profile(name).modes
+    if analysis_profile.default_privacy_modes:
+        typer.echo(
+            f"Warning: analysis profile '{analysis_profile.name}' contains deprecated "
+            "'default_privacy_modes'. Migrate to --privacy-profile (e.g. --privacy-profile share).",
+            err=True,
+        )
+        return analysis_profile.default_privacy_modes
+    return {}
 
 
 @app.command("init-config")
@@ -187,6 +213,11 @@ def inspect_command(
 def analyze_command(
     capture: Path = typer.Argument(..., exists=True, readable=True, help="Input .pcap or .pcapng file."),
     profile_name: str = typer.Option("lte-core", "--profile", help="Protocol profile name."),
+    privacy_profile_name: str | None = typer.Option(
+        None,
+        "--privacy-profile",
+        help="Privacy profile name (built-in: internal, share, lab, prod-safe) or path to a YAML file.",
+    ),
     display_filter: str | None = typer.Option(None, "--display-filter", "-Y", help="TShark display filter."),
     config_path: Path | None = typer.Option(None, "--config", help="Optional YAML config file."),
     mapping_file: Path | None = typer.Option(None, "--mapping-file", help="Custom YAML/JSON alias mapping."),
@@ -244,7 +275,8 @@ def analyze_command(
         diameter_identity_mode,
         payload_text_mode,
     )
-    privacy_modes = _build_modes(config_data, profile.default_privacy_modes, overrides)
+    base_modes = _resolve_privacy_base(privacy_profile_name, config_data, profile)
+    privacy_modes = _build_modes(base_modes, config_data.get("privacy_modes", {}), overrides)
     effective_hosts = hosts_file or (Path(config_data["hosts_file"]) if config_data.get("hosts_file") else None)
     effective_mapping = mapping_file or (Path(config_data["mapping_file"]) if config_data.get("mapping_file") else None)
     effective_filter = display_filter or config_data.get("display_filter")
@@ -256,6 +288,7 @@ def analyze_command(
                 {
                     "capture": str(capture),
                     "profile": profile.name,
+                    "privacy_profile": privacy_profile_name or config_data.get("privacy_profile") or "(none — using defaults)",
                     "display_filter": effective_filter,
                     "max_packets": effective_max_packets if effective_max_packets > 0 else "unlimited",
                     "privacy_modes": privacy_modes,

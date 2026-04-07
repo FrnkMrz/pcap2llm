@@ -46,36 +46,37 @@ def load_config_file(path: Path | None) -> dict[str, Any]:
     return load_yaml_or_json(path)
 
 
-def build_privacy_modes(profile_defaults: dict[str, str], overrides: dict[str, str | None]) -> dict[str, str]:
+def build_privacy_modes(base: dict[str, str], overrides: dict[str, str | None]) -> dict[str, str]:
+    """Merge *base* modes with *overrides*, normalising every value."""
     modes: dict[str, str] = {}
     for data_class in DATA_CLASSES:
-        candidate = overrides.get(data_class, profile_defaults.get(data_class, ProtectionMode.KEEP.value))
+        candidate = overrides.get(data_class, base.get(data_class, ProtectionMode.KEEP.value))
         modes[data_class] = normalize_mode(candidate)
     return modes
 
 
 def sample_config_text() -> str:
-    sample = {
-        "profile": "lte-core",
-        "display_filter": None,
-        "hosts_file": "examples/wireshark_hosts.sample",
-        "mapping_file": "examples/mapping.sample.yaml",
-        "two_pass": False,
-        "tshark_extra_args": [],
-        "privacy_modes": {
-            "ip": "keep",
-            "hostname": "keep",
-            "subscriber_id": "pseudonymize",
-            "msisdn": "pseudonymize",
-            "imsi": "pseudonymize",
-            "imei": "mask",
-            "email": "mask",
-            "distinguished_name": "pseudonymize",
-            "token": "remove",
-            "uri": "mask",
-            "apn_dnn": "keep",
-            "diameter_identity": "pseudonymize",
-            "payload_text": "mask",
-        },
-    }
-    return yaml.safe_dump(sample, sort_keys=False)
+    lines = [
+        "# pcap2llm configuration",
+        "#",
+        "# Analysis profile: which protocols to extract and how.",
+        "# Built-in: lte-core | 5g-core | 2g3g-ss7-geran",
+        "profile: lte-core",
+        "",
+        "# Privacy profile: how sensitive data classes are treated.",
+        "# Built-in: internal | share | lab | prod-safe",
+        "privacy_profile: share",
+        "",
+        "display_filter:",
+        "hosts_file: examples/wireshark_hosts.sample",
+        "mapping_file: examples/mapping.sample.yaml",
+        "two_pass: false",
+        "tshark_extra_args: []",
+        "",
+        "# Optional per-run privacy overrides (supplement the privacy profile above).",
+        "# Uncomment only the classes you want to override:",
+        "# privacy_modes:",
+        "#   imsi: remove",
+        "#   token: remove",
+    ]
+    return "\n".join(lines) + "\n"

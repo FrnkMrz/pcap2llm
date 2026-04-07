@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import os
 import re
 from collections import defaultdict
@@ -51,9 +52,31 @@ class Protector:
     def __init__(self, modes: dict[str, str]) -> None:
         self.modes = {key: normalize_mode(value) for key, value in modes.items()}
         self.pseudonyms: dict[str, dict[str, str]] = defaultdict(dict)
-        self._counters: dict[str, int] = defaultdict(int)
         self._fernet = None
         self._key_source: str | None = None
+
+    def validate_vault_key(self) -> None:
+        """Fail fast if encrypt mode is requested but the key is invalid.
+
+        Call this before starting packet processing so the user gets a clear
+        error message rather than a crash mid-pipeline.
+        """
+        if "encrypt" not in self.modes.values():
+            return
+        try:
+            from cryptography.fernet import Fernet
+        except ImportError as exc:
+            raise ProtectionError(
+                "Encryption mode requires the optional 'cryptography' dependency."
+            ) from exc
+        key = os.getenv("PCAP2LLM_VAULT_KEY")
+        if key:
+            try:
+                Fernet(key.encode("utf-8"))
+            except Exception as exc:
+                raise ProtectionError(
+                    f"PCAP2LLM_VAULT_KEY is not a valid Fernet key: {exc}"
+                ) from exc
 
     def _load_fernet(self) -> Any:
         if self._fernet is not None:
@@ -68,7 +91,12 @@ class Protector:
         key = os.getenv("PCAP2LLM_VAULT_KEY")
         if key:
             self._key_source = "PCAP2LLM_VAULT_KEY"
-            self._fernet = Fernet(key.encode("utf-8"))
+            try:
+                self._fernet = Fernet(key.encode("utf-8"))
+            except Exception as exc:
+                raise ProtectionError(
+                    f"PCAP2LLM_VAULT_KEY is not a valid Fernet key: {exc}"
+                ) from exc
             return self._fernet
 
         generated = Fernet.generate_key()
@@ -81,8 +109,13 @@ class Protector:
         existing = self.pseudonyms[data_class].get(original)
         if existing:
             return existing
-        self._counters[data_class] += 1
-        alias = f"{data_class.upper()}_{self._counters[data_class]:04d}"
+        # Hash-based pseudonym: stable across runs, no counter collisions.
+        # BLAKE2s with 4-byte digest gives a 8-character hex suffix; the
+        # 2^32 space comfortably covers realistic subscriber counts.
+        h = hashlib.blake2s(
+            f"{data_class}:{original}".encode("utf-8"), digest_size=4
+        ).hexdigest()
+        alias = f"{data_class.upper()}_{h}"
         self.pseudonyms[data_class][original] = alias
         return alias
 
@@ -130,3 +163,7 @@ class Protector:
                 "Keep the local vault key private; without it the values are not recoverable.",
             ],
         }
+
+    def pseudonym_audit(self) -> dict[str, int]:
+        """Return the number of unique values pseudonymized per data class."""
+        return {cls: len(mapping) for cls, mapping in self.pseudonyms.items() if mapping}

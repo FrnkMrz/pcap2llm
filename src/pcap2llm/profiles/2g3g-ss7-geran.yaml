@@ -1,0 +1,132 @@
+name: 2g3g-ss7-geran
+description: 2G/3G legacy mobile troubleshooting profile for SS7 signaling and GERAN access, without UTRAN.
+relevant_protocols:
+  - map
+  - cap
+  - isup
+  - bssap
+  - gsm_a.dtap
+  - tcap
+  - sccp
+  - m3ua
+  - dns
+top_protocol_priority:
+  - map
+  - cap
+  - isup
+  - bssap
+  - gsm_a.dtap
+  - tcap
+  - sccp
+  - m3ua
+  - dns
+  - sctp
+  - tcp
+  - udp
+  - ip
+protocol_aliases:
+  map: [gsm_map, map]
+  cap: [camel, cap]
+  isup: [isup]
+  bssap: [bssap]
+  gsm_a.dtap: [gsm_a.dtap, gsm_dtap, dtap]
+  tcap: [tcap]
+  sccp: [sccp]
+  m3ua: [m3ua]
+  dns: [dns]
+  sctp: [sctp]
+  tcp: [tcp]
+  udp: [udp]
+  ip: [ip, ipv6]
+full_detail_fields:
+  map:
+    - gsm_map.localValue
+    - gsm_map.imsi
+    - gsm_map.msisdn
+    - e164.msisdn
+    - e212.imsi
+    # Error / operation context
+    - gsm_map.error_code
+    - gsm_map.sm_rp_da
+    - gsm_map.sm_rp_oa
+  cap:
+    - camel.local.arg.operationCode
+    - e164.msisdn
+    - e212.imsi
+    # CAMEL operation detail
+    - camel.operationCode
+    - camel.returnError_element
+  isup:
+    - isup.message_type
+    - e164.called_party_number.digits
+    - e164.calling_party_number.digits
+    # Release cause
+    - isup.cause_indicator
+    - isup.cause_value
+  bssap:
+    - bssap.pdu_type
+    - bssap.message_type
+    - gsm_a.imsi
+    - e212.imsi
+    - e164.msisdn
+    # Reject cause
+    - gsm_a.rr.cause
+    - gsm_a.rr.RR_cause
+  gsm_a.dtap:
+    - gsm_a.dtap.msg_mm_type
+    - gsm_a.dtap.msg_rr_type
+    - gsm_a.imsi
+    - e212.imsi
+    - e164.msisdn
+    # Reject cause
+    - gsm_a.dtap.rej_cause
+  tcap:
+    - tcap.tid
+    - tcap.oid
+    # Application Context Name (determines MAP/CAP operation set)
+    - tcap.acn
+    - tcap.abort_reason
+  sccp:
+    - sccp.called.digits
+    - sccp.calling.digits
+    - sccp.message_type
+    # Return cause for error messages
+    - sccp.return_cause
+  m3ua:
+    - m3ua.message_class
+    - m3ua.message_type
+    - m3ua.error_code
+  dns:
+    - dns.qry.name
+    - dns.a
+    - dns.aaaa
+    - dns.resp.name
+    - dns.flags.rcode
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - sctp_stream
+  - anomaly
+  - notes
+default_privacy_modes:
+  ip: keep
+  hostname: keep
+  subscriber_id: pseudonymize
+  msisdn: pseudonymize
+  imsi: pseudonymize
+  imei: mask
+  email: mask
+  distinguished_name: pseudonymize
+  token: remove
+  uri: mask
+  apn_dnn: keep
+  diameter_identity: pseudonymize
+  payload_text: mask
+tshark:
+  two_pass: false
+  extra_args: []
+summary_heuristics:
+  - Flag SCCP or SCTP transport anomalies and highlight repeated MAP, CAP, or ISUP transaction patterns.
+  - Highlight legacy signaling mixes dominated by MAP, CAP, ISUP, BSSAP, or DTAP over SS7/M3UA.

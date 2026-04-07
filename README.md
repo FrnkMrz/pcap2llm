@@ -1,6 +1,6 @@
 # pcap2llm
 
-`pcap2llm` converts `.pcap` and `.pcapng` captures into compact, LLM-friendly artifacts for telecom troubleshooting. The initial profile targets LTE / EPC workflows and is designed so later 5G core profiles can slot in without reworking the CLI or data model.
+`pcap2llm` converts `.pcap` and `.pcapng` captures into compact, LLM-friendly artifacts for telecom troubleshooting. It ships with profile-driven workflows for LTE / EPC, 5G core, and legacy 2G/3G SS7 plus GERAN analysis without reworking the CLI or data model.
 
 ## Deutsch
 
@@ -137,11 +137,23 @@ Profiles are YAML-driven and define:
 The repository ships with:
 
 - `lte-core`
+- `5g-core`
+- `2g3g-ss7-geran`
+
+Recommended profile selection:
+
+- `lte-core`: LTE / EPC with Diameter, GTPv2-C, S1AP, and NAS-EPS
+- `5g-core`: 5G core with PFCP, NGAP, NAS-5GS, and HTTP/2 SBI
+- `2g3g-ss7-geran`: legacy 2G/3G signaling with SS7, MAP, CAP, ISUP, BSSAP, and GERAN, without UTRAN
 
 Profile references live in both:
 
 - [`profiles/lte-core.yaml`](/Users/frank/Library/Mobile Documents/com~apple~CloudDocs/GitHub/pcap4llm/profiles/lte-core.yaml)
+- [`profiles/5g-core.yaml`](/Users/frank/Library/Mobile Documents/com~apple~CloudDocs/GitHub/pcap4llm/profiles/5g-core.yaml)
+- [`profiles/2g3g-ss7-geran.yaml`](/Users/frank/Library/Mobile Documents/com~apple~CloudDocs/GitHub/pcap4llm/profiles/2g3g-ss7-geran.yaml)
 - [`src/pcap2llm/profiles/lte-core.yaml`](/Users/frank/Library/Mobile Documents/com~apple~CloudDocs/GitHub/pcap4llm/src/pcap2llm/profiles/lte-core.yaml)
+- [`src/pcap2llm/profiles/5g-core.yaml`](/Users/frank/Library/Mobile Documents/com~apple~CloudDocs/GitHub/pcap4llm/src/pcap2llm/profiles/5g-core.yaml)
+- [`src/pcap2llm/profiles/2g3g-ss7-geran.yaml`](/Users/frank/Library/Mobile Documents/com~apple~CloudDocs/GitHub/pcap4llm/src/pcap2llm/profiles/2g3g-ss7-geran.yaml)
 
 ## Normalized Schema
 

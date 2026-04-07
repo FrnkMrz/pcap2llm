@@ -1,0 +1,106 @@
+name: 5g-core
+description: 5G core troubleshooting profile for PFCP, NGAP, NAS-5GS, HTTP/2 SBI, DNS, and TLS.
+relevant_protocols:
+  - pfcp
+  - ngap
+  - nas-5gs
+  - http
+  - dns
+  - tls
+top_protocol_priority:
+  - pfcp
+  - ngap
+  - nas-5gs
+  - http
+  - dns
+  - tls
+  - sctp
+  - tcp
+  - udp
+  - ip
+protocol_aliases:
+  pfcp: [pfcp]
+  ngap: [ngap]
+  nas-5gs: [nas-5gs, nas_5gs]
+  http: [http2, http]
+  dns: [dns]
+  tls: [tls, ssl]
+  sctp: [sctp]
+  tcp: [tcp]
+  udp: [udp]
+  ip: [ip, ipv6]
+full_detail_fields:
+  pfcp:
+    - pfcp.message_type
+    - pfcp.seid
+    - pfcp.node_id
+    - pfcp.f_seid_ipv4
+    - pfcp.f_seid_ipv6
+    - pfcp.pdr_id
+    - pfcp.far_id
+    - pfcp.qer_id
+    # Result / cause fields
+    - pfcp.cause
+    - pfcp.sequence_number
+    - pfcp.offending_ie
+  ngap:
+    - ngap.procedureCode
+    - ngap.AMF_UE_NGAP_ID
+    - ngap.RAN_UE_NGAP_ID
+    - ngap.nas_pdu
+    # Failure cause
+    - ngap.cause
+    - ngap.causeGroup
+  nas-5gs:
+    - nas_5gs.mm.message_type
+    - nas_5gs.sm.message_type
+    - nas_5gs.dnn
+    - nas_5gs.suci
+    - nas_5gs.5g_tmsi
+    # Reject / failure cause
+    - nas_5gs.mm.5gmm_cause
+    - nas_5gs.sm.5gsm_cause
+  http:
+    - http2.headers.method
+    - http2.headers.path
+    - http2.headers.authority
+    - http2.headers.status
+    - http2.headers.content_type
+    - http.request.method
+    - http.request.uri
+    - http.host
+    - http.response.code
+  dns:
+    - dns.qry.name
+    - dns.a
+    - dns.aaaa
+    - dns.resp.name
+    - dns.flags.rcode
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - sctp_stream
+  - anomaly
+  - notes
+default_privacy_modes:
+  ip: keep
+  hostname: keep
+  subscriber_id: pseudonymize
+  msisdn: pseudonymize
+  imsi: pseudonymize
+  imei: mask
+  email: mask
+  distinguished_name: pseudonymize
+  token: remove
+  uri: mask
+  apn_dnn: keep
+  diameter_identity: pseudonymize
+  payload_text: mask
+tshark:
+  two_pass: false
+  extra_args: []
+summary_heuristics:
+  - Flag PFCP session churn, retransmissions, and transport analysis warnings as notable findings.
+  - Highlight captures dominated by PFCP, NGAP, NAS-5GS, or HTTP/2 SBI traffic.

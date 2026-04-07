@@ -38,14 +38,19 @@ def analyze_capture(
         profile=profile,
     )
     resolver = EndpointResolver(hosts_file=hosts_file, mapping_file=mapping_file)
-    normalized = normalize_packets(
+
+    # Validate the vault key before starting expensive packet processing so
+    # the user gets a clear error rather than a crash mid-pipeline.
+    protector = Protector(privacy_modes)
+    protector.validate_vault_key()
+
+    normalized, dropped = normalize_packets(
         raw_packets,
         resolver=resolver,
         profile=profile,
         privacy_modes=privacy_modes,
     )
     reduced = reduce_packets(normalized, profile)
-    protector = Protector(privacy_modes)
     protected_packets = protector.protect_packets(reduced)
     summary = build_summary(
         inspect_result,
@@ -53,6 +58,11 @@ def analyze_capture(
         profile=profile,
         privacy_modes=privacy_modes,
     )
+    if dropped:
+        summary["dropped_packets"] = dropped
+    audit = protector.pseudonym_audit()
+    if audit:
+        summary["privacy_audit"] = {"pseudonymized_unique_values": audit}
     mapping_filename = "pseudonym_mapping.json" if protector.pseudonyms else None
     vault_filename = "vault.json" if protector.vault_metadata() else None
     markdown = build_markdown_summary(
@@ -74,24 +84,31 @@ def analyze_capture(
 
 
 def write_artifacts(artifacts: AnalyzeArtifacts, out_dir: Path) -> dict[str, Path]:
-    out_dir.mkdir(parents=True, exist_ok=True)
-    outputs = {
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise RuntimeError(f"Cannot create output directory '{out_dir}': {exc}") from exc
+
+    outputs: dict[str, Path] = {
         "summary": out_dir / "summary.json",
         "detail": out_dir / "detail.json",
         "markdown": out_dir / "summary.md",
     }
-    outputs["summary"].write_text(json.dumps(artifacts.summary, indent=2), encoding="utf-8")
-    outputs["detail"].write_text(json.dumps(artifacts.detail, indent=2), encoding="utf-8")
-    outputs["markdown"].write_text(artifacts.markdown, encoding="utf-8")
-    if artifacts.pseudonym_mapping:
-        mapping_path = out_dir / "pseudonym_mapping.json"
-        mapping_path.write_text(
-            json.dumps(artifacts.pseudonym_mapping, indent=2),
-            encoding="utf-8",
-        )
-        outputs["mapping"] = mapping_path
-    if artifacts.vault:
-        vault_path = out_dir / "vault.json"
-        vault_path.write_text(json.dumps(artifacts.vault, indent=2), encoding="utf-8")
-        outputs["vault"] = vault_path
+    try:
+        outputs["summary"].write_text(json.dumps(artifacts.summary, indent=2), encoding="utf-8")
+        outputs["detail"].write_text(json.dumps(artifacts.detail, indent=2), encoding="utf-8")
+        outputs["markdown"].write_text(artifacts.markdown, encoding="utf-8")
+        if artifacts.pseudonym_mapping:
+            mapping_path = out_dir / "pseudonym_mapping.json"
+            mapping_path.write_text(
+                json.dumps(artifacts.pseudonym_mapping, indent=2),
+                encoding="utf-8",
+            )
+            outputs["mapping"] = mapping_path
+        if artifacts.vault:
+            vault_path = out_dir / "vault.json"
+            vault_path.write_text(json.dumps(artifacts.vault, indent=2), encoding="utf-8")
+            outputs["vault"] = vault_path
+    except OSError as exc:
+        raise RuntimeError(f"Failed to write artifacts to '{out_dir}': {exc}") from exc
     return outputs

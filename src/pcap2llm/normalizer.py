@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import logging
 from collections import Counter
 from pathlib import Path
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
+from pcap2llm.app_anomaly import detect_app_anomalies
 from pcap2llm.models import CaptureMetadata, InspectResult, MessageContext, NormalizedPacket
 from pcap2llm.models import PrivacySummary, ProfileDefinition, TransportContext
 from pcap2llm.resolver import EndpointResolver
@@ -162,24 +166,30 @@ def inspect_raw_packets(
     raw_protocols: set[str] = set()
 
     for packet in raw_packets:
-        layers = _layer_dict(packet)
-        protocols = _frame_protocols(layers)
-        raw_protocols.update(protocols)
-        top_protocol = pick_top_protocol(layers, profile)
-        protocol_counts[top_protocol] += 1
-        if top_protocol in profile.relevant_protocols:
-            relevant_protocols.add(top_protocol)
-        transport = _extract_transport(layers)
-        transport_counts[transport.proto or "unknown"] += 1
-        src_ip, dst_ip = _extract_ip_pair(layers)
-        conversations[(transport.proto or "unknown", str(src_ip), str(dst_ip), top_protocol)] += 1
-        frame_time = _field(layers, "frame.time_epoch")
-        if first_seen is None:
-            first_seen = str(frame_time) if frame_time is not None else None
-        last_seen = str(frame_time) if frame_time is not None else last_seen
-        if transport.anomaly:
-            packet_no = _field(layers, "frame.number")
-            anomalies.append(f"Packet {packet_no}: {', '.join(transport.notes) or 'transport anomaly'}")
+        try:
+            layers = _layer_dict(packet)
+            protocols = _frame_protocols(layers)
+            raw_protocols.update(protocols)
+            top_protocol = pick_top_protocol(layers, profile)
+            protocol_counts[top_protocol] += 1
+            if top_protocol in profile.relevant_protocols:
+                relevant_protocols.add(top_protocol)
+            transport = _extract_transport(layers)
+            transport_counts[transport.proto or "unknown"] += 1
+            src_ip, dst_ip = _extract_ip_pair(layers)
+            conversations[(transport.proto or "unknown", str(src_ip), str(dst_ip), top_protocol)] += 1
+            frame_time = _field(layers, "frame.time_epoch")
+            if first_seen is None:
+                first_seen = str(frame_time) if frame_time is not None else None
+            last_seen = str(frame_time) if frame_time is not None else last_seen
+            if transport.anomaly:
+                packet_no = _field(layers, "frame.number")
+                anomalies.append(f"Packet {packet_no}: {', '.join(transport.notes) or 'transport anomaly'}")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Skipping malformed packet during inspection: %s", exc)
+
+    # Application-layer anomaly detection (stateful, runs over all packets)
+    anomalies.extend(detect_app_anomalies(raw_packets, profile.name))
 
     conversation_rows = [
         {
@@ -215,30 +225,47 @@ def normalize_packets(
     resolver: EndpointResolver,
     profile: ProfileDefinition,
     privacy_modes: dict[str, str],
-) -> list[NormalizedPacket]:
+) -> tuple[list[NormalizedPacket], int]:
+    """Normalize raw tshark packets into :class:`NormalizedPacket` objects.
+
+    Returns a tuple of ``(normalized_packets, dropped_count)`` where
+    ``dropped_count`` is the number of packets that could not be processed due
+    to unexpected structure.  A warning is logged for each dropped packet.
+    """
     normalized: list[NormalizedPacket] = []
+    dropped = 0
 
     for packet in raw_packets:
-        layers = _layer_dict(packet)
-        top_protocol = pick_top_protocol(layers, profile)
-        src_ip, dst_ip = _extract_ip_pair(layers)
-        normalized.append(
-            NormalizedPacket(
-                packet_no=_maybe_int(_field(layers, "frame.number")) or 0,
-                time_rel_ms=_maybe_float(_field(layers, "frame.time_relative")),
-                time_epoch=str(_field(layers, "frame.time_epoch") or ""),
-                top_protocol=top_protocol,
-                frame_protocols=_frame_protocols(layers),
-                src=resolver.resolve(src_ip),
-                dst=resolver.resolve(dst_ip),
-                transport=_extract_transport(layers),
-                privacy=PrivacySummary(modes=privacy_modes),
-                anomalies=_extract_transport(layers).notes,
-                message=MessageContext(
-                    protocol=top_protocol,
-                    fields=_retain_message_fields(layers, profile, top_protocol),
-                ),
+        try:
+            layers = _layer_dict(packet)
+            top_protocol = pick_top_protocol(layers, profile)
+            src_ip, dst_ip = _extract_ip_pair(layers)
+            transport = _extract_transport(layers)
+            normalized.append(
+                NormalizedPacket(
+                    packet_no=_maybe_int(_field(layers, "frame.number")) or 0,
+                    time_rel_ms=_maybe_float(_field(layers, "frame.time_relative")),
+                    time_epoch=str(_field(layers, "frame.time_epoch") or ""),
+                    top_protocol=top_protocol,
+                    frame_protocols=_frame_protocols(layers),
+                    src=resolver.resolve(src_ip, service_port=transport.src_port),
+                    dst=resolver.resolve(dst_ip, service_port=transport.dst_port),
+                    transport=transport,
+                    privacy=PrivacySummary(modes=privacy_modes),
+                    anomalies=transport.notes,
+                    message=MessageContext(
+                        protocol=top_protocol,
+                        fields=_retain_message_fields(layers, profile, top_protocol),
+                    ),
+                )
             )
-        )
+        except Exception as exc:  # noqa: BLE001
+            dropped += 1
+            try:
+                src = packet.get("_source") or {}
+                pkt_no = (src.get("layers") or {}).get("frame.number", "?") if isinstance(src, dict) else "?"
+            except Exception:  # noqa: BLE001
+                pkt_no = "?"
+            logger.warning("Dropping malformed packet %s: %s", pkt_no, exc)
 
-    return normalized
+    return normalized, dropped

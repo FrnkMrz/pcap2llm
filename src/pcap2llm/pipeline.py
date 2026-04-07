@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 from pcap2llm.models import AnalyzeArtifacts, ProfileDefinition
@@ -63,6 +65,16 @@ def analyze_capture(
     audit = protector.pseudonym_audit()
     if audit:
         summary["privacy_audit"] = {"pseudonymized_unique_values": audit}
+
+    # Processing fingerprint – aids reproducibility and audit
+    summary["schema_version"] = "0.1"
+    summary["generated_at"] = datetime.now(timezone.utc).isoformat()
+    try:
+        sha256 = hashlib.sha256(capture_path.read_bytes()).hexdigest()
+        summary["capture_sha256"] = sha256
+    except OSError:
+        pass  # PCAP may not be accessible after export (e.g. stdin pipe)
+
     mapping_filename = "pseudonym_mapping.json" if protector.pseudonyms else None
     vault_filename = "vault.json" if protector.vault_metadata() else None
     markdown = build_markdown_summary(
@@ -74,6 +86,7 @@ def analyze_capture(
     return AnalyzeArtifacts(
         summary=summary,
         detail={
+            "schema_version": "0.1",
             "profile": profile.name,
             "selected_packets": protected_packets,
         },

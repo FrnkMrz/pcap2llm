@@ -102,6 +102,10 @@ class ProfileDefinition(BaseModel):
     default_privacy_modes: dict[str, str] = Field(default_factory=dict)
     tshark: dict[str, Any] = Field(default_factory=dict)
     summary_heuristics: list[str] = Field(default_factory=list)
+    max_conversations: int = Field(
+        default=25,
+        description="Maximum number of conversation rows kept in InspectResult.",
+    )
 
 
 class AnalyzeArtifacts(BaseModel):

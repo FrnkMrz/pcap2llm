@@ -14,8 +14,11 @@ pip install -e .[dev]
 # With encryption support
 pip install -e .[dev,encrypt]
 
-# Run tests
+# Run all tests
 pytest
+
+# Run a single test file
+pytest tests/test_pipeline.py -v
 
 # Lint
 ruff check .
@@ -37,18 +40,22 @@ pcap2llm init-config
 5. **Protection** (`protector.py`) — applies privacy modes (keep/mask/pseudonymize/encrypt/remove) per data class using heuristic field classification
 6. **Summarization** (`summarizer.py`) — builds summary JSON and markdown report
 
-**Profiles** (`src/pcap2llm/profiles/*.yaml`) define which protocols to extract, field priorities, privacy defaults, and TShark options. Three built-in: `lte-core`, `5g-core`, `2g3g-ss7-geran`.
+**App-layer anomaly detection** (`app_anomaly.py`) — runs after per-packet inspection; detects Diameter and GTPv2-C state anomalies (unanswered requests, error codes, Error Indications).
 
-**Data models** (`models.py`) use Pydantic v2. Key types: `NormalizedPacket`, `InspectResult`, `ProfileDefinition`, `AnalyzeArtifacts`.
+**Profiles** (`src/pcap2llm/profiles/*.yaml`) define which protocols to extract, field priorities, privacy defaults, and TShark options. Three built-in: `lte-core`, `5g-core`, `2g3g-ss7-geran`. Custom profiles: see `docs/PROFILES.md`.
 
-**CLI** (`cli.py`) uses Typer with three commands: `inspect`, `analyze`, `init-config`.
+**Data models** (`models.py`) use Pydantic v2. Key types: `NormalizedPacket`, `InspectResult`, `ProfileDefinition`, `AnalyzeArtifacts`. `ProfileDefinition.max_conversations` (default 25) controls the conversation table size.
 
-**Endpoint resolution** (`resolver.py`) supports Wireshark hosts files and custom YAML/JSON mapping files for IP→alias/role/site enrichment.
+**CLI** (`cli.py`) uses Typer with three commands: `inspect`, `analyze`, `init-config`. Exit code 1 on all errors; error text goes to stderr.
+
+**Endpoint resolution** (`resolver.py`) supports Wireshark hosts files and custom YAML/JSON mapping files. Lookup order: exact IP → case-insensitive hostname → CIDR subnet → port-based role inference.
 
 ## Key Design Decisions
 
 - Profile YAML drives protocol selection and privacy — extending protocols means editing profiles, not code
 - Privacy operates on 13 data classes (ip, hostname, imsi, msisdn, etc.) with per-class mode selection
-- Encryption uses `cryptography.fernet` with key from `PCAP2LLM_VAULT_KEY` env var
-- TShark field extraction handles both flat and nested JSON structures for resilience across TShark versions
+- Pseudonyms are **hash-based** (BLAKE2s) — stable across runs, format: `IMSI_a3f2b1c4`
+- Encryption uses `cryptography.fernet` with key from `PCAP2LLM_VAULT_KEY` env var; validated early via `Protector.validate_vault_key()` before packet processing begins
+- `normalize_packets()` returns `(packets, dropped_count)` — malformed packets are logged and skipped
+- `summary.json` always contains `schema_version`, `generated_at`, and `capture_sha256`
 - All processing is local; no remote transmission

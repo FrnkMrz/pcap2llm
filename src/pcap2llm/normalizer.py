@@ -12,22 +12,46 @@ from pcap2llm.models import CaptureMetadata, InspectResult, MessageContext, Norm
 from pcap2llm.models import PrivacySummary, ProfileDefinition, TransportContext
 from pcap2llm.resolver import EndpointResolver
 
+# Fallback transport protocol order used when no profile priority matches.
+# Kept as a single constant to avoid duplication across functions.
+_TRANSPORT_FALLBACK: tuple[str, ...] = ("sctp", "tcp", "udp", "ip", "ipv6")
 
-def _flatten(value: Any) -> Any:
+
+def _flatten(value: Any, _seen: frozenset[int] | None = None) -> Any:
+    """Recursively unwrap single-element lists and normalise nested dicts.
+
+    Single-item lists are collapsed to their sole element so callers can treat
+    TShark fields uniformly.  A *_seen* set of object IDs prevents infinite
+    recursion on circular structures.
+    """
+    if _seen is None:
+        _seen = frozenset()
+    obj_id = id(value)
+    if obj_id in _seen:
+        return "<circular>"
     if isinstance(value, list):
+        child_seen = _seen | {obj_id}
         if len(value) == 1:
-            return _flatten(value[0])
-        return [_flatten(item) for item in value]
+            return _flatten(value[0], child_seen)
+        return [_flatten(item, child_seen) for item in value]
     if isinstance(value, dict):
-        return {key: _flatten(item) for key, item in value.items()}
+        child_seen = _seen | {obj_id}
+        return {key: _flatten(item, child_seen) for key, item in value.items()}
     return value
 
 
 def _layer_dict(packet: dict[str, Any]) -> dict[str, Any]:
+    """Extract the ``_source.layers`` dict from a raw TShark packet object."""
     return packet.get("_source", {}).get("layers", {})
 
 
 def _field(layers: dict[str, Any], key: str) -> Any:
+    """Look up *key* in *layers*, trying both flat and nested access patterns.
+
+    TShark can emit fields either at the top level of the layers dict or nested
+    under the protocol prefix (e.g. ``{"ip.src": "…"}`` vs
+    ``{"ip": {"ip.src": "…"}}``).  Both layouts are checked.
+    """
     value = layers.get(key)
     if value is None and "." in key:
         layer_name = key.split(".", 1)[0]
@@ -38,6 +62,7 @@ def _field(layers: dict[str, Any], key: str) -> Any:
 
 
 def _maybe_int(value: Any) -> int | None:
+    """Convert *value* to ``int``, returning ``None`` for empty or invalid input."""
     try:
         if value in (None, ""):
             return None
@@ -47,6 +72,7 @@ def _maybe_int(value: Any) -> int | None:
 
 
 def _maybe_float(value: Any) -> float | None:
+    """Convert *value* to ``float``, returning ``None`` for empty or invalid input."""
     try:
         if value in (None, ""):
             return None
@@ -56,6 +82,7 @@ def _maybe_float(value: Any) -> float | None:
 
 
 def _frame_protocols(layers: dict[str, Any]) -> list[str]:
+    """Return the colon-separated protocol stack from ``frame.protocols``."""
     value = _field(layers, "frame.protocols")
     if isinstance(value, str):
         return [part for part in value.split(":") if part]
@@ -63,17 +90,24 @@ def _frame_protocols(layers: dict[str, Any]) -> list[str]:
 
 
 def _candidate_layers(profile: ProfileDefinition, protocol: str) -> list[str]:
+    """Return all TShark layer names that map to *protocol* in the profile."""
     return profile.protocol_aliases.get(protocol, [protocol])
 
 
 def pick_top_protocol(layers: dict[str, Any], profile: ProfileDefinition) -> str:
+    """Determine the most-significant application protocol for a packet.
+
+    Priority is resolved against :attr:`ProfileDefinition.top_protocol_priority`.
+    If no profile protocol matches, the highest-layer transport protocol from
+    :data:`_TRANSPORT_FALLBACK` is returned.  Falls back to ``"unknown"``.
+    """
     frame_protocols = set(_frame_protocols(layers))
     layer_names = set(layers.keys())
     for protocol in profile.top_protocol_priority:
         for candidate in _candidate_layers(profile, protocol):
             if candidate in frame_protocols or candidate in layer_names:
                 return protocol
-    for fallback in ("sctp", "tcp", "udp", "ip", "ipv6"):
+    for fallback in _TRANSPORT_FALLBACK:
         if fallback in frame_protocols or fallback in layer_names:
             return "ip" if fallback == "ipv6" else fallback
     return "unknown"
@@ -199,7 +233,7 @@ def inspect_raw_packets(
             "top_protocol": top,
             "packet_count": count,
         }
-        for (proto, src, dst, top), count in conversations.most_common(25)
+        for (proto, src, dst, top), count in conversations.most_common(profile.max_conversations)
     ]
     metadata = CaptureMetadata(
         capture_file=str(capture_path),

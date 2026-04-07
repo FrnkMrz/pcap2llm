@@ -29,6 +29,9 @@ def main(
     _configure_logging(verbose, debug)
 
 
+_MODE_HELP = "Privacy mode: keep | mask | pseudonymize | encrypt | remove  (alias: off=keep, redact=mask)"
+
+
 def _privacy_overrides(
     ip_mode: str | None,
     hostname_mode: str | None,
@@ -114,7 +117,8 @@ def inspect_command(
             two_pass=effective_two_pass,
         )
     except TSharkError as exc:
-        raise typer.Exit(str(exc)) from exc
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
     payload = json.dumps(result.model_dump(), indent=2)
     if out:
         out.write_text(payload, encoding="utf-8")
@@ -136,19 +140,19 @@ def analyze_command(
     two_pass: bool | None = typer.Option(None, "--two-pass/--no-two-pass", help="Override tshark two-pass mode."),
     tshark_path: str = typer.Option("tshark", "--tshark-path", help="TShark executable path."),
     tshark_arg: list[str] = typer.Option(None, "--tshark-arg", help="Extra argument passed to tshark."),
-    ip_mode: str | None = typer.Option(None, "--ip-mode", callback=lambda value: normalize_mode(value) if value else None),
-    hostname_mode: str | None = typer.Option(None, "--hostname-mode", callback=lambda value: normalize_mode(value) if value else None),
-    subscriber_id_mode: str | None = typer.Option(None, "--subscriber-id-mode", callback=lambda value: normalize_mode(value) if value else None),
-    msisdn_mode: str | None = typer.Option(None, "--msisdn-mode", callback=lambda value: normalize_mode(value) if value else None),
-    imsi_mode: str | None = typer.Option(None, "--imsi-mode", callback=lambda value: normalize_mode(value) if value else None),
-    imei_mode: str | None = typer.Option(None, "--imei-mode", callback=lambda value: normalize_mode(value) if value else None),
-    email_mode: str | None = typer.Option(None, "--email-mode", callback=lambda value: normalize_mode(value) if value else None),
-    dn_mode: str | None = typer.Option(None, "--dn-mode", callback=lambda value: normalize_mode(value) if value else None),
-    token_mode: str | None = typer.Option(None, "--token-mode", callback=lambda value: normalize_mode(value) if value else None),
-    uri_mode: str | None = typer.Option(None, "--uri-mode", callback=lambda value: normalize_mode(value) if value else None),
-    apn_dnn_mode: str | None = typer.Option(None, "--apn-dnn-mode", callback=lambda value: normalize_mode(value) if value else None),
-    diameter_identity_mode: str | None = typer.Option(None, "--diameter-identity-mode", callback=lambda value: normalize_mode(value) if value else None),
-    payload_text_mode: str | None = typer.Option(None, "--payload-text-mode", callback=lambda value: normalize_mode(value) if value else None),
+    ip_mode: str | None = typer.Option(None, "--ip-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
+    hostname_mode: str | None = typer.Option(None, "--hostname-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
+    subscriber_id_mode: str | None = typer.Option(None, "--subscriber-id-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
+    msisdn_mode: str | None = typer.Option(None, "--msisdn-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
+    imsi_mode: str | None = typer.Option(None, "--imsi-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
+    imei_mode: str | None = typer.Option(None, "--imei-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
+    email_mode: str | None = typer.Option(None, "--email-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
+    dn_mode: str | None = typer.Option(None, "--dn-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
+    token_mode: str | None = typer.Option(None, "--token-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
+    uri_mode: str | None = typer.Option(None, "--uri-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
+    apn_dnn_mode: str | None = typer.Option(None, "--apn-dnn-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
+    diameter_identity_mode: str | None = typer.Option(None, "--diameter-identity-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
+    payload_text_mode: str | None = typer.Option(None, "--payload-text-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
 ) -> None:
     config_data = load_config_file(config_path)
     profile = load_profile(profile_name)
@@ -210,8 +214,9 @@ def analyze_command(
             extra_args=extra_args,
             two_pass=effective_two_pass,
         )
-    except TSharkError as exc:
-        raise typer.Exit(str(exc)) from exc
+    except (TSharkError, RuntimeError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
 
     outputs = write_artifacts(artifacts, out_dir)
     typer.echo(json.dumps({key: str(value) for key, value in outputs.items()}, indent=2))

@@ -316,9 +316,3 @@ pytest tests/test_pipeline.py -v
 - Prefer extending profiles before adding protocol-specific branching in code.
 - Do not send raw PCAP contents to remote services.
 - Keep secrets and encryption keys local.
-
-## License
-
-This project is licensed under the Apache License 2.0.
-
-Copyright (c) 2026 Frank März

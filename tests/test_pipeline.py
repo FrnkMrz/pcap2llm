@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import stat
 import sys
 from pathlib import Path
@@ -353,6 +354,123 @@ class TestAnalyzeCapturePipeline:
 
         detail = json.loads(outputs["detail"].read_text())
         assert "selected_packets" in detail
+
+    def test_pseudonymization_run_generates_mapping_sidecar_and_markdown_reference(
+        self, tmp_path: Path
+    ) -> None:
+        profile = load_profile("lte-core")
+        runner = TSharkRunner()
+        raw_packets = [_make_raw_packet()]
+
+        with patch.object(runner, "export_packets", return_value=raw_packets):
+            artifacts = analyze_capture(
+                tmp_path / "sample.pcapng",
+                out_dir=tmp_path / "out",
+                runner=runner,
+                profile=profile,
+                privacy_modes={"imsi": "pseudonymize"},
+            )
+        outputs = write_artifacts(artifacts, tmp_path / "out")
+
+        assert "mapping" in outputs
+        assert outputs["mapping"].exists()
+        markdown = outputs["markdown"].read_text(encoding="utf-8")
+        assert outputs["mapping"].name in markdown
+
+    def test_non_pseudonymization_run_omits_mapping_sidecar(self, tmp_path: Path) -> None:
+        profile = load_profile("lte-core")
+        runner = TSharkRunner()
+
+        with patch.object(runner, "export_packets", return_value=[_make_raw_packet()]):
+            artifacts = analyze_capture(
+                tmp_path / "sample.pcapng",
+                out_dir=tmp_path / "out",
+                runner=runner,
+                profile=profile,
+                privacy_modes={},
+            )
+        outputs = write_artifacts(artifacts, tmp_path / "out")
+        assert "mapping" not in outputs
+        markdown = outputs["markdown"].read_text(encoding="utf-8")
+        assert "pseudonym_mapping" not in markdown
+
+    def test_encrypted_run_generates_vault_sidecar_and_markdown_reference(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        pytest.importorskip("cryptography")
+        from cryptography.fernet import Fernet
+
+        monkeypatch.setenv("PCAP2LLM_VAULT_KEY", Fernet.generate_key().decode())
+        profile = load_profile("lte-core")
+        runner = TSharkRunner()
+
+        with patch.object(runner, "export_packets", return_value=[_make_raw_packet()]):
+            artifacts = analyze_capture(
+                tmp_path / "sample.pcapng",
+                out_dir=tmp_path / "out",
+                runner=runner,
+                profile=profile,
+                privacy_modes={"imsi": "encrypt"},
+            )
+        outputs = write_artifacts(artifacts, tmp_path / "out")
+        assert "vault" in outputs
+        assert outputs["vault"].exists()
+        markdown = outputs["markdown"].read_text(encoding="utf-8")
+        assert outputs["vault"].name in markdown
+        vault = json.loads(outputs["vault"].read_text(encoding="utf-8"))
+        assert "PCAP2LLM_VAULT_KEY" in vault["key_source"]
+        assert os.environ["PCAP2LLM_VAULT_KEY"] not in json.dumps(vault)
+
+    def test_non_encrypted_run_omits_vault_sidecar(self, tmp_path: Path) -> None:
+        profile = load_profile("lte-core")
+        runner = TSharkRunner()
+
+        with patch.object(runner, "export_packets", return_value=[_make_raw_packet()]):
+            artifacts = analyze_capture(
+                tmp_path / "sample.pcapng",
+                out_dir=tmp_path / "out",
+                runner=runner,
+                profile=profile,
+                privacy_modes={},
+            )
+        outputs = write_artifacts(artifacts, tmp_path / "out")
+        assert "vault" not in outputs
+        markdown = outputs["markdown"].read_text(encoding="utf-8")
+        assert "vault.json" not in markdown
+
+    def test_disabling_capture_size_guard_allows_intentional_large_input(self, tmp_path: Path) -> None:
+        profile = load_profile("lte-core")
+        runner = TSharkRunner()
+        capture = tmp_path / "large_sample.pcapng"
+        capture.write_bytes(b"x" * (2 * 1024 * 1024))
+
+        with patch.object(runner, "export_packets", return_value=[_make_raw_packet()]):
+            artifacts = analyze_capture(
+                capture,
+                out_dir=tmp_path / "out",
+                runner=runner,
+                profile=profile,
+                privacy_modes={},
+                max_capture_size_mb=0,
+            )
+        assert artifacts.summary["capture_metadata"]["packet_count"] == 1
+
+    def test_all_packets_mode_preserves_full_detail_without_truncation(self, tmp_path: Path) -> None:
+        profile = load_profile("lte-core")
+        runner = TSharkRunner()
+        raw_packets = [_make_raw_packet(number=str(i)) for i in range(1, 4)]
+
+        with patch.object(runner, "export_packets", return_value=raw_packets):
+            artifacts = analyze_capture(
+                tmp_path / "sample.pcapng",
+                out_dir=tmp_path / "out",
+                runner=runner,
+                profile=profile,
+                privacy_modes={},
+                max_packets=0,
+            )
+        assert len(artifacts.detail["messages"]) == 3
+        assert artifacts.summary["coverage"]["detail_truncated"] is False
 
     def test_invalid_vault_key_raises_before_processing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

@@ -13,17 +13,16 @@ Kurzer Einstieg auf Deutsch:
 
 For a normal `analyze` run the tool writes:
 
-- timestamp-prefixed filenames derived from the first packet, e.g. `20240406_075320_summary.json`
-- the same prefix for all artifacts of one run
-- a version suffix such as `_V1` if a file with that timestamp already exists in the output directory
+- filenames always start with the timestamp of the first packet, e.g. `20240406_075320_...`
+- every run always gets a version suffix: `_V_01`, `_V_02`, etc. (auto-incremented when the file already exists)
 
 | File | Contents |
 |---|---|
-| `YYYYMMDD_HHMMSS_summary.json` | Compact case overview: protocols, conversations, anomalies, timing stats |
-| `YYYYMMDD_HHMMSS_detail.json` | Normalized packet/message detail with reduced lower layers |
-| `YYYYMMDD_HHMMSS_summary.md` | Human-readable report |
-| `YYYYMMDD_HHMMSS_pseudonym_mapping.json` | Only when pseudonymization is used |
-| `YYYYMMDD_HHMMSS_vault.json` | Only when encryption is used |
+| `YYYYMMDD_HHMMSS_summary_V_01.json` | Compact case overview: protocols, conversations, anomalies, timing stats |
+| `YYYYMMDD_HHMMSS_detail_V_01.json` | Normalized packet/message detail with reduced lower layers |
+| `YYYYMMDD_HHMMSS_summary_V_01.md` | Human-readable report |
+| `YYYYMMDD_HHMMSS_pseudonym_mapping_V_01.json` | Only when pseudonymization is used |
+| `YYYYMMDD_HHMMSS_vault_V_01.json` | Only when encryption is used |
 
 The CLI JSON output also includes `artifact_prefix` and `artifact_version` so automation can reliably identify the generated file set.
 

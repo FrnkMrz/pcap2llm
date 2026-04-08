@@ -51,9 +51,9 @@ def test_analyze_outputs_artifact_prefix_and_version(tmp_path: Path) -> None:
         patch(
             "pcap2llm.cli.write_artifacts",
             return_value={
-                "summary": out_dir / "20240406_075320_summary_V1.json",
-                "detail": out_dir / "20240406_075320_detail_V1.json",
-                "markdown": out_dir / "20240406_075320_summary_V1.md",
+                "summary": out_dir / "20240406_075320_summary_V_01.json",
+                "detail": out_dir / "20240406_075320_detail_V_01.json",
+                "markdown": out_dir / "20240406_075320_summary_V_01.md",
             },
         ),
     ):
@@ -73,4 +73,4 @@ def test_analyze_outputs_artifact_prefix_and_version(tmp_path: Path) -> None:
     payload = json.loads(result.stdout)
     assert payload["artifact_prefix"] == "20240406_075320"
     assert payload["artifact_version"] == 1
-    assert payload["summary"].endswith("20240406_075320_summary_V1.json")
+    assert payload["summary"].endswith("20240406_075320_summary_V_01.json")

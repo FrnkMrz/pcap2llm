@@ -125,16 +125,16 @@ pcap2llm analyze sample.pcapng --profile lte-core --out ./artifacts
 
 Das erzeugt standardmaessig:
 
-- einen gemeinsamen Zeitpraefix je Lauf auf Basis des ersten Pakets, z. B. `20240406_075320_...`
-- bei vorhandenen Dateien automatisch ein Versionssuffix wie `_V1`
+- Dateinamen beginnen immer mit dem Zeitstempel des ersten Pakets, z. B. `20240406_075320_...`
+- jeder Lauf bekommt immer ein Versionssuffix: `_V_01`, `_V_02` usw. (wird automatisch hochgezaehlt, wenn die Datei schon existiert)
 
 | Datei | Inhalt |
 |---|---|
-| `artifacts/YYYYMMDD_HHMMSS_summary.json` | Kompakter Ueberblick: Protokolle, Conversations, Anomalien, Timing |
-| `artifacts/YYYYMMDD_HHMMSS_detail.json` | Normalisierte Paket-/Nachrichtendetails |
-| `artifacts/YYYYMMDD_HHMMSS_summary.md` | Menschenlesbare Zusammenfassung |
-| `artifacts/YYYYMMDD_HHMMSS_pseudonym_mapping.json` | Nur bei aktiver Pseudonymisierung |
-| `artifacts/YYYYMMDD_HHMMSS_vault.json` | Nur bei aktiver Verschluesselung |
+| `artifacts/YYYYMMDD_HHMMSS_summary_V_01.json` | Kompakter Ueberblick: Protokolle, Conversations, Anomalien, Timing |
+| `artifacts/YYYYMMDD_HHMMSS_detail_V_01.json` | Normalisierte Paket-/Nachrichtendetails |
+| `artifacts/YYYYMMDD_HHMMSS_summary_V_01.md` | Menschenlesbare Zusammenfassung |
+| `artifacts/YYYYMMDD_HHMMSS_pseudonym_mapping_V_01.json` | Nur bei aktiver Pseudonymisierung |
+| `artifacts/YYYYMMDD_HHMMSS_vault_V_01.json` | Nur bei aktiver Verschluesselung |
 
 Die JSON-Ausgabe von `pcap2llm analyze` enthaelt zusaetzlich:
 - `artifact_prefix` — den verwendeten Zeitpraefix

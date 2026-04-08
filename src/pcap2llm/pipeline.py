@@ -59,9 +59,9 @@ def _resolve_output_paths(
     if include_vault:
         stems["vault"] = ("vault", ".json")
 
-    version = 0
+    version = 1
     while True:
-        suffix = f"V{version}" if version else ""
+        suffix = f"V_{version:02d}"
         outputs = {
             key: out_dir / _artifact_filename(prefix, stem, suffix, extension)
             for key, (stem, extension) in stems.items()
@@ -74,16 +74,15 @@ def _resolve_output_paths(
 def describe_output_paths(outputs: dict[str, Path]) -> dict[str, str | int | None]:
     summary_name = outputs["summary"].name
     match = re.fullmatch(
-        r"(?:(?P<prefix>\d{8}_\d{6})_)?summary(?:_V(?P<version>\d+))?\.json",
+        r"(?:(?P<prefix>\d{8}_\d{6})_)?summary_V_(?P<version>\d+)\.json",
         summary_name,
     )
     if not match:
         return {"artifact_prefix": None, "artifact_version": None}
 
-    version = match.group("version")
     return {
         "artifact_prefix": match.group("prefix"),
-        "artifact_version": int(version) if version is not None else None,
+        "artifact_version": int(match.group("version")),
     }
 
 

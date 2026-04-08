@@ -60,6 +60,13 @@ full_detail_fields:
     - dns.qry.name
     - dns.a
 
+# Protocols whose complete raw TShark layer is passed through without any
+# field selection or _flatten transformation. Only _ws.* keys are stripped.
+# Takes priority over full_detail_fields for the same protocol.
+# Use this when every single field of a protocol layer matters and you do not
+# want pcap2llm to filter or flatten anything.
+verbatim_protocols: []
+
 # TransportContext fields to keep in the reduced output
 # Available fields: proto, src_port, dst_port, stream, sctp_stream, anomaly, notes
 reduced_transport_fields:
@@ -133,6 +140,8 @@ full_detail_fields:
 
 reduced_transport_fields: [proto, src_port, dst_port, stream, anomaly, notes]
 
+verbatim_protocols: []
+
 default_privacy_modes:
   ip: keep
   hostname: keep
@@ -195,6 +204,30 @@ tshark:
   extra_args:
     - "-d"
     - "tcp.port==8443,http"
+```
+
+### Verbatim Protocol Layers
+
+By default pcap2llm applies `_flatten` to TShark values (collapses single-element lists) and only keeps fields matching `full_detail_fields` plus a catch-all supplement pass. If you need a protocol's layer preserved exactly as TShark reports it — every field, no flattening — add it to `verbatim_protocols`:
+
+```yaml
+verbatim_protocols:
+  - gtpv2
+```
+
+With this setting the complete `gtpv2` layer dict is written to `message.fields` as-is. Only `_ws.*` keys (Wireshark-internal metadata) are stripped. `full_detail_fields` for the same protocol is ignored.
+
+This is useful when:
+- You are unsure which fields you will need later and want everything
+- TShark uses nested dicts that `_flatten` would change
+- You are building a custom analysis on top of the raw output
+
+Multiple protocols can be listed:
+
+```yaml
+verbatim_protocols:
+  - gtpv2
+  - pfcp
 ```
 
 ### CIDR Endpoint Mapping

@@ -480,6 +480,52 @@ Du kannst eigene Profile als YAML-Datei anlegen, ohne Python-Code zu aendern. Le
 
 Ausfuehrliche Anleitung mit Schema, Beispiel und TShark-Tipps: [`docs/PROFILES.md`](PROFILES.md)
 
+### Protokoll vollstaendig (verbatim) durchreichen
+
+Standardmaessig filtert und normalisiert pcap2llm alle Protokoll-Felder: nur die in `full_detail_fields` gelisteten Felder werden bevorzugt uebernommen, und TShark-Werte werden per `_flatten` vereinfacht (z. B. werden einelementige Listen aufgeloest).
+
+Wenn du ein Protokoll **vollstaendig und ungekuerzt** in `detail.json` haben moechtest, trags einfach in `verbatim_protocols` ein:
+
+```yaml
+verbatim_protocols:
+  - gtpv2
+```
+
+Was das bewirkt:
+
+- Das **komplette TShark-Layer-Dict** wird unveraendert in `message.fields` geschrieben
+- Kein Filtern nach `full_detail_fields`, kein `_flatten`
+- Nur `_ws.*`-Schluesseln (Wireshark-interne Metadaten) werden entfernt
+- Mehrere Protokolle koennen gleichzeitig eingetragen werden
+
+Beispiel fuer ein LTE-Profil, das GTPv2 komplett behalten soll:
+
+```yaml
+# lte-custom.yaml
+name: lte-custom
+description: LTE-Profil mit vollstaendigem GTPv2
+
+relevant_protocols: [diameter, gtpv2, s1ap]
+top_protocol_priority: [diameter, gtpv2, s1ap, sctp, tcp, udp, ip]
+
+verbatim_protocols:
+  - gtpv2          # komplette TShark-Schicht, nichts wird herausgefiltert
+
+full_detail_fields:
+  diameter:
+    - diameter.cmd.code
+    - diameter.origin_host
+    - diameter.imsi
+  # gtpv2 ist hier nicht noetig – verbatim hat Vorrang
+
+reduced_transport_fields: [proto, src_port, dst_port, stream, sctp_stream, anomaly, notes]
+tshark:
+  two_pass: false
+  extra_args: []
+```
+
+> **Hinweis:** `verbatim_protocols` hat Vorrang vor `full_detail_fields` fuer dasselbe Protokoll. Wenn du `gtpv2` in beiden eintraegst, gilt verbatim.
+
 ## Typische Arbeitsablaeufe
 
 ### Schnellpruefung einer Datei

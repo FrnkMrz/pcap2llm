@@ -169,6 +169,20 @@ pcap2llm analyze sample.pcapng --tshark-path /usr/local/bin/tshark --profile lte
 Falls `tshark` eine alte Version hat (< 3.6) oder die Ausgabe kein gueltiges JSON liefert:
 Wireshark/TShark aktualisieren oder die Capture neu erstellen.
 
+## Protokoll vollstaendig durchreichen (verbatim)
+
+Standardmaessig filtert pcap2llm Protokoll-Felder und vereinfacht TShark-Werte. Wenn du ein Protokoll **komplett und ungekuerzt** in `detail.json` haben willst, trag es in `verbatim_protocols` in deinem Profil ein:
+
+```yaml
+# in deiner Profil-YAML
+verbatim_protocols:
+  - gtpv2   # komplette TShark-Schicht, kein Filtern, kein Flatten
+```
+
+Das komplette TShark-Layer-Dict landet dann unveraendert in `message.fields` — nur `_ws.*`-Schluesseln werden entfernt. Mehrere Protokolle koennen gleichzeitig eingetragen werden.
+
+Weitere Details: [`docs/ANLEITUNG_DE.md`](ANLEITUNG_DE.md) und [`docs/PROFILES.md`](PROFILES.md).
+
 ## Weiterfuehrende Doku
 
 - Ausfuehrliche deutsche Anleitung: [`docs/ANLEITUNG_DE.md`](ANLEITUNG_DE.md)

@@ -1,6 +1,13 @@
-# LLM Mode
+# LLM Preparation And LLM Mode
 
-`pcap2llm` remains a local CLI tool. `--llm-mode` makes it easier for an external orchestrator or agent to call the tool reliably without turning it into a service, SDK, or MCP integration.
+`pcap2llm` remains a local CLI tool. Its role is LLM preparation: turning a telecom trace into stable, privacy-aware artifacts that can be passed to a downstream LLM. `--llm-mode` makes that preparation flow easier for an external orchestrator or agent to call reliably without turning the tool into a service, SDK, or MCP integration.
+
+## Where The LLM Preparation Happens
+
+- `detail.json` is the primary LLM handoff artifact
+- `summary.json` is the structured sidecar for coverage, counts, anomalies, and privacy metadata
+- `summary.md` is the human-readable sidecar
+- `--llm-mode` only changes the CLI return format; it does not change the artifact semantics
 
 ## Purpose
 

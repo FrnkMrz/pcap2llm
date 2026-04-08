@@ -13,7 +13,7 @@
 
 - Focused troubleshooting captures for LTE/EPC, 5G core, and related control-plane flows
 - Deterministic trace formatting and privacy-controlled artifact generation
-- Preparing an artifact for a second-step LLM review
+- LLM preparation: preparing a stable artifact set for a second-step LLM review
 - `--llm-mode` as the current machine-friendly integration path for external agent and orchestration workflows
 
 ## Not Intended

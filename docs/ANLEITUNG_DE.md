@@ -11,6 +11,21 @@ Das Tool arbeitet profilbasiert und ist fuer LTE-/EPC-, 5G-Core- sowie Legacy-2G
 - Transportdaten nur in kompakter Form erhalten bleiben
 - das fachlich wichtigste Protokoll pro Paket moeglichst vollstaendig sichtbar bleibt
 
+## LLM-Vorbereitung
+
+`pcap2llm` ist fuer die Vorbereitung eines nachgelagerten LLM-Schritts gedacht.
+
+- Das wichtigste Uebergabe-Artefakt ist `*_detail.json`.
+- `*_summary.json` und `*_summary.md` sind Begleit-Artefakte fuer Abdeckung, Privacy, Auffaelligkeiten und Nachvollziehbarkeit.
+- Das Tool selbst macht keine generative Analyse und keine automatische Root-Cause-Erklaerung.
+- Fuer maschinenlesbare Orchestrierung gibt es `pcap2llm analyze ... --llm-mode`.
+
+Wenn du genau nach diesem Workflow suchst, sind diese Stellen relevant:
+
+- [`docs/LLM_MODE.md`](LLM_MODE.md)
+- [`docs/schema/detail.schema.md`](schema/detail.schema.md)
+- [`docs/schema/summary.schema.md`](schema/summary.schema.md)
+
 ## Wofuer eignet sich das Tool — und wofuer nicht?
 
 pcap2llm ist fuer **gezielte, fokussierte Captures** gebaut: ein fehlgeschlagener Attach-Vorgang, ein Diameter-Exchange mit unerwartetem Fehler, eine einzelne GTPv2-C-Session, ein Callflow mit einigen Dutzend bis wenigen hundert Signalisierungsnachrichten. Das ist der Sweetspot.
@@ -163,6 +178,23 @@ Das erzeugte `*_summary.json` enthaelt immer:
 - `schema_version` — fuer kuenftige Kompatibilitaetspruefung
 - `generated_at` — Erzeugungszeitpunkt als ISO 8601 UTC
 - `capture_sha256` — SHA-256-Fingerprint der Eingabedatei fuer Reproduzierbarkeit und Audit
+
+### Maschinenlesbare CLI-Ausgabe fuer LLM-Workflows
+
+Wenn ein zweites Tool oder ein Agent den Lauf direkt auswerten soll, nutze:
+
+```bash
+pcap2llm analyze sample.pcapng --profile lte-core --llm-mode
+```
+
+Dann bleibt der erzeugte Artefaktsatz gleich, aber stdout enthaelt nur noch ein klar strukturiertes JSON mit:
+
+- Status
+- Dateipfaden
+- Coverage- und Truncation-Informationen
+- Limits
+- Warnungen
+- stabilen Fehlercodes bei Fehlschlaegen
 
 ## Wichtige Optionen
 

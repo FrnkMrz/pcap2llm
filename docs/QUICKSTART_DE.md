@@ -6,6 +6,15 @@
 >
 > **Nicht:** Megabytes an Rolling-Captures einfach reinschmeissen. Enger Filter + kurzes Zeitfenster liefern deutlich bessere Ergebnisse als ein grosser Dump, der auf 1 000 Pakete abgeschnitten wird. Im Zweifel erst `pcap2llm inspect` nutzen, dann mit `-Y` eingrenzen.
 
+## Worum es hier geht: LLM-Vorbereitung
+
+`pcap2llm` bereitet einen Trace fuer einen spaeteren LLM-Schritt auf.
+
+- `*_detail.json` ist das eigentliche Uebergabe-Artefakt fuer das LLM.
+- `*_summary.json` und `*_summary.md` helfen bei Coverage, Privacy und Einordnung.
+- Das Tool selbst analysiert nicht mit KI, sondern formatiert deterministisch.
+- Fuer maschinenlesbare CLI-Ausgabe gibt es `--llm-mode`.
+
 ### 1. Voraussetzungen pruefen
 
 ```bash
@@ -88,6 +97,16 @@ Die JSON-Ausgabe der CLI enthaelt ausserdem `artifact_prefix` und `artifact_vers
 Das erzeugte `*_summary.json` enthaelt immer `schema_version`, `generated_at` (ISO 8601 UTC) und `capture_sha256` fuer Reproduzierbarkeit.
 
 > **Grosse Captures:** Standardmaessig werden nur die ersten 1 000 Pakete in `*_detail.json` geschrieben. `*_summary.json` und alle Statistiken basieren aber immer auf dem vollstaendigen Export. Wurde gekuerzt, erscheint in `*_summary.json` ein `detail_truncated`-Eintrag mit der Gesamtzahl.
+
+### 4a. Fuer einen Agenten oder Orchestrator vorbereiten
+
+Wenn der Lauf direkt von einem zweiten Tool ausgewertet werden soll:
+
+```bash
+pcap2llm analyze sample.pcapng --profile lte-core --llm-mode
+```
+
+Dann bleibt der erzeugte Artefaktsatz gleich, aber stdout ist strikt JSON und damit leichter weiterzuverarbeiten.
 
 ### 5. Sinnvolle erste Sichtung
 
@@ -205,5 +224,6 @@ Weitere Details: [`docs/ANLEITUNG_DE.md`](ANLEITUNG_DE.md) und [`docs/PROFILES.m
 ## Weiterfuehrende Doku
 
 - Ausfuehrliche deutsche Anleitung: [`docs/ANLEITUNG_DE.md`](ANLEITUNG_DE.md)
+- LLM-Vorbereitung und `--llm-mode`: [`docs/LLM_MODE.md`](LLM_MODE.md)
 - Hauptdokumentation: [`README.md`](../README.md)
 - Eigene Profile erstellen: [`docs/PROFILES.md`](PROFILES.md)

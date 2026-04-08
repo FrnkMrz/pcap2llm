@@ -34,6 +34,21 @@ By default the generated `*_detail.json` contains only the first **1 000 packets
 
 The current pipeline still performs a full TShark JSON export before packet selection. To reduce accidental misuse on oversized captures, `pcap2llm analyze` now applies a default pre-export guard of **250 MiB** via `--max-capture-size-mb`. Set `--max-capture-size-mb 0` only when you intentionally want to bypass that guard.
 
+## LLM Preparation
+
+`pcap2llm` is built to prepare a trace for a later LLM step.
+
+- The main preparation output is `*_detail.json`.
+- `*_summary.json` and `*_summary.md` are sidecars for coverage, privacy, and audit context.
+- The tool itself does not perform LLM reasoning or root-cause analysis.
+- For machine-readable orchestration, use `pcap2llm analyze ... --llm-mode`.
+
+Start here if you are looking specifically for the LLM handoff flow:
+
+- [`docs/LLM_MODE.md`](docs/LLM_MODE.md)
+- [`docs/schema/detail.schema.md`](docs/schema/detail.schema.md)
+- [`docs/schema/summary.schema.md`](docs/schema/summary.schema.md)
+
 ## Intended Use
 
 `pcap2llm` is a deterministic trace formatter and artifact generator. It is best used when you already know which slice of traffic matters and want to produce a compact, readable artifact for a later LLM review step.
@@ -157,7 +172,7 @@ pcap2llm analyze sample.pcapng --profile lte-core --dry-run
 pcap2llm init-config
 ```
 
-## LLM Mode
+## LLM Mode And Machine-Readable CLI Output
 
 For orchestrators or agent workflows, use:
 

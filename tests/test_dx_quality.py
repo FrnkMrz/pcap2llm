@@ -279,7 +279,8 @@ class TestPrivacyModeHelp:
 
     def _help_text(self) -> str:
         result = self.runner.invoke(app, ["analyze", "--help"])
-        return result.output
+        # Rich/Typer may emit ANSI sequences in CI; strip them before matching.
+        return re.sub(r"\x1b\[[0-9;]*m", "", result.output)
 
     def test_all_mode_options_in_help(self) -> None:
         help_text = self._help_text()

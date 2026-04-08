@@ -167,6 +167,7 @@ def build_summary(
 def build_markdown_summary(
     summary: dict[str, Any],
     *,
+    summary_filename: str = "summary.json",
     detail_filename: str = "detail.json",
     mapping_filename: str | None = None,
     vault_filename: str | None = None,
@@ -196,7 +197,7 @@ def build_markdown_summary(
         [
             "",
             "## File References",
-            "- `summary.json`",
+            f"- `{summary_filename}`",
             f"- `{detail_filename}`",
         ]
     )

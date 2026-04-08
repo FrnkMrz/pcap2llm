@@ -13,17 +13,23 @@ Kurzer Einstieg auf Deutsch:
 
 For a normal `analyze` run the tool writes:
 
+- timestamp-prefixed filenames derived from the first packet, e.g. `20240406_075320_summary.json`
+- the same prefix for all artifacts of one run
+- a version suffix such as `_V1` if a file with that timestamp already exists in the output directory
+
 | File | Contents |
 |---|---|
-| `summary.json` | Compact case overview: protocols, conversations, anomalies, timing stats |
-| `detail.json` | Normalized packet/message detail with reduced lower layers |
-| `summary.md` | Human-readable report |
-| `pseudonym_mapping.json` | Only when pseudonymization is used |
-| `vault.json` | Only when encryption is used |
+| `YYYYMMDD_HHMMSS_summary.json` | Compact case overview: protocols, conversations, anomalies, timing stats |
+| `YYYYMMDD_HHMMSS_detail.json` | Normalized packet/message detail with reduced lower layers |
+| `YYYYMMDD_HHMMSS_summary.md` | Human-readable report |
+| `YYYYMMDD_HHMMSS_pseudonym_mapping.json` | Only when pseudonymization is used |
+| `YYYYMMDD_HHMMSS_vault.json` | Only when encryption is used |
+
+The CLI JSON output also includes `artifact_prefix` and `artifact_version` so automation can reliably identify the generated file set.
 
 Both JSON files include `schema_version`, `generated_at` (ISO 8601 UTC), and `capture_sha256` for reproducibility and audit.
 
-By default `detail.json` contains only the first **1 000 packets**. Use `--all-packets` to remove the limit or `--max-packets N` to set a custom value. Inspection and all summary statistics always run on the full capture regardless of this setting. When the output is truncated, `summary.json` contains a `detail_truncated` key explaining how many packets were exported vs. included.
+By default the generated `*_detail.json` contains only the first **1 000 packets**. Use `--all-packets` to remove the limit or `--max-packets N` to set a custom value. Inspection and all summary statistics always run on the full capture regardless of this setting. When the output is truncated, the generated `*_summary.json` contains a `detail_truncated` key explaining how many packets were exported vs. included.
 
 ## Design Goals
 
@@ -40,10 +46,20 @@ Requirements:
 - Python 3.11+
 - `tshark` available in `PATH` (Wireshark package)
 
+Linux/macOS:
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .[dev]
+```
+
+Windows PowerShell:
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e .[dev]
 ```
 
 For encryption support:
@@ -52,20 +68,26 @@ For encryption support:
 pip install -e .[dev,encrypt]
 ```
 
+On Windows inside the active `.venv`, the prompt typically shows `(.venv)` and all `python`, `pip`, `pytest`, and `pcap2llm` commands use that virtual environment.
+
 ## Quick Start
 
 ```bash
 # Inspect metadata only
 pcap2llm inspect sample.pcapng --profile lte-core
 
-# Full analysis (default: first 1 000 packets in detail.json)
+# Full analysis (default: first 1 000 packets in the generated detail artifact)
 pcap2llm analyze sample.pcapng \
   --profile lte-core \
   --hosts-file ./examples/wireshark_hosts.sample \
   --mapping-file ./examples/mapping.sample.yaml \
   --out ./artifacts
 
-# Include all packets in detail.json (large captures → large file)
+# Example JSON response fields after analyze:
+# "artifact_prefix": "20240406_075320"
+# "artifact_version": null
+
+# Include all packets in the generated detail artifact (large captures → large file)
 pcap2llm analyze sample.pcapng --profile lte-core --all-packets
 
 # Custom packet limit
@@ -139,9 +161,9 @@ Pseudonyms are **stable across runs**: the same original value always produces t
 2. Generate a Fernet key: `python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
 3. Export the key: `export PCAP2LLM_VAULT_KEY=<key>`
 4. Run the analysis: `pcap2llm analyze sample.pcapng --imsi-mode encrypt`
-5. The key source is documented in `vault.json`. Without the key the encrypted values cannot be recovered.
+5. The key source is documented in the generated `*_vault.json`. Without the key the encrypted values cannot be recovered.
 
-If `PCAP2LLM_VAULT_KEY` is not set, a temporary key is generated for the process and stored in `vault.json`.
+If `PCAP2LLM_VAULT_KEY` is not set, a temporary key is generated for the process and stored in the generated `*_vault.json`.
 
 ## Profiles
 
@@ -167,11 +189,11 @@ The tool detects both transport-layer and application-layer anomalies:
 
 **GTPv2-C**: unanswered Create Session Requests, rejected sessions, Error Indications.
 
-Anomalies appear in `summary.json` under `anomalies` and are classified by layer in `anomaly_counts_by_layer`.
+Anomalies appear in the generated `*_summary.json` under `anomalies` and are classified by layer in `anomaly_counts_by_layer`.
 
 ## Normalized Schema
 
-`detail.json` packet objects:
+Generated `*_detail.json` packet objects:
 
 ```json
 {
@@ -204,10 +226,10 @@ python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().
 **`Expected an object at the root of <file>`**
 Your YAML config or mapping file has an invalid root type. The top-level element must be a mapping (`key: value`), not a list or scalar.
 
-**`detail.json` contains fewer packets than expected**
-By default only the first 1 000 packets are written to `detail.json`. Use `--all-packets` to include everything, or increase the limit with `--max-packets N`. Check `summary.json` for a `detail_truncated` entry that shows the total exported count.
+**Generated `*_detail.json` contains fewer packets than expected**
+By default only the first 1 000 packets are written to the generated `*_detail.json`. Use `--all-packets` to include everything, or increase the limit with `--max-packets N`. Check the generated `*_summary.json` for a `detail_truncated` entry that shows the total exported count.
 
-**Empty `detail.json` / no packets at all**
+**Empty `*_detail.json` / no packets at all**
 Check the display filter (`-Y`) — it may be filtering out all packets. Run without a filter first. Also verify the profile matches the traffic (e.g. use `5g-core` for 5G captures).
 
 ## Development

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,6 +22,69 @@ from pcap2llm.tshark_runner import TSharkRunner
 
 
 _DEFAULT_MAX_PACKETS = 1000
+
+
+def _artifact_timestamp_prefix(first_seen_epoch: str | None) -> str | None:
+    if not first_seen_epoch:
+        return None
+
+    try:
+        packet_time = datetime.fromtimestamp(float(first_seen_epoch), tz=timezone.utc)
+    except (OverflowError, ValueError):
+        return None
+
+    return packet_time.strftime("%Y%m%d_%H%M%S")
+
+
+def _artifact_filename(prefix: str | None, stem: str, suffix: str, extension: str) -> str:
+    parts = [part for part in (prefix, stem, suffix) if part]
+    return "_".join(parts) + extension
+
+
+def _resolve_output_paths(
+    out_dir: Path,
+    *,
+    first_seen_epoch: str | None,
+    include_mapping: bool,
+    include_vault: bool,
+) -> dict[str, Path]:
+    prefix = _artifact_timestamp_prefix(first_seen_epoch)
+    stems = {
+        "summary": ("summary", ".json"),
+        "detail": ("detail", ".json"),
+        "markdown": ("summary", ".md"),
+    }
+    if include_mapping:
+        stems["mapping"] = ("pseudonym_mapping", ".json")
+    if include_vault:
+        stems["vault"] = ("vault", ".json")
+
+    version = 0
+    while True:
+        suffix = f"V{version}" if version else ""
+        outputs = {
+            key: out_dir / _artifact_filename(prefix, stem, suffix, extension)
+            for key, (stem, extension) in stems.items()
+        }
+        if not any(path.exists() for path in outputs.values()):
+            return outputs
+        version += 1
+
+
+def describe_output_paths(outputs: dict[str, Path]) -> dict[str, str | int | None]:
+    summary_name = outputs["summary"].name
+    match = re.fullmatch(
+        r"(?:(?P<prefix>\d{8}_\d{6})_)?summary(?:_V(?P<version>\d+))?\.json",
+        summary_name,
+    )
+    if not match:
+        return {"artifact_prefix": None, "artifact_version": None}
+
+    version = match.group("version")
+    return {
+        "artifact_prefix": match.group("prefix"),
+        "artifact_version": int(version) if version is not None else None,
+    }
 
 
 def analyze_capture(
@@ -148,26 +212,30 @@ def write_artifacts(artifacts: AnalyzeArtifacts, out_dir: Path) -> dict[str, Pat
     except OSError as exc:
         raise RuntimeError(f"Cannot create output directory '{out_dir}': {exc}") from exc
 
-    outputs: dict[str, Path] = {
-        "summary": out_dir / "summary.json",
-        "detail": out_dir / "detail.json",
-        "markdown": out_dir / "summary.md",
-    }
+    outputs = _resolve_output_paths(
+        out_dir,
+        first_seen_epoch=artifacts.summary.get("capture_metadata", {}).get("first_seen_epoch"),
+        include_mapping=bool(artifacts.pseudonym_mapping),
+        include_vault=bool(artifacts.vault),
+    )
+    markdown = build_markdown_summary(
+        artifacts.summary,
+        summary_filename=outputs["summary"].name,
+        detail_filename=outputs["detail"].name,
+        mapping_filename=outputs.get("mapping", None).name if outputs.get("mapping") else None,
+        vault_filename=outputs.get("vault", None).name if outputs.get("vault") else None,
+    )
     try:
         outputs["summary"].write_text(json.dumps(artifacts.summary, indent=2), encoding="utf-8")
         outputs["detail"].write_text(json.dumps(artifacts.detail, indent=2), encoding="utf-8")
-        outputs["markdown"].write_text(artifacts.markdown, encoding="utf-8")
+        outputs["markdown"].write_text(markdown, encoding="utf-8")
         if artifacts.pseudonym_mapping:
-            mapping_path = out_dir / "pseudonym_mapping.json"
-            mapping_path.write_text(
+            outputs["mapping"].write_text(
                 json.dumps(artifacts.pseudonym_mapping, indent=2),
                 encoding="utf-8",
             )
-            outputs["mapping"] = mapping_path
         if artifacts.vault:
-            vault_path = out_dir / "vault.json"
-            vault_path.write_text(json.dumps(artifacts.vault, indent=2), encoding="utf-8")
-            outputs["vault"] = vault_path
+            outputs["vault"].write_text(json.dumps(artifacts.vault, indent=2), encoding="utf-8")
     except OSError as exc:
         raise RuntimeError(f"Failed to write artifacts to '{out_dir}': {exc}") from exc
     return outputs

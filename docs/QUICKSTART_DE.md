@@ -30,11 +30,21 @@ source .venv/bin/activate
 pip install -e .[dev]
 ```
 
+Unter Windows in PowerShell:
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e .[dev]
+```
+
 Mit Verschluesselungsunterstuetzung:
 
 ```bash
 pip install -e .[dev,encrypt]
 ```
+
+Wenn die Umgebung aktiv ist, zeigt der Prompt in der Regel `(.venv)` an. Dann laufen `python`, `pip`, `pytest` und `pcap2llm` innerhalb dieser virtuellen Umgebung.
 
 ### 3. Ersten Ueberblick ueber eine Capture-Datei holen
 
@@ -58,25 +68,30 @@ pcap2llm analyze sample.pcapng --profile lte-core --out ./artifacts
 
 Danach findest du im Ordner `./artifacts` typischerweise:
 
+- Dateinamen mit Zeitpraefix aus dem ersten Paket, z. B. `20240406_075320_summary.json`
+- bei erneutem Lauf mit gleichem Zeitstempel automatisch ein Versionssuffix wie `_V1`
+
 | Datei | Inhalt |
 |---|---|
-| `summary.json` | Kompakter Ueberblick: Protokolle, Conversations, Anomalien, Timing |
-| `detail.json` | Normalisierte Paket-/Nachrichtendetails (Standard: max. 1 000 Pakete) |
-| `summary.md` | Menschenlesbare Zusammenfassung |
-| `pseudonym_mapping.json` | Nur bei aktiver Pseudonymisierung |
-| `vault.json` | Nur bei aktiver Verschluesselung |
+| `YYYYMMDD_HHMMSS_summary.json` | Kompakter Ueberblick: Protokolle, Conversations, Anomalien, Timing |
+| `YYYYMMDD_HHMMSS_detail.json` | Normalisierte Paket-/Nachrichtendetails (Standard: max. 1 000 Pakete) |
+| `YYYYMMDD_HHMMSS_summary.md` | Menschenlesbare Zusammenfassung |
+| `YYYYMMDD_HHMMSS_pseudonym_mapping.json` | Nur bei aktiver Pseudonymisierung |
+| `YYYYMMDD_HHMMSS_vault.json` | Nur bei aktiver Verschluesselung |
 
-`summary.json` enthaelt immer `schema_version`, `generated_at` (ISO 8601 UTC) und `capture_sha256` fuer Reproduzierbarkeit.
+Die JSON-Ausgabe der CLI enthaelt ausserdem `artifact_prefix` und `artifact_version`, damit Skripte den erzeugten Dateisatz eindeutig erkennen koennen.
 
-> **Grosse Captures:** Standardmaessig werden nur die ersten 1 000 Pakete in `detail.json` geschrieben. `summary.json` und alle Statistiken basieren aber immer auf dem vollstaendigen Export. Wurde gekuerzt, erscheint in `summary.json` ein `detail_truncated`-Eintrag mit der Gesamtzahl.
+Das erzeugte `*_summary.json` enthaelt immer `schema_version`, `generated_at` (ISO 8601 UTC) und `capture_sha256` fuer Reproduzierbarkeit.
+
+> **Grosse Captures:** Standardmaessig werden nur die ersten 1 000 Pakete in `*_detail.json` geschrieben. `*_summary.json` und alle Statistiken basieren aber immer auf dem vollstaendigen Export. Wurde gekuerzt, erscheint in `*_summary.json` ein `detail_truncated`-Eintrag mit der Gesamtzahl.
 
 ### 5. Sinnvolle erste Sichtung
 
 Schau zuerst in dieser Reihenfolge:
 
-1. `artifacts/summary.md`
-2. `artifacts/summary.json`
-3. `artifacts/detail.json`
+1. `artifacts/*_summary.md`
+2. `artifacts/*_summary.json`
+3. `artifacts/*_detail.json`
 
 ## Nuetzliche Befehle
 
@@ -89,7 +104,7 @@ pcap2llm analyze sample.pcapng --profile lte-core --dry-run
 Paketlimit steuern:
 
 ```bash
-# Alle Pakete in detail.json aufnehmen (Achtung: grosse Dateien)
+# Alle Pakete in das erzeugte Detail-Artefakt aufnehmen (Achtung: grosse Dateien)
 pcap2llm analyze sample.pcapng --profile lte-core --all-packets
 
 # Eigenes Limit setzen
@@ -171,7 +186,7 @@ Wireshark/TShark aktualisieren oder die Capture neu erstellen.
 
 ## Protokoll vollstaendig durchreichen (verbatim)
 
-Standardmaessig filtert pcap2llm Protokoll-Felder und vereinfacht TShark-Werte. Wenn du ein Protokoll **komplett und ungekuerzt** in `detail.json` haben willst, trag es in `verbatim_protocols` in deinem Profil ein:
+Standardmaessig filtert pcap2llm Protokoll-Felder und vereinfacht TShark-Werte. Wenn du ein Protokoll **komplett und ungekuerzt** im erzeugten `*_detail.json` haben willst, trag es in `verbatim_protocols` in deinem Profil ein:
 
 ```yaml
 # in deiner Profil-YAML

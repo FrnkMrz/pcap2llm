@@ -14,6 +14,9 @@ from pcap2llm.protector import ProtectionError, Protector
 from pcap2llm.tshark_runner import TSharkError, TSharkRunner
 
 
+_TIMESTAMP_PREFIX = "20240406_075320"
+
+
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
@@ -160,7 +163,21 @@ class TestWriteArtifactsErrorHandling:
     def _make_artifacts(self) -> object:
         from pcap2llm.models import AnalyzeArtifacts
         return AnalyzeArtifacts(
-            summary={"profile": "lte-core", "capture_metadata": {}, "anomalies": []},
+            summary={
+                "profile": "lte-core",
+                "capture_metadata": {
+                    "capture_file": "sample.pcapng",
+                    "packet_count": 0,
+                    "first_seen_epoch": "1712390000.0",
+                    "last_seen_epoch": "1712390000.0",
+                    "relevant_protocols": [],
+                    "display_filter": None,
+                },
+                "anomalies": [],
+                "privacy_modes": {},
+                "packet_message_counts": {"top_protocols": {}, "transport": {}, "total_packets": 0},
+                "probable_notable_findings": [],
+            },
             detail={"profile": "lte-core", "selected_packets": []},
             markdown="# Test\n",
         )
@@ -168,10 +185,28 @@ class TestWriteArtifactsErrorHandling:
     def test_write_artifacts_succeeds(self, tmp_path: Path) -> None:
         artifacts = self._make_artifacts()
         outputs = write_artifacts(artifacts, tmp_path / "out")
-        assert (tmp_path / "out" / "summary.json").exists()
-        assert (tmp_path / "out" / "detail.json").exists()
-        assert (tmp_path / "out" / "summary.md").exists()
+        assert (tmp_path / "out" / f"{_TIMESTAMP_PREFIX}_summary.json").exists()
+        assert (tmp_path / "out" / f"{_TIMESTAMP_PREFIX}_detail.json").exists()
+        assert (tmp_path / "out" / f"{_TIMESTAMP_PREFIX}_summary.md").exists()
         assert "summary" in outputs and "detail" in outputs
+
+    def test_write_artifacts_adds_version_suffix_on_collision(self, tmp_path: Path) -> None:
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        (out_dir / f"{_TIMESTAMP_PREFIX}_summary.json").write_text("{}", encoding="utf-8")
+
+        outputs = write_artifacts(self._make_artifacts(), out_dir)
+
+        assert outputs["summary"].name == f"{_TIMESTAMP_PREFIX}_summary_V1.json"
+        assert outputs["detail"].name == f"{_TIMESTAMP_PREFIX}_detail_V1.json"
+        assert outputs["markdown"].name == f"{_TIMESTAMP_PREFIX}_summary_V1.md"
+
+    def test_write_artifacts_updates_markdown_file_references(self, tmp_path: Path) -> None:
+        outputs = write_artifacts(self._make_artifacts(), tmp_path / "out")
+
+        markdown = outputs["markdown"].read_text(encoding="utf-8")
+        assert f"{_TIMESTAMP_PREFIX}_summary.json" in markdown
+        assert f"{_TIMESTAMP_PREFIX}_detail.json" in markdown
 
     @pytest.mark.skipif(sys.platform == "win32", reason="chmod not reliable on Windows")
     def test_write_artifacts_raises_on_read_only_dir(self, tmp_path: Path) -> None:

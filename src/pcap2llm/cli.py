@@ -12,7 +12,7 @@ import typer
 
 from pcap2llm.config import build_privacy_modes, load_config_file, normalize_mode, sample_config_text
 from pcap2llm.inspector import inspect_capture
-from pcap2llm.pipeline import analyze_capture, write_artifacts
+from pcap2llm.pipeline import analyze_capture, describe_output_paths, write_artifacts
 from pcap2llm.profiles import load_profile
 from pcap2llm.tshark_runner import TSharkError, TSharkRunner
 
@@ -328,4 +328,6 @@ def analyze_command(
         raise typer.Exit(code=1) from exc
 
     outputs = write_artifacts(artifacts, out_dir)
-    typer.echo(json.dumps({key: str(value) for key, value in outputs.items()}, indent=2))
+    payload = {key: str(value) for key, value in outputs.items()}
+    payload.update(describe_output_paths(outputs))
+    typer.echo(json.dumps(payload, indent=2))

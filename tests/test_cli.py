@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 from typer.testing import CliRunner
 
@@ -37,3 +38,39 @@ def test_analyze_dry_run_outputs_plan(tmp_path: Path) -> None:
     payload = json.loads(result.stdout)
     assert payload["profile"] == "lte-core"
     assert payload["privacy_modes"]["ip"] == "mask"
+
+
+def test_analyze_outputs_artifact_prefix_and_version(tmp_path: Path) -> None:
+    runner = CliRunner()
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+    out_dir = tmp_path / "artifacts"
+
+    with (
+        patch("pcap2llm.cli.analyze_capture", return_value=object()),
+        patch(
+            "pcap2llm.cli.write_artifacts",
+            return_value={
+                "summary": out_dir / "20240406_075320_summary_V1.json",
+                "detail": out_dir / "20240406_075320_detail_V1.json",
+                "markdown": out_dir / "20240406_075320_summary_V1.md",
+            },
+        ),
+    ):
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                str(capture),
+                "--profile",
+                "lte-core",
+                "--out",
+                str(out_dir),
+            ],
+        )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["artifact_prefix"] == "20240406_075320"
+    assert payload["artifact_version"] == 1
+    assert payload["summary"].endswith("20240406_075320_summary_V1.json")

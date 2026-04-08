@@ -157,6 +157,16 @@ pcap2llm analyze sample.pcapng --profile lte-core --dry-run
 pcap2llm init-config
 ```
 
+## LLM Mode
+
+For orchestrators or agent workflows, use:
+
+```bash
+pcap2llm analyze sample.pcapng --profile lte-core --llm-mode
+```
+
+In `--llm-mode`, stdout contains strict JSON only. The usual artifact files are still written, but the CLI return value becomes easier for an external agent to parse reliably. See [`docs/LLM_MODE.md`](docs/LLM_MODE.md).
+
 ## Endpoint Mapping
 
 Two mapping sources are supported and can be combined:

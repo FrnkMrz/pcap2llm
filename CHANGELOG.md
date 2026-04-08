@@ -17,6 +17,11 @@ The format is intentionally simple and optimized for humans reading repo history
 - Golden corpus fixtures, snapshot tests, and a `scripts/update_golden.py` helper to refresh expected artifacts intentionally.
 - GitHub Actions CI workflow for linting, tests, build verification, and failure-artifact upload.
 - `--fail-on-truncation` CLI option for workflows that must reject partial detail exports.
+- `--llm-mode` for `analyze`, returning strict JSON on stdout for external agent and orchestration workflows.
+- Stable CLI result payloads for success, dry-run, warnings, and errors, including machine-readable file paths, coverage, limits, and schema versions.
+- Structured error-code mapping for common operational failures such as missing `tshark`, size-guard rejection, vault-key issues, truncation rejection, and artifact write failures.
+- Dedicated tests for the `--llm-mode` contract, including sidecars, warnings, dry-run behavior, and error-path coverage.
+- Standalone `docs/LLM_MODE.md` documentation for the machine-friendly CLI integration path.
 
 ### Changed
 
@@ -26,6 +31,9 @@ The format is intentionally simple and optimized for humans reading repo history
 - Summary findings are now documented and emitted as deterministic findings rather than probabilistic-sounding tool analysis.
 - The processing pipeline is split conceptually into explicit stages: inspect, select, normalize, summarize, protect, and serialize.
 - Package metadata now reflects Apache-2.0, the real maintainer, and project URLs.
+- The CLI now has two explicit interaction styles:
+  - human-oriented default output
+  - `--llm-mode` machine-oriented output without changing the generated artifact set
 
 ### Privacy
 

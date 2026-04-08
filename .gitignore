@@ -1,3 +1,4 @@
+.DS_Store
 .pytest_cache/
 .ruff_cache/
 .venv/
@@ -13,3 +14,4 @@ vault.key
 artifacts/
 output/
 tmp/
+pcap2llm.config.yaml

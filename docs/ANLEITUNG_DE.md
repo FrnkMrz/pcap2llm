@@ -726,6 +726,6 @@ Wichtige Stellen im Projekt:
 
 - [`README.md`](../README.md) — englische Hauptdokumentation
 - [`docs/PROFILES.md`](PROFILES.md) — eigene Profile erstellen
-- [`examples/config.sample.yaml`](../examples/config.sample.yaml) — Beispiel-Konfiguration
+- `pcap2llm init-config` — erzeugt eine lokale Beispiel-Konfiguration fuer `--config`
 - [`examples/mapping.sample.yaml`](../examples/mapping.sample.yaml) — Beispiel-Alias-Mapping
 - [`examples/wireshark_hosts.sample`](../examples/wireshark_hosts.sample) — Beispiel-Hosts-Datei

@@ -1,4 +1,6 @@
 {
+  "description": "Diameter answer flow with operator identities and an error result code.",
+  "sanitization": "Subscriber and node identifiers are synthetic placeholders chosen for regression safety.",
   "profile": "lte-core",
   "privacy_modes": {
     "diameter_identity": "pseudonymize",

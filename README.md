@@ -32,6 +32,8 @@ Both JSON files include `schema_version`, `generated_at` (ISO 8601 UTC), `captur
 
 By default the generated `*_detail.json` contains only the first **1 000 packets**. Use `--all-packets` to remove the limit or `--max-packets N` to set a custom value. Inspection and all summary statistics always run on the full capture regardless of this setting. When the output is truncated, the generated `*_summary.json` contains a `detail_truncated` key explaining how many packets were exported vs. included.
 
+The current pipeline still performs a full TShark JSON export before packet selection. To reduce accidental misuse on oversized captures, `pcap2llm analyze` now applies a default pre-export guard of **250 MiB** via `--max-capture-size-mb`. Set `--max-capture-size-mb 0` only when you intentionally want to bypass that guard.
+
 ## Intended Use
 
 `pcap2llm` is a deterministic trace formatter and artifact generator. It is best used when you already know which slice of traffic matters and want to produce a compact, readable artifact for a later LLM review step.
@@ -41,7 +43,13 @@ See also:
 - [`docs/schema/detail.schema.md`](docs/schema/detail.schema.md)
 - [`docs/schema/summary.schema.md`](docs/schema/summary.schema.md)
 - [`docs/security/threat_model.md`](docs/security/threat_model.md)
+- [`docs/security/encryption_model.md`](docs/security/encryption_model.md)
+- [`docs/privacy_coverage.md`](docs/privacy_coverage.md)
 - [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)
+- [`docs/golden_corpus.md`](docs/golden_corpus.md)
+- [`docs/SUPPORTED_ENVIRONMENTS.md`](docs/SUPPORTED_ENVIRONMENTS.md)
+- [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md)
+- [`CHANGELOG.md`](CHANGELOG.md)
 
 ## When This Tool Works Well — and When It Does Not
 
@@ -62,6 +70,14 @@ pcap2llm is designed for **targeted, focused captures**: a failed attach procedu
 **Practical rule of thumb:** if your filtered capture has more than ~2 000 signaling messages, consider splitting it by flow or SCTP/TCP stream before analyzing. Use `pcap2llm inspect` first to understand what is inside, then narrow down with `-Y` before running `analyze`.
 
 The `--max-packets` default of 1 000 is a safety rail, not a target. A tight filter and a focused capture window produce far better LLM output than a big capture trimmed by the packet limit.
+
+## Known Limitations
+
+- Focused captures remain the main target.
+- `pcap2llm` is not a Wireshark replacement.
+- Privacy handling is policy-driven, not magic.
+- Encryption does not replace handling discipline.
+- Large captures still require care because the current TShark JSON ingestion path is full-load before selection.
 
 ## Design Goals
 
@@ -101,6 +117,10 @@ For encryption support:
 ```bash
 pip install -e .[dev,encrypt]
 ```
+
+## License
+
+`pcap2llm` is licensed under the Apache License 2.0. That permits reuse, modification, and redistribution under the Apache 2.0 terms. See [LICENSE](LICENSE) for the full text.
 
 On Windows inside the active `.venv`, the prompt typically shows `(.venv)` and all `python`, `pip`, `pytest`, and `pcap2llm` commands use that virtual environment.
 
@@ -202,9 +222,9 @@ Pseudonyms are **stable across runs**: the same original value always produces t
 4. Run the analysis: `pcap2llm analyze sample.pcapng --imsi-mode encrypt`
 5. The key source is documented in the generated `*_vault.json`. Without the key the encrypted values cannot be recovered.
 
-If `PCAP2LLM_VAULT_KEY` is not set, a temporary key is generated for the process and stored in the generated `*_vault.json`.
+If `PCAP2LLM_VAULT_KEY` is not set, encryption mode fails fast. `*_vault.json` contains metadata only and never stores the decryption secret.
 
-Do not store or share the vault key together with the exported artifacts.
+Do not store or share `PCAP2LLM_VAULT_KEY` together with the exported artifacts.
 
 ## Profiles
 

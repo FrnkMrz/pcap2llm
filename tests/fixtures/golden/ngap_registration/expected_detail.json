@@ -42,8 +42,8 @@
       },
       "privacy": {
         "modes": {
-          "subscriber_id": "SUBSCRIBER_ID_ddd27b42",
-          "imei": "[redacted]"
+          "subscriber_id": "pseudonymize",
+          "imei": "mask"
         }
       },
       "anomalies": [],
@@ -87,8 +87,8 @@
       },
       "privacy": {
         "modes": {
-          "subscriber_id": "SUBSCRIBER_ID_ddd27b42",
-          "imei": "[redacted]"
+          "subscriber_id": "pseudonymize",
+          "imei": "mask"
         }
       },
       "anomalies": [],

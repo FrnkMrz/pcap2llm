@@ -1,4 +1,6 @@
 {
+  "description": "LTE attach success style Diameter exchange with subscriber pseudonymization.",
+  "sanitization": "All subscriber identifiers and hostnames are synthetic regression fixtures.",
   "profile": "lte-core",
   "privacy_modes": {
     "imsi": "pseudonymize",

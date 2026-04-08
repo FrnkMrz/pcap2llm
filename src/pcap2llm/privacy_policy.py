@@ -63,10 +63,12 @@ _GENERIC_RULES: tuple[PrivacyRule, ...] = (
     PrivacyRule("imsi", path_keywords=("imsi", "supi", "suci")),
     PrivacyRule("msisdn", path_keywords=("msisdn",)),
     PrivacyRule("imei", path_keywords=("imei", "pei")),
+    PrivacyRule("payload_text", path_keywords=("payload", ".text", "message.body", "blob")),
     PrivacyRule("email", path_keywords=("email",), value_patterns=(EMAIL_RE,)),
     PrivacyRule("token", path_keywords=("token", "bearer", "cookie", "authorization"), value_patterns=(TOKEN_RE,)),
     PrivacyRule("uri", path_keywords=("uri", "url", "referer", ":path"), value_patterns=(URI_RE,)),
     PrivacyRule("apn_dnn", path_keywords=("apn", "dnn")),
+    PrivacyRule("hostname", path_keywords=("dns",)),
     PrivacyRule("diameter_identity", path_keywords=("realm", "origin_host", "destination_host", "origin-realm", "destination-realm")),
     PrivacyRule("distinguished_name", path_keywords=("distinguished", ".dn", "issuer", "subject")),
     PrivacyRule("subscriber_id", path_keywords=("subscriber", ".id", "ueid")),
@@ -88,6 +90,10 @@ class PrivacyPolicyEngine:
     version = "2026-04-08"
 
     def classify(self, path: str, value: Any, packet: dict[str, Any] | None = None) -> str | None:
+        normalized_path = path.lower()
+        if normalized_path.startswith("privacy.modes"):
+            return None
+
         protocol = None
         if isinstance(packet, dict):
             protocol = str(packet.get("top_protocol") or packet.get("message", {}).get("protocol") or "").lower()

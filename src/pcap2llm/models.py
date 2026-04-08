@@ -102,6 +102,11 @@ class PrivacyProfileDefinition(BaseModel):
     modes: dict[str, str] = Field(default_factory=dict)
 
 
+class PackageMetadataExpectation(BaseModel):
+    license_expression: str
+    author_hint: str
+
+
 class ProfileDefinition(BaseModel):
     name: str
     description: str

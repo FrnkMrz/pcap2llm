@@ -299,6 +299,22 @@ class TestAnalyzeCapturePipeline:
         assert artifacts.summary["capture_metadata"]["packet_count"] == 0
         assert artifacts.detail["selected_packets"] == []
 
+    def test_fail_fast_on_large_capture_size(self, tmp_path: Path) -> None:
+        profile = load_profile("lte-core")
+        runner = TSharkRunner()
+        capture = tmp_path / "large_sample.pcapng"
+        capture.write_bytes(b"x" * (2 * 1024 * 1024))
+
+        with pytest.raises(RuntimeError, match="max-capture-size-mb"):
+            analyze_capture(
+                capture,
+                out_dir=tmp_path / "out",
+                runner=runner,
+                profile=profile,
+                privacy_modes={},
+                max_capture_size_mb=1,
+            )
+
     def test_full_pipeline_dropped_packets_in_summary(self, tmp_path: Path) -> None:
         profile = load_profile("lte-core")
         runner = TSharkRunner()

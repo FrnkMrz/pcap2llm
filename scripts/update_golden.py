@@ -56,8 +56,11 @@ def update_fixture(path: Path, *, force: bool) -> None:
 
 def main() -> None:
     force = "--force" in sys.argv
+    selected = {arg for arg in sys.argv[1:] if not arg.startswith("-")}
     for scenario_dir in sorted(FIXTURES.iterdir()):
         if scenario_dir.is_dir():
+            if selected and scenario_dir.name not in selected:
+                continue
             update_fixture(scenario_dir, force=force)
             print(f"updated {scenario_dir.relative_to(ROOT)}")
 

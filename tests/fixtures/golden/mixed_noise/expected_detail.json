@@ -41,7 +41,8 @@
       "privacy": {
         "modes": {
           "payload_text": "mask",
-          "uri": "[redacted]"
+          "email": "remove",
+          "uri": "mask"
         }
       },
       "anomalies": [],
@@ -85,14 +86,16 @@
       "privacy": {
         "modes": {
           "payload_text": "mask",
-          "uri": "[redacted]"
+          "email": "remove",
+          "uri": "mask"
         }
       },
       "anomalies": [],
       "message": {
         "protocol": "diameter",
         "fields": {
-          "diameter.cmd.code": "316"
+          "diameter.cmd.code": "316",
+          "payload.text": "[redacted]"
         }
       }
     }
@@ -127,7 +130,8 @@
       "privacy": {
         "modes": {
           "payload_text": "mask",
-          "uri": "[redacted]"
+          "email": "remove",
+          "uri": "mask"
         }
       },
       "anomalies": [],
@@ -171,14 +175,16 @@
       "privacy": {
         "modes": {
           "payload_text": "mask",
-          "uri": "[redacted]"
+          "email": "remove",
+          "uri": "mask"
         }
       },
       "anomalies": [],
       "message": {
         "protocol": "diameter",
         "fields": {
-          "diameter.cmd.code": "316"
+          "diameter.cmd.code": "316",
+          "payload.text": "[redacted]"
         }
       }
     }

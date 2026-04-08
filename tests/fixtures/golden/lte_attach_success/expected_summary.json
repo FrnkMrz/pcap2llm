@@ -132,7 +132,7 @@
   "burst_periods": [],
   "privacy_audit": {
     "pseudonymized_unique_values": {
-      "imsi": 2
+      "imsi": 1
     }
   }
 }

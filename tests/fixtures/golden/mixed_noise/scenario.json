@@ -1,4 +1,6 @@
 {
+  "description": "Mixed capture with noise and truncation to verify bounded detail export behavior.",
+  "sanitization": "Free-text content, addresses, and URLs are synthetic and intentionally non-sensitive.",
   "profile": "lte-core",
   "privacy_modes": {
     "payload_text": "mask",

@@ -1,4 +1,6 @@
 {
+  "description": "HTTP/2 SBI control-plane request with authority, path, and authorization header.",
+  "sanitization": "Hostnames, URIs, and bearer tokens are synthetic test values only.",
   "profile": "5g-core",
   "privacy_modes": {
     "token": "remove",

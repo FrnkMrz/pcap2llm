@@ -43,7 +43,7 @@
       "privacy": {
         "modes": {
           "diameter_identity": "pseudonymize",
-          "imsi": "IMSI_324dee3c"
+          "imsi": "pseudonymize"
         }
       },
       "anomalies": [],
@@ -90,7 +90,7 @@
       "privacy": {
         "modes": {
           "diameter_identity": "pseudonymize",
-          "imsi": "IMSI_324dee3c"
+          "imsi": "pseudonymize"
         }
       },
       "anomalies": [],

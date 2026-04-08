@@ -39,6 +39,7 @@ def test_analyze_dry_run_outputs_plan(tmp_path: Path) -> None:
     assert payload["profile"] == "lte-core"
     assert payload["privacy_modes"]["ip"] == "mask"
     assert payload["fail_on_truncation"] is False
+    assert payload["max_capture_size_mb"] == 250
 
 
 def test_analyze_outputs_artifact_prefix_and_version(tmp_path: Path) -> None:

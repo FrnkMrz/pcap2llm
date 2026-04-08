@@ -1,4 +1,6 @@
 {
+  "description": "NGAP registration-style message with subscriber and device identifiers.",
+  "sanitization": "5G identifiers and addresses are synthetic placeholders for fixture safety.",
   "profile": "5g-core",
   "privacy_modes": {
     "subscriber_id": "pseudonymize",

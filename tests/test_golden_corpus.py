@@ -44,3 +44,10 @@ def test_golden_corpus_matches_expected(tmp_path: Path) -> None:
 
         assert _canonicalize(artifacts.summary) == expected_summary, scenario_dir.name
         assert _canonicalize(artifacts.detail) == expected_detail, scenario_dir.name
+
+
+def test_golden_scenarios_record_description_and_sanitization() -> None:
+    for scenario_dir in sorted(FIXTURES.iterdir()):
+        scenario = json.loads((scenario_dir / "scenario.json").read_text(encoding="utf-8"))
+        assert scenario.get("description"), scenario_dir.name
+        assert scenario.get("sanitization"), scenario_dir.name

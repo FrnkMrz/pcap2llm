@@ -29,5 +29,6 @@
 ## Known Limits
 
 - Best results come from focused traces and explicit display filters.
-- Large captures are bounded for detail export; summary behavior and truncation are made explicit but not fully streaming.
+- Large captures are bounded for detail export, but the underlying TShark JSON ingestion is still full-load in memory.
+- A default pre-export size guard exists to catch accidental large inputs early; disabling it should be an explicit operator decision.
 - TShark version drift can affect raw extraction, which is why public serializer contracts are validated.

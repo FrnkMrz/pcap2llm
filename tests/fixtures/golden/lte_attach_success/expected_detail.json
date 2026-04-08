@@ -42,7 +42,8 @@
       },
       "privacy": {
         "modes": {
-          "imsi": "IMSI_324dee3c"
+          "imsi": "pseudonymize",
+          "token": "remove"
         }
       },
       "anomalies": [],
@@ -85,7 +86,8 @@
       },
       "privacy": {
         "modes": {
-          "imsi": "IMSI_324dee3c"
+          "imsi": "pseudonymize",
+          "token": "remove"
         }
       },
       "anomalies": [],
@@ -129,7 +131,8 @@
       },
       "privacy": {
         "modes": {
-          "imsi": "IMSI_324dee3c"
+          "imsi": "pseudonymize",
+          "token": "remove"
         }
       },
       "anomalies": [],
@@ -172,7 +175,8 @@
       },
       "privacy": {
         "modes": {
-          "imsi": "IMSI_324dee3c"
+          "imsi": "pseudonymize",
+          "token": "remove"
         }
       },
       "anomalies": [],

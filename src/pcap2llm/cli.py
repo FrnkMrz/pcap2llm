@@ -82,7 +82,11 @@ def main(
     _configure_logging(verbose, debug)
 
 
-_MODE_HELP = "Privacy mode: keep | mask | pseudonymize | encrypt | remove  (alias: off=keep, redact=mask)"
+_MODE_HELP = (
+    "Privacy mode: keep | mask | pseudonymize | encrypt | remove  "
+    "(alias: off=keep, redact=mask). "
+    "encrypt requires PCAP2LLM_VAULT_KEY; vault.json stores metadata only."
+)
 
 
 def _privacy_overrides(
@@ -246,6 +250,14 @@ def analyze_command(
         "--fail-on-truncation",
         help="Exit with an error instead of writing a truncated detail artifact.",
     ),
+    max_capture_size_mb: int = typer.Option(
+        250,
+        "--max-capture-size-mb",
+        help=(
+            "Fail fast when the input capture exceeds this size in MiB before tshark JSON export. "
+            "Use 0 to disable the guard for intentionally large captures."
+        ),
+    ),
     ip_mode: str | None = typer.Option(None, "--ip-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
     hostname_mode: str | None = typer.Option(None, "--hostname-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
     subscriber_id_mode: str | None = typer.Option(None, "--subscriber-id-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
@@ -297,6 +309,7 @@ def analyze_command(
                     "display_filter": effective_filter,
                     "max_packets": effective_max_packets if effective_max_packets > 0 else "unlimited",
                     "fail_on_truncation": fail_on_truncation,
+                    "max_capture_size_mb": max_capture_size_mb,
                     "privacy_modes": privacy_modes,
                     "hosts_file": str(effective_hosts) if effective_hosts else None,
                     "mapping_file": str(effective_mapping) if effective_mapping else None,
@@ -328,6 +341,7 @@ def analyze_command(
                 two_pass=effective_two_pass,
                 max_packets=effective_max_packets,
                 fail_on_truncation=fail_on_truncation,
+                max_capture_size_mb=max_capture_size_mb,
                 on_stage=on_stage,
             )
     except (TSharkError, RuntimeError) as exc:

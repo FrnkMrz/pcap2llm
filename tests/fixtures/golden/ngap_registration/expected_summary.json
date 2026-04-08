@@ -115,7 +115,7 @@
   "burst_periods": [],
   "privacy_audit": {
     "pseudonymized_unique_values": {
-      "subscriber_id": 2
+      "subscriber_id": 1
     }
   }
 }

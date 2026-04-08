@@ -112,6 +112,7 @@ def analyze_capture(
     two_pass: bool = False,
     max_packets: int = _DEFAULT_MAX_PACKETS,
     fail_on_truncation: bool = False,
+    max_capture_size_mb: int = 250,
     on_stage: OnStage | None = None,
 ) -> AnalyzeArtifacts:
     """Run the full analysis pipeline.
@@ -124,6 +125,8 @@ def analyze_capture(
     def _step(msg: str, i: int) -> None:
         if on_stage:
             on_stage(msg, i, _ANALYZE_STEPS)
+
+    _check_capture_size(capture_path, max_capture_size_mb=max_capture_size_mb)
 
     _step("Inspect stage: exporting packets via TShark…", 0)
     raw_packets = _export_packets(
@@ -253,6 +256,22 @@ def _export_packets(
         extra_args=extra_args,
         two_pass=two_pass,
     )
+
+
+def _check_capture_size(capture_path: Path, *, max_capture_size_mb: int) -> None:
+    if max_capture_size_mb <= 0:
+        return
+    try:
+        size_bytes = capture_path.stat().st_size
+    except OSError:
+        return
+    limit_bytes = max_capture_size_mb * 1024 * 1024
+    if size_bytes > limit_bytes:
+        actual_mib = size_bytes / (1024 * 1024)
+        raise RuntimeError(
+            f"capture file is {actual_mib:.1f} MiB, which exceeds --max-capture-size-mb "
+            f"{max_capture_size_mb}. Narrow the trace first or rerun with a larger limit."
+        )
 
 
 def _select_packets(raw_packets: list[dict], *, max_packets: int) -> SelectedPackets:

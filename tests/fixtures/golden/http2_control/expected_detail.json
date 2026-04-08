@@ -41,8 +41,9 @@
       },
       "privacy": {
         "modes": {
-          "uri": "[redacted]",
-          "hostname": "[redacted]"
+          "token": "remove",
+          "uri": "mask",
+          "hostname": "mask"
         }
       },
       "anomalies": [],
@@ -85,8 +86,9 @@
       },
       "privacy": {
         "modes": {
-          "uri": "[redacted]",
-          "hostname": "[redacted]"
+          "token": "remove",
+          "uri": "mask",
+          "hostname": "mask"
         }
       },
       "anomalies": [],

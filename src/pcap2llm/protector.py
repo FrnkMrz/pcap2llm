@@ -23,7 +23,7 @@ class Protector:
         self.policy = policy or PrivacyPolicyEngine()
 
     def validate_vault_key(self) -> None:
-        """Fail fast if encrypt mode is requested but the key is invalid.
+        """Fail fast if encrypt mode is requested but the key is missing or invalid.
 
         Call this before starting packet processing so the user gets a clear
         error message rather than a crash mid-pipeline.
@@ -37,13 +37,17 @@ class Protector:
                 "Encryption mode requires the optional 'cryptography' dependency."
             ) from exc
         key = os.getenv("PCAP2LLM_VAULT_KEY")
-        if key:
-            try:
-                Fernet(key.encode("utf-8"))
-            except Exception as exc:
-                raise ProtectionError(
-                    f"PCAP2LLM_VAULT_KEY is not a valid Fernet key: {exc}"
-                ) from exc
+        if not key:
+            raise ProtectionError(
+                "Encryption mode requires PCAP2LLM_VAULT_KEY to be set explicitly. "
+                "pcap2llm does not generate or store recovery keys for you."
+            )
+        try:
+            Fernet(key.encode("utf-8"))
+        except Exception as exc:
+            raise ProtectionError(
+                f"PCAP2LLM_VAULT_KEY is not a valid Fernet key: {exc}"
+            ) from exc
 
     def _load_fernet(self) -> Any:
         if self._fernet is not None:
@@ -56,20 +60,19 @@ class Protector:
             ) from exc
 
         key = os.getenv("PCAP2LLM_VAULT_KEY")
-        if key:
-            self._key_source = "PCAP2LLM_VAULT_KEY"
-            try:
-                self._fernet = Fernet(key.encode("utf-8"))
-            except Exception as exc:
-                raise ProtectionError(
-                    f"PCAP2LLM_VAULT_KEY is not a valid Fernet key: {exc}"
-                ) from exc
-            return self._fernet
+        if not key:
+            raise ProtectionError(
+                "Encryption mode requires PCAP2LLM_VAULT_KEY to be set explicitly. "
+                "The vault sidecar contains metadata only and cannot recover encrypted values."
+            )
 
-        generated = Fernet.generate_key()
-        self._key_source = "generated"
-        os.environ["PCAP2LLM_VAULT_KEY"] = generated.decode("utf-8")
-        self._fernet = Fernet(generated)
+        self._key_source = "env:PCAP2LLM_VAULT_KEY"
+        try:
+            self._fernet = Fernet(key.encode("utf-8"))
+        except Exception as exc:
+            raise ProtectionError(
+                f"PCAP2LLM_VAULT_KEY is not a valid Fernet key: {exc}"
+            ) from exc
         return self._fernet
 
     def _pseudonym(self, data_class: str, original: str) -> str:
@@ -127,7 +130,8 @@ class Protector:
             "key_source": self._key_source,
             "notes": [
                 "Encrypted values are stored inline in detail.json.",
-                "Keep the local vault key private; without it the values are not recoverable.",
+                "vault.json contains metadata only; it never contains the decryption secret.",
+                "Keep PCAP2LLM_VAULT_KEY separate from shared artifacts; without it the values are not recoverable.",
             ],
         }
 

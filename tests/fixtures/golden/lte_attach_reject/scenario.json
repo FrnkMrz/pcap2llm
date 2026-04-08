@@ -1,4 +1,6 @@
 {
+  "description": "LTE attach reject style signaling with subscriber removal and payload masking.",
+  "sanitization": "Identifiers and addresses are fabricated and safe for repository storage.",
   "profile": "lte-core",
   "privacy_modes": {
     "imsi": "remove",

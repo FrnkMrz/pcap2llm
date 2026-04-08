@@ -121,7 +121,6 @@
   "burst_periods": [],
   "privacy_audit": {
     "pseudonymized_unique_values": {
-      "imsi": 1,
       "diameter_identity": 2
     }
   }

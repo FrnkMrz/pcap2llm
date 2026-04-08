@@ -1,0 +1,128 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "<generated_at>",
+  "capture_sha256": "<capture_sha256>",
+  "profile": "lte-core",
+  "artifact_role": "summary_sidecar",
+  "capture_metadata": {
+    "capture_file": "<fixture>",
+    "packet_count": 1,
+    "first_seen_epoch": "1712390200.0",
+    "last_seen_epoch": "1712390200.0",
+    "relevant_protocols": [
+      "diameter"
+    ],
+    "raw_protocols": [
+      "diameter",
+      "eth",
+      "ip",
+      "sctp"
+    ],
+    "display_filter": null
+  },
+  "relevant_protocols": [
+    "diameter"
+  ],
+  "conversations": [
+    {
+      "transport": "sctp",
+      "src": "10.20.0.1",
+      "dst": "10.20.0.2",
+      "top_protocol": "diameter",
+      "packet_count": 1
+    }
+  ],
+  "packet_message_counts": {
+    "total_packets": 1,
+    "top_protocols": {
+      "diameter": 1
+    },
+    "transport": {
+      "sctp": 1
+    }
+  },
+  "anomalies": [
+    "[diameter][error] Result-Code 5005 (cmd=318) at packet 10"
+  ],
+  "anomaly_counts_by_layer": {
+    "diameter": 1
+  },
+  "deterministic_findings": [
+    "1 anomalies detected (diameter: 1)",
+    "diameter accounts for 1 normalized packets"
+  ],
+  "probable_notable_findings": [
+    "1 anomalies detected (diameter: 1)",
+    "diameter accounts for 1 normalized packets"
+  ],
+  "privacy_modes": {
+    "diameter_identity": "pseudonymize",
+    "imsi": "pseudonymize"
+  },
+  "privacy_policy": {
+    "version": "2026-04-08",
+    "rule_layers": [
+      "generic",
+      "protocol-aware",
+      "privacy-profile-overrides"
+    ],
+    "canonical_classes": {
+      "network_address": {
+        "maps_to": [
+          "ip",
+          "hostname"
+        ],
+        "notes": "IP addresses, DNS names, hostnames, and related network identifiers."
+      },
+      "subscriber_identifier": {
+        "maps_to": [
+          "subscriber_id",
+          "imsi",
+          "msisdn"
+        ],
+        "notes": "Subscriber and account identifiers such as IMSI, MSISDN, SUPI, SUCI."
+      },
+      "device_identifier": {
+        "maps_to": [
+          "imei"
+        ],
+        "notes": "Device identifiers such as IMEI or PEI."
+      },
+      "operator_internal_name": {
+        "maps_to": [
+          "hostname",
+          "diameter_identity",
+          "apn_dnn"
+        ],
+        "notes": "Operator-internal node names, Diameter identities, APN/DNN labels."
+      },
+      "application_secret": {
+        "maps_to": [
+          "token"
+        ],
+        "notes": "Credentials, cookies, bearer tokens, or opaque secrets."
+      },
+      "payload_text": {
+        "maps_to": [
+          "payload_text",
+          "email",
+          "uri"
+        ],
+        "notes": "Free-form text or embedded customer content that may contain PII or URLs."
+      }
+    }
+  },
+  "coverage": {
+    "detail_packets_included": 1,
+    "detail_packets_available": 1,
+    "detail_truncated": false,
+    "summary_packet_count": 1
+  },
+  "burst_periods": [],
+  "privacy_audit": {
+    "pseudonymized_unique_values": {
+      "imsi": 1,
+      "diameter_identity": 2
+    }
+  }
+}

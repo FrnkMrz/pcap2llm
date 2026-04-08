@@ -1,7 +1,4 @@
-import warnings
-
 from pcap2llm.profiles import load_profile
-from pcap2llm.privacy_profiles import load_privacy_profile
 
 
 def test_load_lte_core_profile() -> None:

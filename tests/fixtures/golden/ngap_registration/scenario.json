@@ -1,0 +1,8 @@
+{
+  "profile": "5g-core",
+  "privacy_modes": {
+    "subscriber_id": "pseudonymize",
+    "imei": "mask"
+  },
+  "max_packets": 0
+}

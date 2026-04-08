@@ -1,0 +1,35 @@
+[
+  {
+    "_source": {
+      "layers": {
+        "frame.number": "1",
+        "frame.time_epoch": "1712390000.0",
+        "frame.time_relative": "0.0",
+        "frame.protocols": "eth:ip:sctp:diameter",
+        "ip": { "ip.src": "10.0.0.1", "ip.dst": "10.0.0.2" },
+        "sctp": { "sctp.srcport": "3868", "sctp.dstport": "3868", "sctp.assoc_index": "0" },
+        "diameter": {
+          "diameter.cmd.code": "316",
+          "diameter.imsi": "001010123456789",
+          "diameter.origin_host": "mme01.epc.local"
+        }
+      }
+    }
+  },
+  {
+    "_source": {
+      "layers": {
+        "frame.number": "2",
+        "frame.time_epoch": "1712390000.2",
+        "frame.time_relative": "0.2",
+        "frame.protocols": "eth:ip:sctp:diameter",
+        "ip": { "ip.src": "10.0.0.2", "ip.dst": "10.0.0.1" },
+        "sctp": { "sctp.srcport": "3868", "sctp.dstport": "3868", "sctp.assoc_index": "0" },
+        "diameter": {
+          "diameter.cmd.code": "316",
+          "diameter.result_code": "2001"
+        }
+      }
+    }
+  }
+]

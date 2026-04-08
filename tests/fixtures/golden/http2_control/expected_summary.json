@@ -1,0 +1,117 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "<generated_at>",
+  "capture_sha256": "<capture_sha256>",
+  "profile": "5g-core",
+  "artifact_role": "summary_sidecar",
+  "capture_metadata": {
+    "capture_file": "<fixture>",
+    "packet_count": 1,
+    "first_seen_epoch": "1712390400.0",
+    "last_seen_epoch": "1712390400.0",
+    "relevant_protocols": [
+      "http"
+    ],
+    "raw_protocols": [
+      "eth",
+      "http2",
+      "ip",
+      "tcp"
+    ],
+    "display_filter": null
+  },
+  "relevant_protocols": [
+    "http"
+  ],
+  "conversations": [
+    {
+      "transport": "tcp",
+      "src": "10.40.0.1",
+      "dst": "10.40.0.2",
+      "top_protocol": "http",
+      "packet_count": 1
+    }
+  ],
+  "packet_message_counts": {
+    "total_packets": 1,
+    "top_protocols": {
+      "http": 1
+    },
+    "transport": {
+      "tcp": 1
+    }
+  },
+  "anomalies": [],
+  "anomaly_counts_by_layer": {},
+  "deterministic_findings": [
+    "http accounts for 1 normalized packets"
+  ],
+  "probable_notable_findings": [
+    "http accounts for 1 normalized packets"
+  ],
+  "privacy_modes": {
+    "token": "remove",
+    "uri": "mask",
+    "hostname": "mask"
+  },
+  "privacy_policy": {
+    "version": "2026-04-08",
+    "rule_layers": [
+      "generic",
+      "protocol-aware",
+      "privacy-profile-overrides"
+    ],
+    "canonical_classes": {
+      "network_address": {
+        "maps_to": [
+          "ip",
+          "hostname"
+        ],
+        "notes": "IP addresses, DNS names, hostnames, and related network identifiers."
+      },
+      "subscriber_identifier": {
+        "maps_to": [
+          "subscriber_id",
+          "imsi",
+          "msisdn"
+        ],
+        "notes": "Subscriber and account identifiers such as IMSI, MSISDN, SUPI, SUCI."
+      },
+      "device_identifier": {
+        "maps_to": [
+          "imei"
+        ],
+        "notes": "Device identifiers such as IMEI or PEI."
+      },
+      "operator_internal_name": {
+        "maps_to": [
+          "hostname",
+          "diameter_identity",
+          "apn_dnn"
+        ],
+        "notes": "Operator-internal node names, Diameter identities, APN/DNN labels."
+      },
+      "application_secret": {
+        "maps_to": [
+          "token"
+        ],
+        "notes": "Credentials, cookies, bearer tokens, or opaque secrets."
+      },
+      "payload_text": {
+        "maps_to": [
+          "payload_text",
+          "email",
+          "uri"
+        ],
+        "notes": "Free-form text or embedded customer content that may contain PII or URLs."
+      }
+    }
+  },
+  "coverage": {
+    "detail_packets_included": 1,
+    "detail_packets_available": 1,
+    "detail_truncated": false,
+    "summary_packet_count": 1
+  },
+  "burst_periods": []
+}

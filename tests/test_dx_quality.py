@@ -11,8 +11,6 @@ import json
 import re
 from pathlib import Path
 from unittest.mock import patch
-
-import pytest
 from typer.testing import CliRunner
 
 from pcap2llm.cli import app
@@ -163,7 +161,7 @@ class TestArtifactMetadata:
 
     def test_summary_has_schema_version(self, tmp_path: Path) -> None:
         artifacts = self._run_pipeline(tmp_path)
-        assert artifacts.summary.get("schema_version") == "0.1"
+        assert artifacts.summary.get("schema_version") == "1.0"
 
     def test_summary_has_generated_at_iso8601(self, tmp_path: Path) -> None:
         artifacts = self._run_pipeline(tmp_path)
@@ -182,7 +180,7 @@ class TestArtifactMetadata:
 
     def test_detail_has_schema_version(self, tmp_path: Path) -> None:
         artifacts = self._run_pipeline(tmp_path)
-        assert artifacts.detail.get("schema_version") == "0.1"
+        assert artifacts.detail.get("schema_version") == "1.0"
 
     def test_capture_sha256_matches_file(self, tmp_path: Path) -> None:
         import hashlib
@@ -208,8 +206,8 @@ class TestArtifactMetadata:
         outputs = write_artifacts(artifacts, tmp_path / "out2")
         summary = json.loads(outputs["summary"].read_text())
         detail = json.loads(outputs["detail"].read_text())
-        assert summary["schema_version"] == "0.1"
-        assert detail["schema_version"] == "0.1"
+        assert summary["schema_version"] == "1.0"
+        assert detail["schema_version"] == "1.0"
 
 
 # ---------------------------------------------------------------------------
@@ -332,9 +330,7 @@ class TestMaxPackets:
         assert _DEFAULT_MAX_PACKETS == 1000
 
     def test_truncation_when_over_limit(self, tmp_path: Path) -> None:
-        from pcap2llm.normalizer import normalize_packets
         from pcap2llm.pipeline import analyze_capture
-        from pcap2llm.resolver import EndpointResolver
         from pcap2llm.tshark_runner import TSharkRunner
         from unittest.mock import patch
 

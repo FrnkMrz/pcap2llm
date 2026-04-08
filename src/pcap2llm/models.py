@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+
+SCHEMA_VERSION = "1.0"
 
 
 class ProtectionMode(str, Enum):
@@ -137,3 +140,50 @@ class AnalyzeArtifacts(BaseModel):
     markdown: str
     pseudonym_mapping: dict[str, dict[str, str]] = Field(default_factory=dict)
     vault: dict[str, Any] | None = None
+
+
+class ArtifactCoverage(BaseModel):
+    detail_packets_included: int
+    detail_packets_available: int
+    detail_truncated: bool
+    summary_packet_count: int
+    truncation_note: str | None = None
+
+
+class SummaryArtifactV1(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: str = SCHEMA_VERSION
+    generated_at: str
+    capture_sha256: str | None = None
+    profile: str
+    artifact_role: Literal["summary_sidecar"] = "summary_sidecar"
+    capture_metadata: dict[str, Any]
+    relevant_protocols: list[str] = Field(default_factory=list)
+    conversations: list[dict[str, Any]] = Field(default_factory=list)
+    packet_message_counts: dict[str, Any] = Field(default_factory=dict)
+    anomalies: list[str] = Field(default_factory=list)
+    anomaly_counts_by_layer: dict[str, int] = Field(default_factory=dict)
+    deterministic_findings: list[str] = Field(default_factory=list)
+    probable_notable_findings: list[str] = Field(default_factory=list)
+    privacy_modes: dict[str, str] = Field(default_factory=dict)
+    privacy_policy: dict[str, Any] = Field(default_factory=dict)
+    coverage: ArtifactCoverage
+    timing_stats: dict[str, Any] | None = None
+    burst_periods: list[dict[str, Any]] = Field(default_factory=list)
+    dropped_packets: int | None = None
+    detail_truncated: dict[str, Any] | None = None
+    privacy_audit: dict[str, Any] | None = None
+
+
+class DetailArtifactV1(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: str = SCHEMA_VERSION
+    generated_at: str
+    capture_sha256: str | None = None
+    profile: str
+    artifact_role: Literal["llm_input"] = "llm_input"
+    coverage: ArtifactCoverage
+    messages: list[dict[str, Any]] = Field(default_factory=list)
+    selected_packets: list[dict[str, Any]] = Field(default_factory=list)

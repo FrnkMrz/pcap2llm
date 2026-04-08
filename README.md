@@ -1,6 +1,8 @@
 # pcap2llm
 
-`pcap2llm` converts `.pcap` and `.pcapng` captures into compact, LLM-friendly artifacts for telecom troubleshooting. It ships with profile-driven workflows for LTE/EPC, 5G core, and legacy 2G/3G SS7 plus GERAN analysis.
+`pcap2llm` formats `.pcap` and `.pcapng` captures into stable, privacy-aware telecom troubleshooting artifacts. Its primary product is a structured `detail.json` handoff artifact that can be given to a downstream LLM in a second step. The tool itself does not perform generative AI analysis.
+
+It ships with profile-driven workflows for LTE/EPC, 5G core, and legacy 2G/3G SS7 plus GERAN troubleshooting.
 
 ## Deutsch
 
@@ -18,17 +20,28 @@ For a normal `analyze` run the tool writes:
 
 | File | Contents |
 |---|---|
-| `YYYYMMDD_HHMMSS_summary_V_01.json` | Compact case overview: protocols, conversations, anomalies, timing stats |
-| `YYYYMMDD_HHMMSS_detail_V_01.json` | Normalized packet/message detail with reduced lower layers |
-| `YYYYMMDD_HHMMSS_summary_V_01.md` | Human-readable report |
+| `YYYYMMDD_HHMMSS_detail_V_01.json` | Primary LLM handoff artifact: normalized, reduced, privacy-controlled packet/message detail |
+| `YYYYMMDD_HHMMSS_summary_V_01.json` | Sidecar: coverage, protocol mix, anomalies, deterministic findings, policy metadata |
+| `YYYYMMDD_HHMMSS_summary_V_01.md` | Human-readable sidecar derived from `summary.json` |
 | `YYYYMMDD_HHMMSS_pseudonym_mapping_V_01.json` | Only when pseudonymization is used |
 | `YYYYMMDD_HHMMSS_vault_V_01.json` | Only when encryption is used |
 
 The CLI JSON output also includes `artifact_prefix` and `artifact_version` so automation can reliably identify the generated file set.
 
-Both JSON files include `schema_version`, `generated_at` (ISO 8601 UTC), and `capture_sha256` for reproducibility and audit.
+Both JSON files include `schema_version`, `generated_at` (ISO 8601 UTC), `capture_sha256`, and explicit coverage metadata for reproducibility and audit.
 
 By default the generated `*_detail.json` contains only the first **1 000 packets**. Use `--all-packets` to remove the limit or `--max-packets N` to set a custom value. Inspection and all summary statistics always run on the full capture regardless of this setting. When the output is truncated, the generated `*_summary.json` contains a `detail_truncated` key explaining how many packets were exported vs. included.
+
+## Intended Use
+
+`pcap2llm` is a deterministic trace formatter and artifact generator. It is best used when you already know which slice of traffic matters and want to produce a compact, readable artifact for a later LLM review step.
+
+See also:
+
+- [`docs/schema/detail.schema.md`](docs/schema/detail.schema.md)
+- [`docs/schema/summary.schema.md`](docs/schema/summary.schema.md)
+- [`docs/security/threat_model.md`](docs/security/threat_model.md)
+- [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)
 
 ## When This Tool Works Well — and When It Does Not
 
@@ -44,6 +57,7 @@ pcap2llm is designed for **targeted, focused captures**: a failed attach procedu
 - Throwing a multi-megabyte rolling capture at it and expecting the LLM to find the needle
 - Full-node traffic dumps with tens of thousands of packets — the `detail.json` will be too large for any LLM to reason over
 - Long captures that mix many unrelated flows — the LLM sees everything but understands nothing
+- Treating the tool itself as the analysis engine rather than as the artifact-preparation step
 
 **Practical rule of thumb:** if your filtered capture has more than ~2 000 signaling messages, consider splitting it by flow or SCTP/TCP stream before analyzing. Use `pcap2llm inspect` first to understand what is inside, then narrow down with `-Y` before running `analyze`.
 
@@ -53,9 +67,11 @@ The `--max-packets` default of 1 000 is a safety rail, not a target. A tight fil
 
 - CLI-first and automation-friendly
 - `tshark` as the local dissector backend — no cloud dependency
+- stable public artifact contracts decoupled from raw TShark structure
 - L2 hidden by default; L3 preserved; L4 reduced to analyst-useful context
 - Top relevant protocol retained in fuller detail
 - Privacy controls selectable per data class
+- deterministic formatting for a downstream LLM handoff step
 
 ## Installation
 
@@ -101,6 +117,9 @@ pcap2llm analyze sample.pcapng \
   --mapping-file ./examples/mapping.sample.yaml \
   --out ./artifacts
 
+# Hand the generated *_detail.json to your LLM in a second step.
+# Use *_summary.json to confirm coverage, truncation, and privacy policy.
+
 # Example JSON response fields after analyze:
 # "artifact_prefix": "20240406_075320"
 # "artifact_version": null
@@ -145,6 +164,8 @@ If no mapping entry is found for an IP, the resolver falls back to port-based ro
 
 ## Privacy Model
 
+Privacy is policy-driven and protocol-aware. The tool classifies fields and free-form text into data classes, then applies the configured action for each class.
+
 Privacy is controlled per data class via `--<class>-mode`:
 
 | Data class | Default (lte-core) |
@@ -183,6 +204,8 @@ Pseudonyms are **stable across runs**: the same original value always produces t
 
 If `PCAP2LLM_VAULT_KEY` is not set, a temporary key is generated for the process and stored in the generated `*_vault.json`.
 
+Do not store or share the vault key together with the exported artifacts.
+
 ## Profiles
 
 Profiles are YAML-driven and define protocol priorities, field extraction, and privacy defaults.
@@ -199,7 +222,7 @@ To create a custom profile, see [`docs/PROFILES.md`](docs/PROFILES.md).
 
 ## Anomaly Detection
 
-The tool detects both transport-layer and application-layer anomalies:
+The tool produces deterministic anomaly summaries from transport-layer and application-layer rules:
 
 **Transport**: TCP retransmissions, out-of-order segments, SCTP analysis warnings.
 
@@ -207,11 +230,16 @@ The tool detects both transport-layer and application-layer anomalies:
 
 **GTPv2-C**: unanswered Create Session Requests, rejected sessions, Error Indications.
 
-Anomalies appear in the generated `*_summary.json` under `anomalies` and are classified by layer in `anomaly_counts_by_layer`.
+Anomalies appear in the generated `*_summary.json` under `anomalies` and are classified by layer in `anomaly_counts_by_layer`. They are sidecar signals, not generative conclusions.
 
-## Normalized Schema
+## Public Artifact Contract
 
-Generated `*_detail.json` packet objects:
+The public Schema 1.0 contract is documented in:
+
+- [`docs/schema/detail.schema.md`](docs/schema/detail.schema.md)
+- [`docs/schema/summary.schema.md`](docs/schema/summary.schema.md)
+
+Generated `*_detail.json` message objects follow this general shape:
 
 ```json
 {

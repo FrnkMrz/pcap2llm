@@ -1,0 +1,9 @@
+{
+  "profile": "5g-core",
+  "privacy_modes": {
+    "token": "remove",
+    "uri": "mask",
+    "hostname": "mask"
+  },
+  "max_packets": 0
+}

@@ -1,0 +1,19 @@
+[
+  {
+    "_source": {
+      "layers": {
+        "frame.number": "1",
+        "frame.time_epoch": "1712390100.0",
+        "frame.time_relative": "0.0",
+        "frame.protocols": "eth:ip:sctp:s1ap",
+        "ip": { "ip.src": "10.1.0.1", "ip.dst": "10.1.0.2" },
+        "sctp": { "sctp.srcport": "36412", "sctp.dstport": "36412", "sctp.assoc_index": "1" },
+        "s1ap": {
+          "s1ap.MME_UE_S1AP_ID": "12345",
+          "nas_eps.imsi": "001010987654321",
+          "nas_eps.emm.cause": "11"
+        }
+      }
+    }
+  }
+]

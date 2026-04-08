@@ -1,0 +1,102 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "<generated_at>",
+  "capture_sha256": "<capture_sha256>",
+  "profile": "5g-core",
+  "artifact_role": "llm_input",
+  "coverage": {
+    "detail_packets_included": 1,
+    "detail_packets_available": 1,
+    "detail_truncated": false,
+    "summary_packet_count": 1,
+    "truncation_note": null
+  },
+  "messages": [
+    {
+      "packet_no": 1,
+      "time_rel_ms": 0.0,
+      "time_epoch": "1712390400.0",
+      "top_protocol": "http",
+      "frame_protocols": [
+        "eth",
+        "ip",
+        "tcp",
+        "http2"
+      ],
+      "src": {
+        "ip": "10.40.0.1",
+        "role": "tls",
+        "labels": {}
+      },
+      "dst": {
+        "ip": "10.40.0.2",
+        "labels": {}
+      },
+      "transport": {
+        "proto": "tcp",
+        "src_port": 443,
+        "dst_port": 58712,
+        "stream": "9",
+        "anomaly": false
+      },
+      "privacy": {
+        "modes": {
+          "uri": "[redacted]",
+          "hostname": "[redacted]"
+        }
+      },
+      "anomalies": [],
+      "message": {
+        "protocol": "http",
+        "fields": {
+          "http2.header.:authority": "[redacted]",
+          "http2.header.:path": "[redacted]"
+        }
+      }
+    }
+  ],
+  "selected_packets": [
+    {
+      "packet_no": 1,
+      "time_rel_ms": 0.0,
+      "time_epoch": "1712390400.0",
+      "top_protocol": "http",
+      "frame_protocols": [
+        "eth",
+        "ip",
+        "tcp",
+        "http2"
+      ],
+      "src": {
+        "ip": "10.40.0.1",
+        "role": "tls",
+        "labels": {}
+      },
+      "dst": {
+        "ip": "10.40.0.2",
+        "labels": {}
+      },
+      "transport": {
+        "proto": "tcp",
+        "src_port": 443,
+        "dst_port": 58712,
+        "stream": "9",
+        "anomaly": false
+      },
+      "privacy": {
+        "modes": {
+          "uri": "[redacted]",
+          "hostname": "[redacted]"
+        }
+      },
+      "anomalies": [],
+      "message": {
+        "protocol": "http",
+        "fields": {
+          "http2.header.:authority": "[redacted]",
+          "http2.header.:path": "[redacted]"
+        }
+      }
+    }
+  ]
+}

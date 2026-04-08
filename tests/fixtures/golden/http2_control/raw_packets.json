@@ -1,0 +1,19 @@
+[
+  {
+    "_source": {
+      "layers": {
+        "frame.number": "1",
+        "frame.time_epoch": "1712390400.0",
+        "frame.time_relative": "0.0",
+        "frame.protocols": "eth:ip:tcp:http2",
+        "ip": { "ip.src": "10.40.0.1", "ip.dst": "10.40.0.2" },
+        "tcp": { "tcp.srcport": "443", "tcp.dstport": "58712", "tcp.stream": "9" },
+        "http2": {
+          "http2.header.:authority": "nudm01.5gc.local",
+          "http2.header.:path": "/nudm-uecm/v1/imsi-001010123456789/registrations",
+          "http2.header.authorization": "Bearer secret-token"
+        }
+      }
+    }
+  }
+]

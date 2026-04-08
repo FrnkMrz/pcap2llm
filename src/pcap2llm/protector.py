@@ -3,45 +3,11 @@ from __future__ import annotations
 import base64
 import hashlib
 import os
-import re
 from collections import defaultdict
 from typing import Any
 
 from pcap2llm.config import normalize_mode
-
-EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-
-
-def _looks_like_data_class(path: str, value: Any) -> str | None:
-    key = path.lower()
-    text = "" if value is None else str(value)
-    if key.endswith(".ip") or ".ip" in key:
-        return "ip"
-    if "hostname" in key:
-        return "hostname"
-    if "imsi" in key:
-        return "imsi"
-    if "msisdn" in key:
-        return "msisdn"
-    if "imei" in key:
-        return "imei"
-    if "email" in key or EMAIL_RE.match(text):
-        return "email"
-    if "token" in key or "bearer" in key or "cookie" in key:
-        return "token"
-    if key.endswith(".uri") or " url" in key or "uri" in key:
-        return "uri"
-    if "apn" in key or "dnn" in key:
-        return "apn_dnn"
-    if "realm" in key or "origin_host" in key or "destination_host" in key:
-        return "diameter_identity"
-    if "distinguished" in key or key.endswith(".dn"):
-        return "distinguished_name"
-    if "payload" in key or key.endswith(".text"):
-        return "payload_text"
-    if "subscriber" in key or key.endswith(".id"):
-        return "subscriber_id"
-    return None
+from pcap2llm.privacy_policy import PrivacyPolicyEngine
 
 
 class ProtectionError(RuntimeError):
@@ -49,11 +15,12 @@ class ProtectionError(RuntimeError):
 
 
 class Protector:
-    def __init__(self, modes: dict[str, str]) -> None:
+    def __init__(self, modes: dict[str, str], policy: PrivacyPolicyEngine | None = None) -> None:
         self.modes = {key: normalize_mode(value) for key, value in modes.items()}
         self.pseudonyms: dict[str, dict[str, str]] = defaultdict(dict)
         self._fernet = None
         self._key_source: str | None = None
+        self.policy = policy or PrivacyPolicyEngine()
 
     def validate_vault_key(self) -> None:
         """Fail fast if encrypt mode is requested but the key is invalid.
@@ -134,24 +101,24 @@ class Protector:
             return base64.urlsafe_b64encode(token).decode("utf-8")
         return value
 
-    def _walk(self, obj: Any, path: str = "") -> Any:
+    def _walk(self, obj: Any, path: str = "", packet: dict[str, Any] | None = None) -> Any:
         if isinstance(obj, dict):
             output: dict[str, Any] = {}
             for key, value in obj.items():
                 child_path = f"{path}.{key}" if path else key
-                protected = self._walk(value, child_path)
+                protected = self._walk(value, child_path, packet=packet)
                 if protected is not None:
                     output[key] = protected
             return output
         if isinstance(obj, list):
-            return [item for item in (self._walk(value, path) for value in obj) if item is not None]
-        data_class = _looks_like_data_class(path, obj)
+            return [item for item in (self._walk(value, path, packet=packet) for value in obj) if item is not None]
+        data_class = self.policy.classify(path, obj, packet=packet)
         if data_class:
             return self._protect_scalar(data_class, obj)
         return obj
 
     def protect_packets(self, packets: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        return [self._walk(packet) for packet in packets]
+        return [self._walk(packet, packet=packet) for packet in packets]
 
     def vault_metadata(self) -> dict[str, Any] | None:
         if self._key_source is None:
@@ -167,3 +134,6 @@ class Protector:
     def pseudonym_audit(self) -> dict[str, int]:
         """Return the number of unique values pseudonymized per data class."""
         return {cls: len(mapping) for cls, mapping in self.pseudonyms.items() if mapping}
+
+    def policy_metadata(self) -> dict[str, Any]:
+        return self.policy.metadata()

@@ -1,0 +1,18 @@
+[
+  {
+    "_source": {
+      "layers": {
+        "frame.number": "1",
+        "frame.time_epoch": "1712390300.0",
+        "frame.time_relative": "0.0",
+        "frame.protocols": "eth:ip:sctp:ngap",
+        "ip": { "ip.src": "10.30.0.1", "ip.dst": "10.30.0.2" },
+        "sctp": { "sctp.srcport": "38412", "sctp.dstport": "38412", "sctp.assoc_index": "3" },
+        "ngap": {
+          "ngap.suci": "suci-0-001-01-0000-0-0-0000001234",
+          "ngap.pei": "352099001761481"
+        }
+      }
+    }
+  }
+]

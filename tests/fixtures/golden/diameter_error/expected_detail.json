@@ -1,0 +1,108 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "<generated_at>",
+  "capture_sha256": "<capture_sha256>",
+  "profile": "lte-core",
+  "artifact_role": "llm_input",
+  "coverage": {
+    "detail_packets_included": 1,
+    "detail_packets_available": 1,
+    "detail_truncated": false,
+    "summary_packet_count": 1,
+    "truncation_note": null
+  },
+  "messages": [
+    {
+      "packet_no": 10,
+      "time_rel_ms": 0.0,
+      "time_epoch": "1712390200.0",
+      "top_protocol": "diameter",
+      "frame_protocols": [
+        "eth",
+        "ip",
+        "sctp",
+        "diameter"
+      ],
+      "src": {
+        "ip": "10.20.0.1",
+        "role": "diameter",
+        "labels": {}
+      },
+      "dst": {
+        "ip": "10.20.0.2",
+        "role": "diameter",
+        "labels": {}
+      },
+      "transport": {
+        "proto": "sctp",
+        "src_port": 3868,
+        "dst_port": 3868,
+        "stream": "2",
+        "anomaly": false
+      },
+      "privacy": {
+        "modes": {
+          "diameter_identity": "pseudonymize",
+          "imsi": "IMSI_324dee3c"
+        }
+      },
+      "anomalies": [],
+      "message": {
+        "protocol": "diameter",
+        "fields": {
+          "diameter.cmd.code": "318",
+          "diameter.origin_host": "DIAMETER_IDENTITY_44b73391",
+          "diameter.destination_host": "DIAMETER_IDENTITY_19e1758c",
+          "diameter.result_code": "5005"
+        }
+      }
+    }
+  ],
+  "selected_packets": [
+    {
+      "packet_no": 10,
+      "time_rel_ms": 0.0,
+      "time_epoch": "1712390200.0",
+      "top_protocol": "diameter",
+      "frame_protocols": [
+        "eth",
+        "ip",
+        "sctp",
+        "diameter"
+      ],
+      "src": {
+        "ip": "10.20.0.1",
+        "role": "diameter",
+        "labels": {}
+      },
+      "dst": {
+        "ip": "10.20.0.2",
+        "role": "diameter",
+        "labels": {}
+      },
+      "transport": {
+        "proto": "sctp",
+        "src_port": 3868,
+        "dst_port": 3868,
+        "stream": "2",
+        "anomaly": false
+      },
+      "privacy": {
+        "modes": {
+          "diameter_identity": "pseudonymize",
+          "imsi": "IMSI_324dee3c"
+        }
+      },
+      "anomalies": [],
+      "message": {
+        "protocol": "diameter",
+        "fields": {
+          "diameter.cmd.code": "318",
+          "diameter.origin_host": "DIAMETER_IDENTITY_44b73391",
+          "diameter.destination_host": "DIAMETER_IDENTITY_19e1758c",
+          "diameter.result_code": "5005"
+        }
+      }
+    }
+  ]
+}

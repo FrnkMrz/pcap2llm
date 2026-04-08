@@ -1,0 +1,8 @@
+{
+  "profile": "lte-core",
+  "privacy_modes": {
+    "imsi": "remove",
+    "payload_text": "mask"
+  },
+  "max_packets": 0
+}

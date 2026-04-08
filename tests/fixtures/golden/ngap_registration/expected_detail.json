@@ -1,0 +1,104 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "<generated_at>",
+  "capture_sha256": "<capture_sha256>",
+  "profile": "5g-core",
+  "artifact_role": "llm_input",
+  "coverage": {
+    "detail_packets_included": 1,
+    "detail_packets_available": 1,
+    "detail_truncated": false,
+    "summary_packet_count": 1,
+    "truncation_note": null
+  },
+  "messages": [
+    {
+      "packet_no": 1,
+      "time_rel_ms": 0.0,
+      "time_epoch": "1712390300.0",
+      "top_protocol": "ngap",
+      "frame_protocols": [
+        "eth",
+        "ip",
+        "sctp",
+        "ngap"
+      ],
+      "src": {
+        "ip": "10.30.0.1",
+        "role": "ngap",
+        "labels": {}
+      },
+      "dst": {
+        "ip": "10.30.0.2",
+        "role": "ngap",
+        "labels": {}
+      },
+      "transport": {
+        "proto": "sctp",
+        "src_port": 38412,
+        "dst_port": 38412,
+        "stream": "3",
+        "anomaly": false
+      },
+      "privacy": {
+        "modes": {
+          "subscriber_id": "SUBSCRIBER_ID_ddd27b42",
+          "imei": "[redacted]"
+        }
+      },
+      "anomalies": [],
+      "message": {
+        "protocol": "ngap",
+        "fields": {
+          "ngap.suci": "SUBSCRIBER_ID_8d5c40e9",
+          "ngap.pei": "[redacted]"
+        }
+      }
+    }
+  ],
+  "selected_packets": [
+    {
+      "packet_no": 1,
+      "time_rel_ms": 0.0,
+      "time_epoch": "1712390300.0",
+      "top_protocol": "ngap",
+      "frame_protocols": [
+        "eth",
+        "ip",
+        "sctp",
+        "ngap"
+      ],
+      "src": {
+        "ip": "10.30.0.1",
+        "role": "ngap",
+        "labels": {}
+      },
+      "dst": {
+        "ip": "10.30.0.2",
+        "role": "ngap",
+        "labels": {}
+      },
+      "transport": {
+        "proto": "sctp",
+        "src_port": 38412,
+        "dst_port": 38412,
+        "stream": "3",
+        "anomaly": false
+      },
+      "privacy": {
+        "modes": {
+          "subscriber_id": "SUBSCRIBER_ID_ddd27b42",
+          "imei": "[redacted]"
+        }
+      },
+      "anomalies": [],
+      "message": {
+        "protocol": "ngap",
+        "fields": {
+          "ngap.suci": "SUBSCRIBER_ID_8d5c40e9",
+          "ngap.pei": "[redacted]"
+        }
+      }
+    }
+  ]
+}

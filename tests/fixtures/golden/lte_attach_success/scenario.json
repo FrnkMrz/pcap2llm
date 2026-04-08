@@ -1,0 +1,8 @@
+{
+  "profile": "lte-core",
+  "privacy_modes": {
+    "imsi": "pseudonymize",
+    "token": "remove"
+  },
+  "max_packets": 0
+}

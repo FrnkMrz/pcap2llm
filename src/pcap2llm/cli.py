@@ -241,6 +241,11 @@ def analyze_command(
         "--all-packets",
         help="Include every exported packet in detail.json, ignoring --max-packets.",
     ),
+    fail_on_truncation: bool = typer.Option(
+        False,
+        "--fail-on-truncation",
+        help="Exit with an error instead of writing a truncated detail artifact.",
+    ),
     ip_mode: str | None = typer.Option(None, "--ip-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
     hostname_mode: str | None = typer.Option(None, "--hostname-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
     subscriber_id_mode: str | None = typer.Option(None, "--subscriber-id-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
@@ -291,6 +296,7 @@ def analyze_command(
                     "privacy_profile": privacy_profile_name or config_data.get("privacy_profile") or "(none — using defaults)",
                     "display_filter": effective_filter,
                     "max_packets": effective_max_packets if effective_max_packets > 0 else "unlimited",
+                    "fail_on_truncation": fail_on_truncation,
                     "privacy_modes": privacy_modes,
                     "hosts_file": str(effective_hosts) if effective_hosts else None,
                     "mapping_file": str(effective_mapping) if effective_mapping else None,
@@ -321,6 +327,7 @@ def analyze_command(
                 extra_args=extra_args,
                 two_pass=effective_two_pass,
                 max_packets=effective_max_packets,
+                fail_on_truncation=fail_on_truncation,
                 on_stage=on_stage,
             )
     except (TSharkError, RuntimeError) as exc:

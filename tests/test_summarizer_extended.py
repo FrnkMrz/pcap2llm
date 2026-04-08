@@ -1,6 +1,8 @@
 """Tests for timing stats, burst detection, and anomaly classification in summarizer."""
 from __future__ import annotations
 
+import pytest
+
 from pcap2llm.summarizer import (
     _classify_anomalies,
     _detect_bursts,
@@ -167,6 +169,3 @@ class TestBuildSummaryExtended:
         )
         findings_text = " ".join(result["probable_notable_findings"])
         assert "p95" in findings_text or "delay" in findings_text
-
-
-import pytest

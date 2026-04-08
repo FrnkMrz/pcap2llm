@@ -1,0 +1,152 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "<generated_at>",
+  "capture_sha256": "<capture_sha256>",
+  "profile": "lte-core",
+  "artifact_role": "summary_sidecar",
+  "capture_metadata": {
+    "capture_file": "<fixture>",
+    "packet_count": 3,
+    "first_seen_epoch": "1712390500.0",
+    "last_seen_epoch": "1712390500.2",
+    "relevant_protocols": [
+      "diameter"
+    ],
+    "raw_protocols": [
+      "diameter",
+      "eth",
+      "ip",
+      "sctp",
+      "tcp"
+    ],
+    "display_filter": null
+  },
+  "relevant_protocols": [
+    "diameter"
+  ],
+  "conversations": [
+    {
+      "transport": "tcp",
+      "src": "10.50.0.1",
+      "dst": "10.50.0.2",
+      "top_protocol": "tcp",
+      "packet_count": 1
+    },
+    {
+      "transport": "sctp",
+      "src": "10.50.0.3",
+      "dst": "10.50.0.4",
+      "top_protocol": "diameter",
+      "packet_count": 1
+    },
+    {
+      "transport": "sctp",
+      "src": "10.50.0.4",
+      "dst": "10.50.0.3",
+      "top_protocol": "diameter",
+      "packet_count": 1
+    }
+  ],
+  "packet_message_counts": {
+    "total_packets": 3,
+    "top_protocols": {
+      "tcp": 1,
+      "diameter": 1
+    },
+    "transport": {
+      "tcp": 1,
+      "sctp": 2
+    }
+  },
+  "anomalies": [],
+  "anomaly_counts_by_layer": {},
+  "deterministic_findings": [
+    "tcp accounts for 1 normalized packets",
+    "diameter accounts for 1 normalized packets"
+  ],
+  "probable_notable_findings": [
+    "tcp accounts for 1 normalized packets",
+    "diameter accounts for 1 normalized packets"
+  ],
+  "privacy_modes": {
+    "payload_text": "mask",
+    "email": "remove",
+    "uri": "mask"
+  },
+  "privacy_policy": {
+    "version": "2026-04-08",
+    "rule_layers": [
+      "generic",
+      "protocol-aware",
+      "privacy-profile-overrides"
+    ],
+    "canonical_classes": {
+      "network_address": {
+        "maps_to": [
+          "ip",
+          "hostname"
+        ],
+        "notes": "IP addresses, DNS names, hostnames, and related network identifiers."
+      },
+      "subscriber_identifier": {
+        "maps_to": [
+          "subscriber_id",
+          "imsi",
+          "msisdn"
+        ],
+        "notes": "Subscriber and account identifiers such as IMSI, MSISDN, SUPI, SUCI."
+      },
+      "device_identifier": {
+        "maps_to": [
+          "imei"
+        ],
+        "notes": "Device identifiers such as IMEI or PEI."
+      },
+      "operator_internal_name": {
+        "maps_to": [
+          "hostname",
+          "diameter_identity",
+          "apn_dnn"
+        ],
+        "notes": "Operator-internal node names, Diameter identities, APN/DNN labels."
+      },
+      "application_secret": {
+        "maps_to": [
+          "token"
+        ],
+        "notes": "Credentials, cookies, bearer tokens, or opaque secrets."
+      },
+      "payload_text": {
+        "maps_to": [
+          "payload_text",
+          "email",
+          "uri"
+        ],
+        "notes": "Free-form text or embedded customer content that may contain PII or URLs."
+      }
+    }
+  },
+  "coverage": {
+    "detail_packets_included": 2,
+    "detail_packets_available": 3,
+    "detail_truncated": true,
+    "summary_packet_count": 3,
+    "truncation_note": "detail artifact contains 2 of 3 exported packets."
+  },
+  "timing_stats": {
+    "packet_count": 2,
+    "duration_ms": 0.1,
+    "inter_packet_ms": {
+      "min": 0.1,
+      "max": 0.1,
+      "mean": 0.1,
+      "p95": 0.1
+    }
+  },
+  "burst_periods": [],
+  "detail_truncated": {
+    "included": 2,
+    "total_exported": 3,
+    "note": "detail.json contains only the first 2 of 3 packets. Use --all-packets to include all."
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "profile": "lte-core",
+  "privacy_modes": {
+    "payload_text": "mask",
+    "email": "remove",
+    "uri": "mask"
+  },
+  "max_packets": 2
+}

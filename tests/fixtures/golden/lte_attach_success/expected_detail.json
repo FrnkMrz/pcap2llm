@@ -1,0 +1,188 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "<generated_at>",
+  "capture_sha256": "<capture_sha256>",
+  "profile": "lte-core",
+  "artifact_role": "llm_input",
+  "coverage": {
+    "detail_packets_included": 2,
+    "detail_packets_available": 2,
+    "detail_truncated": false,
+    "summary_packet_count": 2,
+    "truncation_note": null
+  },
+  "messages": [
+    {
+      "packet_no": 1,
+      "time_rel_ms": 0.0,
+      "time_epoch": "1712390000.0",
+      "top_protocol": "diameter",
+      "frame_protocols": [
+        "eth",
+        "ip",
+        "sctp",
+        "diameter"
+      ],
+      "src": {
+        "ip": "10.0.0.1",
+        "role": "diameter",
+        "labels": {}
+      },
+      "dst": {
+        "ip": "10.0.0.2",
+        "role": "diameter",
+        "labels": {}
+      },
+      "transport": {
+        "proto": "sctp",
+        "src_port": 3868,
+        "dst_port": 3868,
+        "stream": "0",
+        "anomaly": false
+      },
+      "privacy": {
+        "modes": {
+          "imsi": "IMSI_324dee3c"
+        }
+      },
+      "anomalies": [],
+      "message": {
+        "protocol": "diameter",
+        "fields": {
+          "diameter.cmd.code": "316",
+          "diameter.origin_host": "mme01.epc.local",
+          "diameter.imsi": "IMSI_da49ae5e"
+        }
+      }
+    },
+    {
+      "packet_no": 2,
+      "time_rel_ms": 0.2,
+      "time_epoch": "1712390000.2",
+      "top_protocol": "diameter",
+      "frame_protocols": [
+        "eth",
+        "ip",
+        "sctp",
+        "diameter"
+      ],
+      "src": {
+        "ip": "10.0.0.2",
+        "role": "diameter",
+        "labels": {}
+      },
+      "dst": {
+        "ip": "10.0.0.1",
+        "role": "diameter",
+        "labels": {}
+      },
+      "transport": {
+        "proto": "sctp",
+        "src_port": 3868,
+        "dst_port": 3868,
+        "stream": "0",
+        "anomaly": false
+      },
+      "privacy": {
+        "modes": {
+          "imsi": "IMSI_324dee3c"
+        }
+      },
+      "anomalies": [],
+      "message": {
+        "protocol": "diameter",
+        "fields": {
+          "diameter.cmd.code": "316",
+          "diameter.result_code": "2001"
+        }
+      }
+    }
+  ],
+  "selected_packets": [
+    {
+      "packet_no": 1,
+      "time_rel_ms": 0.0,
+      "time_epoch": "1712390000.0",
+      "top_protocol": "diameter",
+      "frame_protocols": [
+        "eth",
+        "ip",
+        "sctp",
+        "diameter"
+      ],
+      "src": {
+        "ip": "10.0.0.1",
+        "role": "diameter",
+        "labels": {}
+      },
+      "dst": {
+        "ip": "10.0.0.2",
+        "role": "diameter",
+        "labels": {}
+      },
+      "transport": {
+        "proto": "sctp",
+        "src_port": 3868,
+        "dst_port": 3868,
+        "stream": "0",
+        "anomaly": false
+      },
+      "privacy": {
+        "modes": {
+          "imsi": "IMSI_324dee3c"
+        }
+      },
+      "anomalies": [],
+      "message": {
+        "protocol": "diameter",
+        "fields": {
+          "diameter.cmd.code": "316",
+          "diameter.origin_host": "mme01.epc.local",
+          "diameter.imsi": "IMSI_da49ae5e"
+        }
+      }
+    },
+    {
+      "packet_no": 2,
+      "time_rel_ms": 0.2,
+      "time_epoch": "1712390000.2",
+      "top_protocol": "diameter",
+      "frame_protocols": [
+        "eth",
+        "ip",
+        "sctp",
+        "diameter"
+      ],
+      "src": {
+        "ip": "10.0.0.2",
+        "role": "diameter",
+        "labels": {}
+      },
+      "dst": {
+        "ip": "10.0.0.1",
+        "role": "diameter",
+        "labels": {}
+      },
+      "transport": {
+        "proto": "sctp",
+        "src_port": 3868,
+        "dst_port": 3868,
+        "stream": "0",
+        "anomaly": false
+      },
+      "privacy": {
+        "modes": {
+          "imsi": "IMSI_324dee3c"
+        }
+      },
+      "anomalies": [],
+      "message": {
+        "protocol": "diameter",
+        "fields": {
+          "diameter.cmd.code": "316",
+          "diameter.result_code": "2001"
+        }
+      }
+    }
+  ]
+}

@@ -4,6 +4,7 @@ from collections import Counter
 from typing import Any
 
 from pcap2llm.models import InspectResult, ProfileDefinition
+from pcap2llm.serializers import build_markdown_summary as _build_markdown_summary
 
 
 # ---------------------------------------------------------------------------
@@ -112,33 +113,33 @@ def build_summary(
     privacy_modes: dict[str, str],
 ) -> dict[str, Any]:
     top_protocols = Counter(packet["top_protocol"] for packet in detail_packets)
-    notable_findings: list[str] = []
+    deterministic_findings: list[str] = []
 
     # Anomaly summary — grouped by layer
     if inspect_result.anomalies:
         by_layer = _classify_anomalies(inspect_result.anomalies)
         total = sum(by_layer.values())
         layer_summary = ", ".join(f"{layer}: {n}" for layer, n in sorted(by_layer.items()))
-        notable_findings.append(
+        deterministic_findings.append(
             f"{total} anomalies detected ({layer_summary})"
         )
 
     for protocol, count in top_protocols.most_common(3):
-        notable_findings.append(f"{protocol} accounts for {count} normalized packets")
+        deterministic_findings.append(f"{protocol} accounts for {count} normalized packets")
 
     # Timing statistics
     timing = _timing_stats(detail_packets)
     if timing:
         p95 = timing["inter_packet_ms"]["p95"]
         if p95 > 500:
-            notable_findings.append(
+            deterministic_findings.append(
                 f"High p95 inter-packet delay: {p95} ms — possible congestion or gaps"
             )
 
     # Burst detection
     bursts = _detect_bursts(detail_packets)
     if bursts:
-        notable_findings.append(
+        deterministic_findings.append(
             f"{len(bursts)} burst period(s) detected (≥5 packets within 1 s)"
         )
 
@@ -153,7 +154,8 @@ def build_summary(
         },
         "anomalies": inspect_result.anomalies,
         "anomaly_counts_by_layer": _classify_anomalies(inspect_result.anomalies),
-        "probable_notable_findings": notable_findings,
+        "deterministic_findings": deterministic_findings,
+        "probable_notable_findings": deterministic_findings,
         "profile": profile.name,
         "privacy_modes": privacy_modes,
     }
@@ -164,45 +166,5 @@ def build_summary(
     return summary
 
 
-def build_markdown_summary(
-    summary: dict[str, Any],
-    *,
-    summary_filename: str = "summary.json",
-    detail_filename: str = "detail.json",
-    mapping_filename: str | None = None,
-    vault_filename: str | None = None,
-) -> str:
-    metadata = summary["capture_metadata"]
-    lines = [
-        "# PCAP2LLM Summary",
-        "",
-        "## Capture Overview",
-        f"- Capture file: `{metadata['capture_file']}`",
-        f"- Packet count: `{metadata['packet_count']}`",
-        f"- Relevant protocols: `{', '.join(metadata['relevant_protocols']) or 'none detected'}`",
-        f"- Display filter: `{metadata['display_filter'] or 'none'}`",
-        "",
-        "## Protocol Mix",
-    ]
-    for protocol, count in summary["packet_message_counts"]["top_protocols"].items():
-        lines.append(f"- `{protocol}`: `{count}`")
-    lines.extend(["", "## Notable Findings"])
-    findings = summary["probable_notable_findings"] or ["No high-signal findings detected."]
-    for finding in findings:
-        lines.append(f"- {finding}")
-    lines.extend(["", "## Privacy Model"])
-    for data_class, mode in summary["privacy_modes"].items():
-        lines.append(f"- `{data_class}`: `{mode}`")
-    lines.extend(
-        [
-            "",
-            "## File References",
-            f"- `{summary_filename}`",
-            f"- `{detail_filename}`",
-        ]
-    )
-    if mapping_filename:
-        lines.append(f"- `{mapping_filename}`")
-    if vault_filename:
-        lines.append(f"- `{vault_filename}`")
-    return "\n".join(lines) + "\n"
+def build_markdown_summary(*args: Any, **kwargs: Any) -> str:
+    return _build_markdown_summary(*args, **kwargs)

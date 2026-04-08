@@ -164,7 +164,11 @@ class TestWriteArtifactsErrorHandling:
         from pcap2llm.models import AnalyzeArtifacts
         return AnalyzeArtifacts(
             summary={
+                "schema_version": "1.0",
+                "generated_at": "<generated_at>",
+                "capture_sha256": "<capture_sha256>",
                 "profile": "lte-core",
+                "artifact_role": "summary_sidecar",
                 "capture_metadata": {
                     "capture_file": "sample.pcapng",
                     "packet_count": 0,
@@ -173,12 +177,39 @@ class TestWriteArtifactsErrorHandling:
                     "relevant_protocols": [],
                     "display_filter": None,
                 },
+                "relevant_protocols": [],
                 "anomalies": [],
+                "anomaly_counts_by_layer": {},
                 "privacy_modes": {},
+                "privacy_policy": {},
+                "coverage": {
+                    "detail_packets_included": 0,
+                    "detail_packets_available": 0,
+                    "detail_truncated": False,
+                    "summary_packet_count": 0,
+                    "truncation_note": None,
+                },
                 "packet_message_counts": {"top_protocols": {}, "transport": {}, "total_packets": 0},
+                "conversations": [],
+                "deterministic_findings": [],
                 "probable_notable_findings": [],
             },
-            detail={"profile": "lte-core", "selected_packets": []},
+            detail={
+                "schema_version": "1.0",
+                "generated_at": "<generated_at>",
+                "capture_sha256": "<capture_sha256>",
+                "profile": "lte-core",
+                "artifact_role": "llm_input",
+                "coverage": {
+                    "detail_packets_included": 0,
+                    "detail_packets_available": 0,
+                    "detail_truncated": False,
+                    "summary_packet_count": 0,
+                    "truncation_note": None,
+                },
+                "messages": [],
+                "selected_packets": [],
+            },
             markdown="# Test\n",
         )
 
@@ -249,8 +280,8 @@ class TestAnalyzeCapturePipeline:
 
         assert artifacts.summary["profile"] == "lte-core"
         assert artifacts.summary["capture_metadata"]["packet_count"] == 3
-        assert isinstance(artifacts.detail["selected_packets"], list)
-        assert "# PCAP2LLM Summary" in artifacts.markdown
+        assert isinstance(artifacts.detail["messages"], list)
+        assert "# PCAP2LLM Artifact Summary" in artifacts.markdown
 
     def test_full_pipeline_empty_capture(self, tmp_path: Path) -> None:
         profile = load_profile("lte-core")

@@ -1,0 +1,45 @@
+[
+  {
+    "_source": {
+      "layers": {
+        "frame.number": "1",
+        "frame.time_epoch": "1712390500.0",
+        "frame.time_relative": "0.0",
+        "frame.protocols": "eth:ip:tcp",
+        "ip": { "ip.src": "10.50.0.1", "ip.dst": "10.50.0.2" },
+        "tcp": { "tcp.srcport": "12345", "tcp.dstport": "80", "tcp.stream": "4" }
+      }
+    }
+  },
+  {
+    "_source": {
+      "layers": {
+        "frame.number": "2",
+        "frame.time_epoch": "1712390500.1",
+        "frame.time_relative": "0.1",
+        "frame.protocols": "eth:ip:sctp:diameter",
+        "ip": { "ip.src": "10.50.0.3", "ip.dst": "10.50.0.4" },
+        "sctp": { "sctp.srcport": "3868", "sctp.dstport": "3868", "sctp.assoc_index": "5" },
+        "diameter": {
+          "diameter.cmd.code": "316",
+          "payload.text": "user=test@example.com path=https://core.local/auth"
+        }
+      }
+    }
+  },
+  {
+    "_source": {
+      "layers": {
+        "frame.number": "3",
+        "frame.time_epoch": "1712390500.2",
+        "frame.time_relative": "0.2",
+        "frame.protocols": "eth:ip:sctp:diameter",
+        "ip": { "ip.src": "10.50.0.4", "ip.dst": "10.50.0.3" },
+        "sctp": { "sctp.srcport": "3868", "sctp.dstport": "3868", "sctp.assoc_index": "5" },
+        "diameter": {
+          "diameter.cmd.code": "316"
+        }
+      }
+    }
+  }
+]

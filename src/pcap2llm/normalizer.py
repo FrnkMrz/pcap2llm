@@ -5,12 +5,12 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger(__name__)
-
 from pcap2llm.app_anomaly import detect_app_anomalies
 from pcap2llm.models import CaptureMetadata, InspectResult, MessageContext, NormalizedPacket
 from pcap2llm.models import PrivacySummary, ProfileDefinition, TransportContext
 from pcap2llm.resolver import EndpointResolver
+
+logger = logging.getLogger(__name__)
 
 # Fallback transport protocol order used when no profile priority matches.
 # Kept as a single constant to avoid duplication across functions.

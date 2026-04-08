@@ -1,0 +1,20 @@
+[
+  {
+    "_source": {
+      "layers": {
+        "frame.number": "10",
+        "frame.time_epoch": "1712390200.0",
+        "frame.time_relative": "0.0",
+        "frame.protocols": "eth:ip:sctp:diameter",
+        "ip": { "ip.src": "10.20.0.1", "ip.dst": "10.20.0.2" },
+        "sctp": { "sctp.srcport": "3868", "sctp.dstport": "3868", "sctp.assoc_index": "2" },
+        "diameter": {
+          "diameter.cmd.code": "318",
+          "diameter.result_code": "5005",
+          "diameter.origin_host": "hss01.epc.local",
+          "diameter.destination_host": "mme02.epc.local"
+        }
+      }
+    }
+  }
+]

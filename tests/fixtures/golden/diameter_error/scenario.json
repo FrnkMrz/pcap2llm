@@ -1,0 +1,8 @@
+{
+  "profile": "lte-core",
+  "privacy_modes": {
+    "diameter_identity": "pseudonymize",
+    "imsi": "pseudonymize"
+  },
+  "max_packets": 0
+}

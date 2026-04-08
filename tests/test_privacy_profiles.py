@@ -186,7 +186,6 @@ class TestDeprecationWarning:
     def test_load_profile_with_privacy_modes_emits_deprecation(self, tmp_path: Path) -> None:
         """A profile YAML containing default_privacy_modes must emit DeprecationWarning."""
         import yaml
-        from importlib.resources import files
 
         # Build a minimal profile YAML with default_privacy_modes
         profile_data = {
@@ -201,7 +200,6 @@ class TestDeprecationWarning:
 
         # Monkeypatch load_profile to load from file for this test
         import pcap2llm.profiles as profiles_module
-        from importlib.resources import files as _files
 
         original_load = profiles_module.load_profile
 

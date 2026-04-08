@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "<generated_at>",
+  "capture_sha256": "<capture_sha256>",
+  "profile": "lte-core",
+  "artifact_role": "llm_input",
+  "coverage": {
+    "detail_packets_included": 1,
+    "detail_packets_available": 1,
+    "detail_truncated": false,
+    "summary_packet_count": 1,
+    "truncation_note": null
+  },
+  "messages": [
+    {
+      "packet_no": 1,
+      "time_rel_ms": 0.0,
+      "time_epoch": "[redacted]",
+      "top_protocol": "s1ap",
+      "frame_protocols": [
+        "eth",
+        "ip",
+        "sctp",
+        "s1ap"
+      ],
+      "src": {
+        "ip": "10.1.0.1",
+        "labels": {}
+      },
+      "dst": {
+        "ip": "10.1.0.2",
+        "labels": {}
+      },
+      "transport": {
+        "proto": "sctp",
+        "src_port": 36412,
+        "dst_port": 36412,
+        "stream": "1",
+        "anomaly": false
+      },
+      "privacy": {
+        "modes": {
+          "payload_text": "mask"
+        }
+      },
+      "anomalies": [],
+      "message": {
+        "protocol": "s1ap",
+        "fields": {
+          "s1ap.MME_UE_S1AP_ID": "12345",
+          "nas_eps.emm.cause": "11"
+        }
+      }
+    }
+  ],
+  "selected_packets": [
+    {
+      "packet_no": 1,
+      "time_rel_ms": 0.0,
+      "time_epoch": "[redacted]",
+      "top_protocol": "s1ap",
+      "frame_protocols": [
+        "eth",
+        "ip",
+        "sctp",
+        "s1ap"
+      ],
+      "src": {
+        "ip": "10.1.0.1",
+        "labels": {}
+      },
+      "dst": {
+        "ip": "10.1.0.2",
+        "labels": {}
+      },
+      "transport": {
+        "proto": "sctp",
+        "src_port": 36412,
+        "dst_port": 36412,
+        "stream": "1",
+        "anomaly": false
+      },
+      "privacy": {
+        "modes": {
+          "payload_text": "mask"
+        }
+      },
+      "anomalies": [],
+      "message": {
+        "protocol": "s1ap",
+        "fields": {
+          "s1ap.MME_UE_S1AP_ID": "12345",
+          "nas_eps.emm.cause": "11"
+        }
+      }
+    }
+  ]
+}

@@ -38,6 +38,7 @@ def test_analyze_dry_run_outputs_plan(tmp_path: Path) -> None:
     payload = json.loads(result.stdout)
     assert payload["profile"] == "lte-core"
     assert payload["privacy_modes"]["ip"] == "mask"
+    assert payload["fail_on_truncation"] is False
 
 
 def test_analyze_outputs_artifact_prefix_and_version(tmp_path: Path) -> None:

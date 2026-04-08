@@ -5,12 +5,21 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pcap2llm"
 version = "0.1.0"
-description = "Convert PCAP files into LLM-friendly telecom troubleshooting artifacts."
+description = "Format telecom PCAP traces into stable, privacy-aware artifacts for downstream LLM troubleshooting."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = "Apache-2.0"
 authors = [
-  { name = "Codex" }
+  { name = "Frank März", email = "github@rollhofen.de" }
+]
+license-files = ["LICENSE"]
+keywords = ["pcap", "tshark", "telecom", "llm", "artifacts", "wireshark"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: System :: Networking :: Monitoring",
 ]
 dependencies = [
   "pydantic>=2.7,<3.0",
@@ -19,10 +28,16 @@ dependencies = [
   "rich>=13.0"
 ]
 
+[project.urls]
+Homepage = "https://github.com/FrnkMrz/pcap2llm"
+Repository = "https://github.com/FrnkMrz/pcap2llm"
+Issues = "https://github.com/FrnkMrz/pcap2llm/issues"
+
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0",
-  "ruff>=0.5"
+  "ruff>=0.5",
+  "build>=1.2"
 ]
 encrypt = [
   "cryptography>=43.0"

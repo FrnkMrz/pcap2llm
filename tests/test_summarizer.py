@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from pcap2llm.models import CaptureMetadata, InspectResult
 from pcap2llm.profiles import load_profile
 from pcap2llm.summarizer import build_markdown_summary, build_summary
@@ -87,7 +85,7 @@ def test_build_markdown_summary_contains_key_sections() -> None:
     )
     md = build_markdown_summary(summary)
 
-    assert "# PCAP2LLM Summary" in md
+    assert "# PCAP2LLM Artifact Summary" in md
     assert "sample.pcapng" in md
     assert "diameter" in md
     assert "ip" in md

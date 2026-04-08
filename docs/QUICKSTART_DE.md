@@ -2,6 +2,10 @@
 
 ## In 5 Minuten starten
 
+> **Sweetspot:** pcap2llm ist fuer gezielte, fokussierte Captures gemacht — ein fehlgeschlagener Call, ein Diameter-Fehler, ein GTPv2-C-Problem, ein Callflow mit einigen Dutzend bis wenigen hundert Paketen. Ein `detail.json` mit 200–500 Signalisierungsnachrichten passt gut in ein LLM-Kontextfenster.
+>
+> **Nicht:** Megabytes an Rolling-Captures einfach reinschmeissen. Enger Filter + kurzes Zeitfenster liefern deutlich bessere Ergebnisse als ein grosser Dump, der auf 1 000 Pakete abgeschnitten wird. Im Zweifel erst `pcap2llm inspect` nutzen, dann mit `-Y` eingrenzen.
+
 ### 1. Voraussetzungen pruefen
 
 ```bash

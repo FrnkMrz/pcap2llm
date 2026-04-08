@@ -30,6 +30,25 @@ Both JSON files include `schema_version`, `generated_at` (ISO 8601 UTC), and `ca
 
 By default the generated `*_detail.json` contains only the first **1 000 packets**. Use `--all-packets` to remove the limit or `--max-packets N` to set a custom value. Inspection and all summary statistics always run on the full capture regardless of this setting. When the output is truncated, the generated `*_summary.json` contains a `detail_truncated` key explaining how many packets were exported vs. included.
 
+## When This Tool Works Well — and When It Does Not
+
+pcap2llm is designed for **targeted, focused captures**: a failed attach procedure, a Diameter exchange with an unexpected error, a single GTPv2-C session setup, a call flow with a few dozen to a few hundred signaling messages. That is the sweet spot.
+
+**Works well:**
+- A filtered capture of one signaling flow or a handful of related transactions
+- Investigating a specific error: one failed call, one rejected session, one timeout
+- Captures of seconds to a few minutes, filtered down to relevant protocol traffic
+- A `detail.json` of a few hundred packets feeds comfortably into any LLM context window
+
+**Does not work well:**
+- Throwing a multi-megabyte rolling capture at it and expecting the LLM to find the needle
+- Full-node traffic dumps with tens of thousands of packets — the `detail.json` will be too large for any LLM to reason over
+- Long captures that mix many unrelated flows — the LLM sees everything but understands nothing
+
+**Practical rule of thumb:** if your filtered capture has more than ~2 000 signaling messages, consider splitting it by flow or SCTP/TCP stream before analyzing. Use `pcap2llm inspect` first to understand what is inside, then narrow down with `-Y` before running `analyze`.
+
+The `--max-packets` default of 1 000 is a safety rail, not a target. A tight filter and a focused capture window produce far better LLM output than a big capture trimmed by the packet limit.
+
 ## Design Goals
 
 - CLI-first and automation-friendly

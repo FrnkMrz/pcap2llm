@@ -11,6 +11,25 @@ Das Tool arbeitet profilbasiert und ist fuer LTE-/EPC-, 5G-Core- sowie Legacy-2G
 - Transportdaten nur in kompakter Form erhalten bleiben
 - das fachlich wichtigste Protokoll pro Paket moeglichst vollstaendig sichtbar bleibt
 
+## Wofuer eignet sich das Tool — und wofuer nicht?
+
+pcap2llm ist fuer **gezielte, fokussierte Captures** gebaut: ein fehlgeschlagener Attach-Vorgang, ein Diameter-Exchange mit unerwartetem Fehler, eine einzelne GTPv2-C-Session, ein Callflow mit einigen Dutzend bis wenigen hundert Signalisierungsnachrichten. Das ist der Sweetspot.
+
+**Gut geeignet fuer:**
+- Gefilterte Captures einer einzelnen Signalisierung oder weniger zusammenhaengender Transaktionen
+- Analyse eines konkreten Fehlers: ein abgelehnter Call, eine fehlgeschlagene Session, ein Timeout
+- Captures von Sekunden bis wenigen Minuten, auf relevante Protokolle gefiltert
+- Ein `detail.json` mit einigen hundert Paketen passt problemlos in jedes LLM-Kontextfenster
+
+**Nicht gut geeignet fuer:**
+- Megabytes an Rolling-Captures einfach reinschmeissen und erwarten, dass das LLM die Nadel im Heuhaufen findet
+- Vollstaendige Traffic-Dumps von Produktionsknoten mit Zehntausenden Paketen — das erzeugte `detail.json` wird zu gross fuer jedes LLM
+- Lange Captures mit vielen unzusammenhaengenden Flows — das LLM sieht alles, aber versteht nichts
+
+**Faustregel:** Wenn dein gefilterter Capture mehr als ~2 000 Signalisierungsnachrichten enthaelt, lohnt es sich, ihn vorher nach Flow oder SCTP-/TCP-Stream aufzuteilen. Erst `pcap2llm inspect` nutzen, um den Inhalt zu verstehen, dann mit `-Y` eingrenzen, bevor du `analyze` laeuft.
+
+Das `--max-packets`-Limit (Standard: 1 000) ist eine Sicherheitsbremse, kein Zielwert. Ein enger Filter und ein fokussiertes Zeitfenster liefern deutlich bessere LLM-Ergebnisse als ein grosser Capture, der nachtraeglich abgeschnitten wird.
+
 ## Voraussetzungen
 
 Du brauchst:

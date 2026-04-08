@@ -71,6 +71,7 @@ def test_pseudonym_audit_counts_unique_values() -> None:
 
 
 def test_encrypt_requires_explicit_env_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("cryptography")
     monkeypatch.delenv("PCAP2LLM_VAULT_KEY", raising=False)
     protector = Protector({"imsi": "encrypt"})
     with pytest.raises(RuntimeError, match="requires PCAP2LLM_VAULT_KEY"):

@@ -106,6 +106,15 @@ class ProfileDefinition(BaseModel):
     top_protocol_priority: list[str]
     protocol_aliases: dict[str, list[str]] = Field(default_factory=dict)
     full_detail_fields: dict[str, list[str]] = Field(default_factory=dict)
+    verbatim_protocols: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Protocols whose TShark layer is passed through completely without "
+            "any field selection or _flatten transformation. The raw key/value "
+            "pairs from the TShark JSON are kept as-is (only _ws.* keys are "
+            "stripped). Takes priority over full_detail_fields for the same protocol."
+        ),
+    )
     reduced_transport_fields: list[str] = Field(default_factory=list)
     default_privacy_modes: dict[str, str] | None = Field(
         default=None,

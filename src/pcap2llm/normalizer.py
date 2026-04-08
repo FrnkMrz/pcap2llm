@@ -163,6 +163,16 @@ def _extract_transport(layers: dict[str, Any]) -> TransportContext:
 def _retain_message_fields(
     layers: dict[str, Any], profile: ProfileDefinition, top_protocol: str
 ) -> dict[str, Any]:
+    # Verbatim mode: return raw TShark layer without field selection or _flatten
+    if top_protocol in profile.verbatim_protocols:
+        raw: dict[str, Any] = {}
+        for candidate in _candidate_layers(profile, top_protocol):
+            if candidate in layers and isinstance(layers[candidate], dict):
+                for key, value in layers[candidate].items():
+                    if not key.startswith("_ws."):
+                        raw[key] = value
+        return raw
+
     retained: dict[str, Any] = {}
     allowed = profile.full_detail_fields.get(top_protocol, [])
     for field_name in allowed:

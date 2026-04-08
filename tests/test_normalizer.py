@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from pcap2llm.normalizer import inspect_raw_packets, normalize_packets
+from pcap2llm.models import ProfileDefinition
+from pcap2llm.normalizer import _retain_message_fields, inspect_raw_packets, normalize_packets
 from pcap2llm.profiles import load_profile
 from pcap2llm.resolver import EndpointResolver
 
@@ -207,3 +208,137 @@ nodes:
     assert packets[0].src.alias == "MSC_LEGACY_1"
     assert packets[0].transport.proto == "sctp"
     assert packets[0].message.fields["gsm_map.localValue"] == "2"
+
+
+# ---------------------------------------------------------------------------
+# verbatim_protocols tests
+# ---------------------------------------------------------------------------
+
+def _make_profile(**kwargs) -> ProfileDefinition:
+    base = {
+        "name": "test",
+        "description": "test profile",
+        "relevant_protocols": ["gtpv2"],
+        "top_protocol_priority": ["gtpv2"],
+        "full_detail_fields": {},
+        "reduced_transport_fields": [],
+    }
+    base.update(kwargs)
+    return ProfileDefinition.model_validate(base)
+
+
+def _gtp_layers() -> dict:
+    return {
+        "gtpv2": {
+            "gtpv2.message_type": "32",
+            "gtpv2.teid": "0x12345678",
+            "gtpv2.imsi": "001010123456789",
+            "_ws.expert": "ignore-me",
+        }
+    }
+
+
+def test_verbatim_returns_raw_layer_without_flatten():
+    """Protocol in verbatim_protocols → raw TShark values, no _flatten applied."""
+    profile = _make_profile(verbatim_protocols=["gtpv2"])
+    layers = _gtp_layers()
+    result = _retain_message_fields(layers, profile, "gtpv2")
+    assert result["gtpv2.message_type"] == "32"
+    assert result["gtpv2.teid"] == "0x12345678"
+    assert result["gtpv2.imsi"] == "001010123456789"
+    # _ws.* keys must be stripped
+    assert "_ws.expert" not in result
+
+
+def test_verbatim_strips_ws_keys():
+    profile = _make_profile(verbatim_protocols=["gtpv2"])
+    layers = {
+        "gtpv2": {
+            "_ws.expert": "noise",
+            "_ws.col": "more noise",
+            "gtpv2.message_type": "32",
+        }
+    }
+    result = _retain_message_fields(layers, profile, "gtpv2")
+    assert list(result.keys()) == ["gtpv2.message_type"]
+
+
+def test_verbatim_preserves_nested_dict_as_is():
+    """Verbatim must not call _flatten — nested dicts stay nested."""
+    profile = _make_profile(verbatim_protocols=["gtpv2"])
+    nested = {"inner.key": "inner.val"}
+    layers = {"gtpv2": {"gtpv2.nested": nested}}
+    result = _retain_message_fields(layers, profile, "gtpv2")
+    assert result["gtpv2.nested"] is nested
+
+
+def test_verbatim_only_for_listed_protocol():
+    """Protocol NOT in verbatim_protocols uses normal path (_flatten applied)."""
+    profile = _make_profile(
+        verbatim_protocols=["diameter"],
+        full_detail_fields={},
+    )
+    layers = {
+        "gtpv2": {
+            "gtpv2.message_type": "32",
+            "_ws.expert": "noise",
+        }
+    }
+    result = _retain_message_fields(layers, profile, "gtpv2")
+    # Normal path: _flatten is applied and _ws.* skipped
+    assert result["gtpv2.message_type"] == "32"
+    assert "_ws.expert" not in result
+
+
+def test_verbatim_profile_field_loads_from_dict():
+    """ProfileDefinition.model_validate accepts verbatim_protocols list."""
+    profile = ProfileDefinition.model_validate({
+        "name": "test",
+        "description": "test profile",
+        "relevant_protocols": ["gtpv2"],
+        "top_protocol_priority": ["gtpv2"],
+        "full_detail_fields": {},
+        "reduced_transport_fields": [],
+        "verbatim_protocols": ["gtpv2", "pfcp"],
+    })
+    assert profile.verbatim_protocols == ["gtpv2", "pfcp"]
+
+
+def test_verbatim_default_is_empty():
+    profile = _make_profile()
+    assert profile.verbatim_protocols == []
+
+
+def test_verbatim_normalize_end_to_end(tmp_path: Path) -> None:
+    """Full normalize_packets call with verbatim protocol preserves raw GTPv2 fields."""
+    profile = _make_profile(
+        verbatim_protocols=["gtpv2"],
+        relevant_protocols=["gtpv2"],
+        top_protocol_priority=["gtpv2"],
+    )
+    raw = [
+        {
+            "_source": {
+                "layers": {
+                    "frame.number": "1",
+                    "frame.time_epoch": "1712390000.00",
+                    "frame.time_relative": "0.000",
+                    "frame.protocols": "eth:ip:udp:gtpv2",
+                    "ip": {"ip.src": "10.0.0.1", "ip.dst": "10.0.0.2"},
+                    "udp": {"udp.srcport": "2123", "udp.dstport": "2123", "udp.stream": "0"},
+                    "gtpv2": {
+                        "gtpv2.message_type": "32",
+                        "gtpv2.teid": "0xABCD1234",
+                        "_ws.expert": "strip-me",
+                    },
+                }
+            }
+        }
+    ]
+    packets, dropped = normalize_packets(raw, resolver=EndpointResolver(), profile=profile, privacy_modes={})
+    assert dropped == 0
+    assert packets[0].top_protocol == "gtpv2"
+    fields = packets[0].message.fields
+    assert fields["gtpv2.message_type"] == "32"
+    assert fields["gtpv2.teid"] == "0xABCD1234"
+    assert "_ws.expert" not in fields

@@ -76,6 +76,13 @@ full_detail_fields:
     - dns.aaaa
     - dns.resp.name
     - dns.flags.rcode
+# verbatim_protocols: pass the complete raw TShark layer through without any
+# field selection or _flatten transformation (only _ws.* keys are stripped).
+# Takes priority over full_detail_fields for the same protocol.
+# Example:
+#   verbatim_protocols:
+#     - pfcp
+verbatim_protocols: []
 reduced_transport_fields:
   - proto
   - src_port

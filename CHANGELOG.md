@@ -6,6 +6,25 @@ The format is intentionally simple and optimized for humans reading repo history
 
 ## Unreleased
 
+### Added — 2026-04-09
+
+- `verbatim_protocols` support in analysis profiles: protocols listed there bypass `full_detail_fields` field selection and `_flatten`; the complete raw TShark layer dict is kept as-is (only `_ws.*` keys stripped). Takes priority over `full_detail_fields` for the same protocol. Documented in `docs/PROFILES.md` and `docs/REFERENCE.md`.
+- Output filenames now always include a timestamp prefix from the first packet in the capture (`YYYYMMDD_HHMMSS_<stem>_V_NN.ext`). The `_V_NN` suffix is always present and auto-increments on collision.
+- Full English reference documentation at `docs/REFERENCE.md`.
+- `docs/WORKFLOWS.md` consolidating LTE, 5G Core, and SS7/GERAN step-by-step workflows, protocol-specific troubleshooting tables, and a "When to stop and re-filter" guide with decision helpers.
+- Expanded `docs/PRIVACY_SHARING.md`: scenario-to-profile recommendation table, what-to-share guidance per artifact, 5-step safe-sharing workflow, encryption vs. pseudonymization guidance, and three concrete examples.
+- `docs/LLM_MODE.md` now includes a "Typical automation flow" section with step-by-step pattern, annotated result payload, per-error-code response table, and inspect-vs-analyze decision guide.
+- `docs/REFERENCE.md` and `docs/LLM_MODE.md` explicitly document what `--max-packets` does **not** do (no streaming, no proportional memory, no substitute for focused captures).
+- Additional `--llm-mode` CLI contract tests: always-present `full_load_ingestion_applies` warning, `no_relevant_protocols_detected` trigger, payload field completeness (`profile`, `privacy_profile`, `capture.sha256`, `schema_versions`), generic `runtime_error` fallback, dry-run machine mode fields.
+
+### Fixed — 2026-04-09
+
+- Artifact filename timestamp prefix was silently dropped (`artifact_prefix: null`) when running against TShark ≥ 4.6. TShark 4.6 changed `frame.time_epoch` from a Unix epoch float string (`"1712390000.123"`) to ISO 8601 with nanoseconds (`"2025-10-14T10:44:16.046652117Z"`). `_artifact_timestamp_prefix` now tries float parsing first, then falls back to ISO 8601 with nanosecond truncation. Both formats are covered by regression tests.
+
+### Changed — 2026-04-09
+
+- README `Full CLI Reference` section (65 lines) replaced with a 3-line pointer to `docs/REFERENCE.md` to avoid duplication.
+
 ### Added
 
 - Public Schema 1.0 documentation for the primary `detail.json` handoff artifact and the `summary.json` sidecar.

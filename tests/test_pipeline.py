@@ -9,13 +9,34 @@ from unittest.mock import patch
 
 import pytest
 
-from pcap2llm.pipeline import analyze_capture, write_artifacts
+from pcap2llm.pipeline import _artifact_timestamp_prefix, analyze_capture, write_artifacts
 from pcap2llm.profiles import load_profile
 from pcap2llm.protector import ProtectionError, Protector
 from pcap2llm.tshark_runner import TSharkError, TSharkRunner
 
 
 _TIMESTAMP_PREFIX = "20240406_075320"
+
+
+# ---------------------------------------------------------------------------
+# _artifact_timestamp_prefix — TShark epoch format compatibility
+# ---------------------------------------------------------------------------
+
+def test_timestamp_prefix_from_unix_epoch_float() -> None:
+    """Standard TShark (< 4.6) output: Unix epoch as decimal string."""
+    assert _artifact_timestamp_prefix("1712390000.123456") == "20240406_075320"
+
+
+def test_timestamp_prefix_from_iso8601_with_nanoseconds() -> None:
+    """TShark >= 4.6 output: ISO 8601 with nanoseconds and Z suffix."""
+    result = _artifact_timestamp_prefix("2025-10-14T10:44:16.046652117Z")
+    assert result == "20251014_104416"
+
+
+def test_timestamp_prefix_none_on_invalid_input() -> None:
+    assert _artifact_timestamp_prefix(None) is None
+    assert _artifact_timestamp_prefix("") is None
+    assert _artifact_timestamp_prefix("not-a-date") is None
 
 
 # ---------------------------------------------------------------------------

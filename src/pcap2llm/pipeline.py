@@ -40,12 +40,23 @@ def _artifact_timestamp_prefix(first_seen_epoch: str | None) -> str | None:
     if not first_seen_epoch:
         return None
 
+    # Standard TShark output: Unix epoch as a decimal string, e.g. "1712390000.123456"
     try:
         packet_time = datetime.fromtimestamp(float(first_seen_epoch), tz=timezone.utc)
+        return packet_time.strftime("%Y%m%d_%H%M%S")
     except (OverflowError, ValueError):
-        return None
+        pass
 
-    return packet_time.strftime("%Y%m%d_%H%M%S")
+    # TShark ≥ 4.6 emits frame.time_epoch as ISO 8601 with nanoseconds,
+    # e.g. "2025-10-14T10:44:16.046652117Z".  Truncate to microseconds and parse.
+    try:
+        s = re.sub(r"(\.\d{6})\d+", r"\1", first_seen_epoch)
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        packet_time = datetime.fromisoformat(s)
+        return packet_time.strftime("%Y%m%d_%H%M%S")
+    except (ValueError, AttributeError):
+        return None
 
 
 def _artifact_filename(prefix: str | None, stem: str, suffix: str, extension: str) -> str:

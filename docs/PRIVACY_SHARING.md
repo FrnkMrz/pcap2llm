@@ -1,6 +1,93 @@
 # Privacy Modes And Safe Sharing
 
-- Choose a privacy profile before exporting.
-- Treat `detail.json` as sensitive by default, even after protection.
-- Share `summary.json` and `summary.md` only after checking the effective policy.
-- Keep any vault key outside the share path and outside the same ticket or chat thread.
+## Choose A Profile For Your Scenario
+
+| Scenario | Recommended profile | Notes |
+|---|---|---|
+| Internal team troubleshooting | `share` | Good default for most internal work |
+| Vendor ticket | `prod-safe` | Remove tokens, reduce sensitive metadata |
+| Lab replay / test environment | `lab` | Stronger anonymization, still useful context |
+| Personal local analysis | `internal` | Only in fully trusted environments |
+| LLM sharing outside trusted boundary | `prod-safe` minimum | Review outputs before sharing |
+
+```bash
+pcap2llm analyze trace.pcapng --profile lte-core --privacy-profile share --out ./artifacts
+```
+
+---
+
+## What To Share And What Not To Share
+
+| Artifact | Sensitivity | Guidance |
+|---|---|---|
+| `detail.json` | **Sensitive by default** | Contains packet-level data. Always check effective privacy modes before sharing. |
+| `summary.json` | Lower, but check | Protocol counts, anomalies, timing — verify effective modes first. |
+| `summary.md` | Easiest to share | Human-readable, but still check if subscriber IDs appear. |
+| `pseudonym_mapping.json` | **Never share with artifact** | Maps pseudonyms back to real values. Must stay separate from the artifact set. |
+| `vault.json` | **Not a recovery package** | Contains encryption metadata only, not the key. Useless without `PCAP2LLM_VAULT_KEY`. |
+
+**`PCAP2LLM_VAULT_KEY` must never travel with the artifacts.** Not in the same ticket, not in the same chat, not in the same archive.
+
+---
+
+## Safe-Sharing Workflow
+
+1. **Choose a privacy profile** — use the table above to pick `share`, `prod-safe`, `lab`, or `internal`
+2. **Run analyze** — check that the command includes `--privacy-profile <chosen>`
+3. **Inspect the effective output** — open `summary.json` and look at `privacy_modes`; verify the modes applied match your intent
+4. **Verify optional sidecars** — if `pseudonym_mapping.json` was created, keep it separate; if `vault.json` was created, confirm the key is stored outside the share path
+5. **Share only what is needed** — for vendor tickets: `summary.json` + `summary.md` are often enough; attach `detail.json` only if the vendor needs packet-level data
+
+---
+
+## Encryption vs. Pseudonymization
+
+**Pseudonymization** (`pseudonymize` mode) replaces sensitive values with stable, hash-based aliases like `IMSI_a3f2b1c4`. The real value is not stored anywhere in the artifact. Pseudonyms are consistent across runs. This is the right choice for most sharing scenarios.
+
+**Encryption** (`encrypt` mode) transforms sensitive values with Fernet encryption using `PCAP2LLM_VAULT_KEY`. The encrypted artifact is unreadable without the key. Use encryption when you need to retain the real values for later decryption — for example, internal archival or audit retention.
+
+**Encryption does not make casual sharing safe.** If you share an encrypted artifact and the key is shared separately later, the data is fully recoverable. Pseudonymization is the safer choice when you want irreversible protection for the shared artifact.
+
+---
+
+## Concrete Examples
+
+### Internal ticket — team-internal LTE investigation
+
+```bash
+pcap2llm analyze failed_attach.pcapng \
+  --profile lte-core \
+  --privacy-profile share \
+  --out ./artifacts
+```
+
+Share: `detail.json`, `summary.json`, `summary.md`
+Keep back: `pseudonym_mapping.json` (if created)
+
+---
+
+### Vendor ticket — sending trace to equipment vendor
+
+```bash
+pcap2llm analyze diameter_error.pcapng \
+  --profile lte-core \
+  --privacy-profile prod-safe \
+  --out ./artifacts
+```
+
+Share: `summary.json`, `summary.md` — attach `detail.json` only if the vendor explicitly needs packet-level data.
+Do not share: `pseudonym_mapping.json`, `vault.json`, any key material.
+
+---
+
+### LLM input — passing artifact to an AI assistant
+
+```bash
+pcap2llm analyze gtp_session.pcapng \
+  --profile lte-core \
+  --privacy-profile prod-safe \
+  --llm-mode \
+  --out ./artifacts
+```
+
+Pass `detail.json` to the LLM. Use `summary.json` to verify coverage and confirm `detail_truncated` is false (or acceptable). Check `warnings` in the `--llm-mode` JSON output for any privacy-relevant notices before uploading.

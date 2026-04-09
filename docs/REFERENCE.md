@@ -224,6 +224,17 @@ When truncated, `summary.json` contains a `detail_truncated` entry:
 }
 ```
 
+### What `--max-packets` does not do
+
+This is the most common source of confusion about how the tool scales:
+
+- **Does not make TShark export streaming.** TShark always exports the full capture to JSON first. The packet limit is applied afterwards, during normalization. A 50 000-packet capture still causes a full 50 000-packet TShark export, regardless of `--max-packets 500`.
+- **Does not make memory use proportional to the final detail artifact.** Memory during processing reflects the full export, not the limited output slice.
+- **Does not make a large rolling capture a good LLM input.** Truncating to 500 packets from a 50 000-packet trace gives you 500 packets that may have no coherent call flow. The remedy is a better display filter before `analyze`, not a tighter packet limit.
+- **Summary statistics always reflect the full export.** `summary.json` counts, timing, anomalies, and protocol distributions are computed over all exported packets — not just the packets that end up in `detail.json`.
+
+**Practical implication:** use `inspect` first on unknown or large captures. Narrow with `-Y` until the packet count is in a useful range. Only then run `analyze`. Packet limits are a safety guard, not a replacement for focused captures.
+
 ---
 
 ## Display Filters

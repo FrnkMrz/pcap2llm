@@ -136,71 +136,11 @@ Anomalies appear in `summary.json` under `anomalies` and `anomaly_counts_by_laye
 
 ---
 
-## Full CLI Reference
+## CLI Reference
 
-### `pcap2llm inspect`
+Three commands: `inspect` (no files written), `analyze` (full pipeline + artifacts), `init-config` (create config file).
 
-Inspect a capture without writing analysis artifacts.
-
-```
-pcap2llm inspect <capture> [options]
-
-  --profile             Protocol profile (default: lte-core)
-  -Y / --display-filter TShark display filter
-  --config              YAML config file
-  --out                 Write JSON result to file instead of stdout
-  --dry-run             Print planned tshark command only
-  --two-pass            Override two-pass dissection mode
-  --tshark-path         Path to tshark executable
-  --tshark-arg          Extra tshark argument (repeatable)
-```
-
-### `pcap2llm analyze`
-
-Run the full pipeline and write artifacts.
-
-```
-pcap2llm analyze <capture> [options]
-
-Profile & filtering:
-  --profile             Protocol profile (default: lte-core)
-  --privacy-profile     Privacy profile (internal | share | lab | prod-safe | <path>)
-  -Y / --display-filter TShark display filter
-  --config              YAML config file
-
-Output:
-  --out                 Output directory (default: artifacts)
-  --max-packets         Max packets in detail.json (default: 1000)
-  --all-packets         Include all packets, overrides --max-packets
-  --fail-on-truncation  Error if detail would be truncated
-  --max-capture-size-mb Reject captures larger than N MiB (default: 250, 0=off)
-  --dry-run             Print plan only, no tshark execution
-  --llm-mode            Output strict JSON for agent/automation use
-
-Endpoint resolution:
-  --hosts-file          Wireshark-style hosts file
-  --mapping-file        YAML/JSON alias mapping (supports CIDR)
-
-Privacy overrides (per class):
-  --ip-mode / --hostname-mode / --subscriber-id-mode / --msisdn-mode
-  --imsi-mode / --imei-mode / --email-mode / --dn-mode / --token-mode
-  --uri-mode / --apn-dnn-mode / --diameter-identity-mode / --payload-text-mode
-                        keep | mask | pseudonymize | encrypt | remove
-
-TShark:
-  --two-pass            Override two-pass dissection mode
-  --tshark-path         Path to tshark executable
-  --tshark-arg          Extra tshark argument (repeatable)
-```
-
-### `pcap2llm init-config`
-
-Write a starter configuration file.
-
-```
-pcap2llm init-config [path]   (default: pcap2llm.config.yaml)
-  --force               Overwrite existing file
-```
+Full option reference: [`docs/REFERENCE.md`](docs/REFERENCE.md)
 
 ---
 

@@ -52,6 +52,15 @@ Use `--privacy-profile share` for internal tickets. Use `--privacy-profile prod-
   --tshark-arg "-d" --tshark-arg "tcp.port==3868,diameter"
   ```
 
+### If something goes wrong — LTE
+
+| Symptom | Next step |
+|---|---|
+| Diameter messages missing from output | Check port: add `--tshark-arg "-d" --tshark-arg "sctp.port==3868,diameter"`. Run inspect without filter to verify the protocol appears at all. |
+| GTPv2-C output too noisy | Narrow to specific message types: `-Y "gtpv2.message_type == 32"` (Create Session Request) or `gtpv2.message_type == 33` (Response). |
+| `detail_truncated: true` | Refine the display filter to the specific call flow. Most LTE issues involve ≤ 100 signaling messages. |
+| No relevant protocols detected | Check that `--profile lte-core` matches the traffic. Run inspect without `-Y` to see what protocols are present. |
+
 ---
 
 ## 5G Core
@@ -119,6 +128,15 @@ verbatim_protocols:
 
 Use `--privacy-profile prod-safe` for SBI captures — they often contain tokens, SUPIs, and GPSIs in HTTP headers.
 
+### If something goes wrong — 5G
+
+| Symptom | Next step |
+|---|---|
+| HTTP/2 SBI data looks incomplete or fragmented | Add `--two-pass`. HTTP/2 over TLS requires reassembly to decode correctly. |
+| NGAP / PFCP mix too large | Split by interface: analyze NGAP and PFCP in separate runs with `-Y "ngap"` and `-Y "pfcp"`. |
+| Tokens or subscriber IDs appear in headers | Switch to `--privacy-profile prod-safe`. HTTP/2 SBI headers routinely carry Authorization and SUPI. |
+| No relevant protocols detected | Verify `--profile 5g-core` is set. Run inspect without filter to check what TShark sees. |
+
 ---
 
 ## Legacy 2G/3G — SS7 / GERAN
@@ -169,6 +187,14 @@ TShark uses internal names that differ from common names. The profile maps them 
 
 MAP traffic contains IMSI, MSISDN, and location data. Use `--privacy-profile share` as a minimum; consider `--privacy-profile lab` for captures with subscriber movements.
 
+### If something goes wrong — SS7
+
+| Symptom | Next step |
+|---|---|
+| Too many layers, output is very large | Narrow to the relevant protocol: `-Y "gsm_map"` or `-Y "isup"` instead of a combined filter. |
+| Subscriber or location data visible in output | Switch to `--privacy-profile lab` or `prod-safe`. MAP traffic commonly carries IMSI and MSISDN. |
+| TCAP or SCCP not decoded | Verify TShark version (≥ 3.6 recommended). Check that M3UA port assignment is correct. |
+
 ---
 
 ## General Tips
@@ -199,3 +225,45 @@ If `detail_truncated` is `true`, refine your filter or use `--max-packets` to ca
 pcap2llm init-config
 ```
 Edit `pcap2llm.config.yaml` to persist profile, mapping, hosts file, and privacy settings.
+
+---
+
+## When Things Go Wrong
+
+### Common situations and next steps
+
+| Symptom | Next step |
+|---|---|
+| `detail_truncated: true` in summary | Refine the display filter to isolate the relevant call flow, then re-run. Do not just raise `--max-packets`. |
+| No relevant protocols detected | Run `inspect` without `-Y` to see what protocols appear. Check that the profile matches the traffic type. |
+| Empty `detail.json` (zero packets) | Your display filter is filtering out everything. Run without `-Y` first to confirm packets exist, then narrow. |
+| Output too large to hand to an LLM | Tighten the filter to one call flow or one conversation. Split by stream if needed: `-Y "sctp.stream == 3"`. |
+| HTTP/2 looks incomplete | Add `--two-pass`. Required for correct HTTP/2 reassembly over TCP. |
+| Diameter or PFCP decoding appears wrong | Check TShark port assignments. Add explicit protocol decoder: `--tshark-arg "-d" --tshark-arg "sctp.port==3868,diameter"`. |
+
+### When to stop and re-filter
+
+Stop the current analysis and re-filter when:
+
+- `summary.json` shows `detail_truncated: true` on an unfiltered run with `detail_packets_available` far exceeding `detail_packets_included`. The detail artifact is a slice of noise, not a focused call flow.
+- `inspect` returns 10 000+ packets. No useful LLM analysis is possible on a packet set that large. Narrow with `-Y` to the specific call — a failing session, a rejected Diameter request, a specific NGAP procedure.
+- The output is large but the anomalies section in `summary.json` is empty. This often means the real failure is not in the capture window at all.
+
+**Workflow when re-filtering:**
+
+```bash
+# 1 — see what you have
+pcap2llm inspect trace.pcapng --profile lte-core
+
+# 2 — find the specific flow (example: Diameter errors only)
+pcap2llm inspect trace.pcapng --profile lte-core -Y "diameter.resultcode >= 3000"
+
+# 3 — if the filtered count is reasonable, run analyze
+pcap2llm analyze trace.pcapng \
+  --profile lte-core \
+  -Y "diameter.resultcode >= 3000" \
+  --privacy-profile share \
+  --out ./artifacts
+```
+
+A focused 50-packet capture with the actual failure is more useful to an LLM than 1 000 packets of background traffic.

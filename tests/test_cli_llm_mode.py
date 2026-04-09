@@ -234,3 +234,127 @@ def test_llm_mode_maps_artifact_write_failure(tmp_path: Path) -> None:
 
     payload = json.loads(result.stdout)
     assert payload["error"]["code"] == "artifact_write_failed"
+
+
+# ---------------------------------------------------------------------------
+# New contract tests
+# ---------------------------------------------------------------------------
+
+def test_llm_mode_full_load_ingestion_warning_always_present(tmp_path: Path) -> None:
+    """full_load_ingestion_applies must appear in every success run."""
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+    out_dir = tmp_path / "artifacts"
+    outputs = {
+        "summary": out_dir / "20240406_075320_summary_V_01.json",
+        "detail": out_dir / "20240406_075320_detail_V_01.json",
+        "markdown": out_dir / "20240406_075320_summary_V_01.md",
+    }
+
+    with (
+        patch("pcap2llm.cli.analyze_capture", return_value=_artifacts(out_dir)),
+        patch("pcap2llm.cli.write_artifacts", return_value=outputs),
+    ):
+        result = runner.invoke(app, ["analyze", str(capture), "--llm-mode", "--profile", "lte-core", "--out", str(out_dir)])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    warning_codes = {w["code"] for w in payload["warnings"]}
+    assert "full_load_ingestion_applies" in warning_codes
+
+
+def test_llm_mode_no_relevant_protocols_warning(tmp_path: Path) -> None:
+    """no_relevant_protocols_detected must appear when relevant_protocols is empty."""
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+    out_dir = tmp_path / "artifacts"
+    outputs = {
+        "summary": out_dir / "20240406_075320_summary_V_01.json",
+        "detail": out_dir / "20240406_075320_detail_V_01.json",
+        "markdown": out_dir / "20240406_075320_summary_V_01.md",
+    }
+
+    # Build artifacts with no relevant protocols
+    arts = _artifacts(out_dir)
+    arts.summary["relevant_protocols"] = []
+    arts.summary["capture_metadata"]["relevant_protocols"] = []
+
+    with (
+        patch("pcap2llm.cli.analyze_capture", return_value=arts),
+        patch("pcap2llm.cli.write_artifacts", return_value=outputs),
+    ):
+        result = runner.invoke(app, ["analyze", str(capture), "--llm-mode", "--profile", "lte-core", "--out", str(out_dir)])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    warning_codes = {w["code"] for w in payload["warnings"]}
+    assert "no_relevant_protocols_detected" in warning_codes
+
+
+def test_llm_mode_success_payload_contains_required_fields(tmp_path: Path) -> None:
+    """Success payload must include profile, privacy_profile, capture.sha256, schema_versions."""
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+    out_dir = tmp_path / "artifacts"
+    outputs = {
+        "summary": out_dir / "20240406_075320_summary_V_01.json",
+        "detail": out_dir / "20240406_075320_detail_V_01.json",
+        "markdown": out_dir / "20240406_075320_summary_V_01.md",
+    }
+
+    with (
+        patch("pcap2llm.cli.analyze_capture", return_value=_artifacts(out_dir)),
+        patch("pcap2llm.cli.write_artifacts", return_value=outputs),
+    ):
+        result = runner.invoke(
+            app,
+            ["analyze", str(capture), "--llm-mode", "--profile", "lte-core",
+             "--privacy-profile", "share", "--out", str(out_dir)],
+        )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["profile"] == "lte-core"
+    assert payload["privacy_profile"] == "share"
+    assert "sha256" in payload["capture"]
+    assert payload["capture"]["sha256"] is not None
+    assert "schema_versions" in payload
+    assert "summary" in payload["schema_versions"]
+    assert "detail" in payload["schema_versions"]
+
+
+def test_llm_mode_unknown_error_falls_back_to_runtime_error_code(tmp_path: Path) -> None:
+    """An unrecognised RuntimeError must map to runtime_error, stdout must be valid JSON."""
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+
+    with patch("pcap2llm.cli.analyze_capture", side_effect=RuntimeError("something completely unexpected")):
+        result = runner.invoke(app, ["analyze", str(capture), "--llm-mode", "--profile", "lte-core"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)   # must not raise
+    assert payload["status"] == "error"
+    assert payload["error"]["code"] == "runtime_error"
+    assert payload["mode"] == "llm"
+
+
+def test_llm_mode_dry_run_includes_profile_limits_and_command(tmp_path: Path) -> None:
+    """--llm-mode --dry-run must include profile, limits block, and tshark command."""
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+
+    result = runner.invoke(
+        app,
+        ["analyze", str(capture), "--llm-mode", "--dry-run",
+         "--profile", "lte-core", "--max-packets", "500"],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "ok"
+    assert payload["dry_run"] is True
+    assert payload["profile"] == "lte-core"
+    assert "limits" in payload
+    assert payload["limits"]["max_packets"] == 500
+    assert "command" in payload
+    assert isinstance(payload["command"], list)

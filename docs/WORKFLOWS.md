@@ -228,6 +228,18 @@ Edit `pcap2llm.config.yaml` to persist profile, mapping, hosts file, and privacy
 
 ---
 
+## Operator Triage — Start Here
+
+| Situation | Right action |
+|---|---|
+| Unfamiliar capture, unknown content | `inspect` first — no files written, immediate protocol overview |
+| Known focused flow, sensible packet count | `analyze` directly with appropriate `-Y` filter |
+| Large or noisy output, `detail_truncated: true` | Re-filter with a tighter `-Y` — do **not** raise `--max-packets` |
+| No relevant protocols in output | Check `--profile` matches the traffic; run `inspect` without `-Y` to confirm protocols present |
+| HTTP/2, GTP, or SCTP looks incomplete | Add `--two-pass` |
+
+---
+
 ## When Things Go Wrong
 
 ### Common situations and next steps
@@ -243,11 +255,14 @@ Edit `pcap2llm.config.yaml` to persist profile, mapping, hosts file, and privacy
 
 ### When to stop and re-filter
 
+**Raising `--max-packets` is not the answer.** A tighter filter is almost always the right response to a large or noisy output.
+
 Stop the current analysis and re-filter when:
 
-- `summary.json` shows `detail_truncated: true` on an unfiltered run with `detail_packets_available` far exceeding `detail_packets_included`. The detail artifact is a slice of noise, not a focused call flow.
-- `inspect` returns 10 000+ packets. No useful LLM analysis is possible on a packet set that large. Narrow with `-Y` to the specific call — a failing session, a rejected Diameter request, a specific NGAP procedure.
-- The output is large but the anomalies section in `summary.json` is empty. This often means the real failure is not in the capture window at all.
+- `summary.json` shows `detail_truncated: true` on an unfiltered run with `detail_packets_available` far exceeding `detail_packets_included`. The detail artifact is a random slice of the export, not a focused call flow. No amount of packet-cap tuning changes this.
+- `inspect` returns 10 000+ packets. No useful LLM analysis is possible on a packet set that large. Narrow with `-Y` to the specific event — a failing session, a rejected Diameter request, a specific NGAP procedure.
+- The output is large but the anomalies section in `summary.json` is empty. The real failure is probably not in this part of the capture at all.
+- You are about to raise `--max-packets` above 1 000. This is a signal to stop and filter instead.
 
 **Workflow when re-filtering:**
 
@@ -255,10 +270,10 @@ Stop the current analysis and re-filter when:
 # 1 — see what you have
 pcap2llm inspect trace.pcapng --profile lte-core
 
-# 2 — find the specific flow (example: Diameter errors only)
+# 2 — narrow to the specific event (example: Diameter errors only)
 pcap2llm inspect trace.pcapng --profile lte-core -Y "diameter.resultcode >= 3000"
 
-# 3 — if the filtered count is reasonable, run analyze
+# 3 — if the filtered count is reasonable (dozens to low hundreds), run analyze
 pcap2llm analyze trace.pcapng \
   --profile lte-core \
   -Y "diameter.resultcode >= 3000" \

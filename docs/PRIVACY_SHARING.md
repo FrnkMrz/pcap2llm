@@ -34,9 +34,11 @@ pcap2llm analyze trace.pcapng --profile lte-core --privacy-profile share --out .
 
 1. **Choose a privacy profile** — use the table above to pick `share`, `prod-safe`, `lab`, or `internal`
 2. **Run analyze** — check that the command includes `--privacy-profile <chosen>`
-3. **Inspect the effective output** — open `summary.json` and look at `privacy_modes`; verify the modes applied match your intent
+3. **Verify the effective output** — open `summary.json` and read the `privacy_modes` block; the profile name alone does not tell you what actually ran (see note below)
 4. **Verify optional sidecars** — if `pseudonym_mapping.json` was created, keep it separate; if `vault.json` was created, confirm the key is stored outside the share path
 5. **Share only what is needed** — for vendor tickets: `summary.json` + `summary.md` are often enough; attach `detail.json` only if the vendor needs packet-level data
+
+> **Effective policy beats intended policy.** The profile name you pass is only the starting point. Config file overrides and CLI `--*-mode` flags can change individual class modes without changing the profile name. Always read `privacy_modes` in `summary.json` to confirm what actually applied before sharing.
 
 ---
 
@@ -47,6 +49,16 @@ pcap2llm analyze trace.pcapng --profile lte-core --privacy-profile share --out .
 **Encryption** (`encrypt` mode) transforms sensitive values with Fernet encryption using `PCAP2LLM_VAULT_KEY`. The encrypted artifact is unreadable without the key. Use encryption when you need to retain the real values for later decryption — for example, internal archival or audit retention.
 
 **Encryption does not make casual sharing safe.** If you share an encrypted artifact and the key is shared separately later, the data is fully recoverable. Pseudonymization is the safer choice when you want irreversible protection for the shared artifact.
+
+---
+
+## Common Mistakes
+
+- **Sharing `pseudonym_mapping.json` with the artifact set.** This file maps pseudonyms back to real subscriber IDs and IP addresses. Sharing it alongside `detail.json` undoes all pseudonymization.
+- **Assuming `vault.json` is a recovery package.** It contains key metadata only — not the key itself. An encrypted artifact is unreadable without `PCAP2LLM_VAULT_KEY` stored separately.
+- **Using `share` when `prod-safe` is more appropriate.** `share` is a sensible default for internal work. If the artifact is leaving your team — vendor ticket, external LLM, third-party review — use `prod-safe` and check the effective modes.
+- **Sending `detail.json` when `summary.json` would be enough.** For most vendor tickets, `summary.json` + `summary.md` contain the protocol counts, anomalies, and timing needed to diagnose an issue. Attach `detail.json` only when the recipient needs packet-level fields.
+- **Trusting the profile name instead of reading the output.** Profile, config overrides, and CLI flags all interact. Read `privacy_modes` in `summary.json` before sharing — not just the command line you ran.
 
 ---
 

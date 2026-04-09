@@ -195,6 +195,8 @@ def test_llm_mode_all_packets_with_guard_disabled_reports_limits(tmp_path: Path)
         (RuntimeError("Encryption mode requires PCAP2LLM_VAULT_KEY to be set explicitly."), "missing_vault_key"),
         (RuntimeError("PCAP2LLM_VAULT_KEY is not a valid Fernet key: bad"), "invalid_vault_key"),
         (RuntimeError("detail export would be truncated at 100 of 500 packets"), "detail_truncated_and_disallowed"),
+        (RuntimeError("tshark output is not valid JSON: Expecting value: line 1"), "invalid_tshark_json"),
+        (RuntimeError("unknown tshark error"), "tshark_failed"),
     ],
 )
 def test_llm_mode_maps_known_runtime_failures(tmp_path: Path, side_effect: Exception, code: str) -> None:
@@ -358,3 +360,78 @@ def test_llm_mode_dry_run_includes_profile_limits_and_command(tmp_path: Path) ->
     assert payload["limits"]["max_packets"] == 500
     assert "command" in payload
     assert isinstance(payload["command"], list)
+
+
+def test_llm_mode_dry_run_includes_privacy_profile_when_set(tmp_path: Path) -> None:
+    """--llm-mode --dry-run must echo back the --privacy-profile argument."""
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+
+    result = runner.invoke(
+        app,
+        ["analyze", str(capture), "--llm-mode", "--dry-run",
+         "--profile", "lte-core", "--privacy-profile", "share"],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["privacy_profile"] == "share"
+
+
+def test_llm_mode_dry_run_writes_no_artifacts(tmp_path: Path) -> None:
+    """--dry-run must not write any files to the output directory."""
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+    out_dir = tmp_path / "artifacts"
+
+    result = runner.invoke(
+        app,
+        ["analyze", str(capture), "--llm-mode", "--dry-run",
+         "--profile", "lte-core", "--out", str(out_dir)],
+    )
+
+    assert result.exit_code == 0
+    assert not out_dir.exists(), "dry-run must not create the output directory"
+
+
+def test_llm_mode_success_coverage_block_has_required_keys(tmp_path: Path) -> None:
+    """Coverage block must contain the required fields for machine consumers."""
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+    out_dir = tmp_path / "artifacts"
+    outputs = {
+        "summary": out_dir / "20240406_075320_summary_V_01.json",
+        "detail": out_dir / "20240406_075320_detail_V_01.json",
+        "markdown": out_dir / "20240406_075320_summary_V_01.md",
+    }
+
+    with (
+        patch("pcap2llm.cli.analyze_capture", return_value=_artifacts(out_dir)),
+        patch("pcap2llm.cli.write_artifacts", return_value=outputs),
+    ):
+        result = runner.invoke(app, ["analyze", str(capture), "--llm-mode", "--profile", "lte-core", "--out", str(out_dir)])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    cov = payload["coverage"]
+    assert "detail_packets_included" in cov
+    assert "detail_packets_available" in cov
+    assert "detail_truncated" in cov
+    assert cov["detail_truncated"] is False
+    assert cov["detail_packets_included"] == 10
+
+
+def test_llm_mode_stdout_is_pure_json_on_error(tmp_path: Path) -> None:
+    """On error, stdout must be a single JSON document with nothing before or after it."""
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+
+    with patch("pcap2llm.cli.analyze_capture", side_effect=RuntimeError("tshark was not found in PATH. Install Wireshark/TShark and retry.")):
+        result = runner.invoke(app, ["analyze", str(capture), "--llm-mode", "--profile", "lte-core"])
+
+    assert result.exit_code == 1
+    stripped = result.stdout.strip()
+    assert stripped.startswith("{") and stripped.endswith("}")
+    payload = json.loads(stripped)  # must not raise
+    assert payload["status"] == "error"
+    assert payload["mode"] == "llm"

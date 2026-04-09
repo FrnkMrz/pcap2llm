@@ -257,7 +257,8 @@ Also verify the profile matches the traffic (e.g. use `5g-core` for 5G captures)
 
 | Document | What it covers |
 |---|---|
-| **README.md** (this file) | Overview, quick start, full CLI reference |
+| **README.md** (this file) | Overview, quick start, CLI reference summary |
+| [`docs/REFERENCE.md`](docs/REFERENCE.md) | **Complete English reference** |
 | [`docs/QUICKSTART_DE.md`](docs/QUICKSTART_DE.md) | German 5-minute start |
 | [`docs/ANLEITUNG_DE.md`](docs/ANLEITUNG_DE.md) | Vollständige deutsche Referenz |
 | [`docs/WORKFLOWS.md`](docs/WORKFLOWS.md) | Step-by-step workflows for LTE, 5G, SS7 |
@@ -266,7 +267,7 @@ Also verify the profile matches the traffic (e.g. use `5g-core` for 5G captures)
 | [`docs/PRIVACY_SHARING.md`](docs/PRIVACY_SHARING.md) | Privacy model and data sharing guidance |
 | [`docs/schema/`](docs/schema/) | JSON schema reference for both output files |
 | [`docs/security/`](docs/security/) | Threat model, encryption model |
-| [`docs/architecture/`](docs/architecture/) | Pipeline internals |
+| [`docs/architecture/`](docs/architecture/) | Pipeline internals for contributors |
 
 ---
 

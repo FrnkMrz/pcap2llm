@@ -430,7 +430,8 @@ pcap2llm analyze trace-ss7.pcapng \
 
 | Dokument | Inhalt |
 |---|---|
-| [`../README.md`](../README.md) | Englische Hauptdokumentation |
+| [`../README.md`](../README.md) | Englischer Ueberblick und Schnellstart |
+| [`REFERENCE.md`](REFERENCE.md) | Vollstaendige englische Referenz |
 | [`QUICKSTART_DE.md`](QUICKSTART_DE.md) | Deutscher Schnellstart (1 Seite) |
 | [`WORKFLOWS.md`](WORKFLOWS.md) | Schritt-fuer-Schritt-Workflows fuer LTE, 5G, SS7 |
 | [`PROFILES.md`](PROFILES.md) | Eigene Analyse-Profile erstellen |

@@ -1,197 +1,113 @@
 # pcap2llm
 
-`pcap2llm` formats `.pcap` and `.pcapng` captures into stable, privacy-aware telecom troubleshooting artifacts. Its primary product is a structured `detail.json` handoff artifact that can be given to a downstream LLM in a second step. The tool itself does not perform generative AI analysis.
+`pcap2llm` converts `.pcap` and `.pcapng` network captures into structured, privacy-controlled JSON artifacts for telecom troubleshooting. You give it a capture file — it gives you a clean, LLM-ready handoff artifact.
 
-It ships with profile-driven workflows for LTE/EPC, 5G core, and legacy 2G/3G SS7 plus GERAN troubleshooting.
+The tool does **no AI analysis**. It prepares and formats the data. The LLM step is separate and up to you.
 
-## Deutsch
+> **Sweet spot:** A failed attach, a Diameter error, a specific call flow — captures of seconds to a few minutes with a few hundred signaling packets. Not designed for multi-megabyte rolling dumps.
 
-Kurzer Einstieg auf Deutsch:
-
-- [`docs/QUICKSTART_DE.md`](docs/QUICKSTART_DE.md)
-- [`docs/ANLEITUNG_DE.md`](docs/ANLEITUNG_DE.md)
-
-## What It Produces
-
-For a normal `analyze` run the tool writes:
-
-- filenames always start with the timestamp of the first packet, e.g. `20240406_075320_...`
-- every run always gets a version suffix: `_V_01`, `_V_02`, etc. (auto-incremented when the file already exists)
-
-| File | Contents |
-|---|---|
-| `YYYYMMDD_HHMMSS_detail_V_01.json` | Primary LLM handoff artifact: normalized, reduced, privacy-controlled packet/message detail |
-| `YYYYMMDD_HHMMSS_summary_V_01.json` | Sidecar: coverage, protocol mix, anomalies, deterministic findings, policy metadata |
-| `YYYYMMDD_HHMMSS_summary_V_01.md` | Human-readable sidecar derived from `summary.json` |
-| `YYYYMMDD_HHMMSS_pseudonym_mapping_V_01.json` | Only when pseudonymization is used |
-| `YYYYMMDD_HHMMSS_vault_V_01.json` | Only when encryption is used |
-
-The CLI JSON output also includes `artifact_prefix` and `artifact_version` so automation can reliably identify the generated file set.
-
-Both JSON files include `schema_version`, `generated_at` (ISO 8601 UTC), `capture_sha256`, and explicit coverage metadata for reproducibility and audit.
-
-By default the generated `*_detail.json` contains only the first **1 000 packets**. Use `--all-packets` to remove the limit or `--max-packets N` to set a custom value. Inspection and all summary statistics always run on the full capture regardless of this setting. When the output is truncated, the generated `*_summary.json` contains a `detail_truncated` key explaining how many packets were exported vs. included.
-
-The current pipeline still performs a full TShark JSON export before packet selection. To reduce accidental misuse on oversized captures, `pcap2llm analyze` now applies a default pre-export guard of **250 MiB** via `--max-capture-size-mb`. Set `--max-capture-size-mb 0` only when you intentionally want to bypass that guard.
-
-## LLM Preparation
-
-`pcap2llm` is built to prepare a trace for a later LLM step.
-
-- The main preparation output is `*_detail.json`.
-- `*_summary.json` and `*_summary.md` are sidecars for coverage, privacy, and audit context.
-- The tool itself does not perform LLM reasoning or root-cause analysis.
-- For machine-readable orchestration, use `pcap2llm analyze ... --llm-mode`.
-
-Start here if you are looking specifically for the LLM handoff flow:
-
-- [`docs/LLM_MODE.md`](docs/LLM_MODE.md)
-- [`docs/schema/detail.schema.md`](docs/schema/detail.schema.md)
-- [`docs/schema/summary.schema.md`](docs/schema/summary.schema.md)
-
-## Intended Use
-
-`pcap2llm` is a deterministic trace formatter and artifact generator. It is best used when you already know which slice of traffic matters and want to produce a compact, readable artifact for a later LLM review step.
-
-See also:
-
-- [`docs/schema/detail.schema.md`](docs/schema/detail.schema.md)
-- [`docs/schema/summary.schema.md`](docs/schema/summary.schema.md)
-- [`docs/security/threat_model.md`](docs/security/threat_model.md)
-- [`docs/security/encryption_model.md`](docs/security/encryption_model.md)
-- [`docs/privacy_coverage.md`](docs/privacy_coverage.md)
-- [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)
-- [`docs/golden_corpus.md`](docs/golden_corpus.md)
-- [`docs/SUPPORTED_ENVIRONMENTS.md`](docs/SUPPORTED_ENVIRONMENTS.md)
-- [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md)
-- [`CHANGELOG.md`](CHANGELOG.md)
-
-## When This Tool Works Well — and When It Does Not
-
-pcap2llm is designed for **targeted, focused captures**: a failed attach procedure, a Diameter exchange with an unexpected error, a single GTPv2-C session setup, a call flow with a few dozen to a few hundred signaling messages. That is the sweet spot.
-
-**Works well:**
-- A filtered capture of one signaling flow or a handful of related transactions
-- Investigating a specific error: one failed call, one rejected session, one timeout
-- Captures of seconds to a few minutes, filtered down to relevant protocol traffic
-- A `detail.json` of a few hundred packets feeds comfortably into any LLM context window
-
-**Does not work well:**
-- Throwing a multi-megabyte rolling capture at it and expecting the LLM to find the needle
-- Full-node traffic dumps with tens of thousands of packets — the `detail.json` will be too large for any LLM to reason over
-- Long captures that mix many unrelated flows — the LLM sees everything but understands nothing
-- Treating the tool itself as the analysis engine rather than as the artifact-preparation step
-
-**Practical rule of thumb:** if your filtered capture has more than ~2 000 signaling messages, consider splitting it by flow or SCTP/TCP stream before analyzing. Use `pcap2llm inspect` first to understand what is inside, then narrow down with `-Y` before running `analyze`.
-
-The `--max-packets` default of 1 000 is a safety rail, not a target. A tight filter and a focused capture window produce far better LLM output than a big capture trimmed by the packet limit.
-
-## Known Limitations
-
-- Focused captures remain the main target.
-- `pcap2llm` is not a Wireshark replacement.
-- Privacy handling is policy-driven, not magic.
-- Encryption does not replace handling discipline.
-- Large captures still require care because the current TShark JSON ingestion path is full-load before selection.
-
-## Design Goals
-
-- CLI-first and automation-friendly
-- `tshark` as the local dissector backend — no cloud dependency
-- stable public artifact contracts decoupled from raw TShark structure
-- L2 hidden by default; L3 preserved; L4 reduced to analyst-useful context
-- Top relevant protocol retained in fuller detail
-- Privacy controls selectable per data class
-- deterministic formatting for a downstream LLM handoff step
-
-## Installation
-
-Requirements:
-
-- Python 3.11+
-- `tshark` available in `PATH` (Wireshark package)
-
-Linux/macOS:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .[dev]
-```
-
-Windows PowerShell:
-
-```powershell
-py -3 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -e .[dev]
-```
-
-For encryption support:
-
-```bash
-pip install -e .[dev,encrypt]
-```
-
-## License
-
-`pcap2llm` is licensed under the Apache License 2.0. That permits reuse, modification, and redistribution under the Apache 2.0 terms. See [LICENSE](LICENSE) for the full text.
-
-On Windows inside the active `.venv`, the prompt typically shows `(.venv)` and all `python`, `pip`, `pytest`, and `pcap2llm` commands use that virtual environment.
+---
 
 ## Quick Start
 
 ```bash
-# Inspect metadata only
+# 1. Install
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .[dev]
+
+# 2. Inspect a capture (no artifacts written)
 pcap2llm inspect sample.pcapng --profile lte-core
 
-# Full analysis (default: first 1 000 packets in the generated detail artifact)
-pcap2llm analyze sample.pcapng \
-  --profile lte-core \
-  --hosts-file ./examples/wireshark_hosts.sample \
-  --mapping-file ./examples/mapping.sample.yaml \
-  --out ./artifacts
+# 3. Analyze and write artifacts
+pcap2llm analyze sample.pcapng --profile lte-core --out ./artifacts
 
-# Hand the generated *_detail.json to your LLM in a second step.
-# Use *_summary.json to confirm coverage, truncation, and privacy policy.
-
-# Example JSON response fields after analyze:
-# "artifact_prefix": "20240406_075320"
-# "artifact_version": null
-
-# Include all packets in the generated detail artifact (large captures → large file)
-pcap2llm analyze sample.pcapng --profile lte-core --all-packets
-
-# Custom packet limit
-pcap2llm analyze sample.pcapng --profile lte-core --max-packets 500
-
-# Preview the plan without invoking tshark
+# 4. Preview without running tshark
 pcap2llm analyze sample.pcapng --profile lte-core --dry-run
-
-# Generate a starter config file
-pcap2llm init-config
 ```
 
-## LLM Mode And Machine-Readable CLI Output
+Requirements: Python 3.11+, `tshark` in PATH (Wireshark package).
 
-For orchestrators or agent workflows, use:
+---
+
+## What It Produces
+
+Every `analyze` run writes a timestamped, versioned file set:
+
+| File | Purpose |
+|---|---|
+| `YYYYMMDD_HHMMSS_detail_V_01.json` | **Primary LLM input** — normalized packets, reduced fields, privacy-applied |
+| `YYYYMMDD_HHMMSS_summary_V_01.json` | Sidecar — protocol mix, conversations, anomalies, coverage, timing |
+| `YYYYMMDD_HHMMSS_summary_V_01.md` | Human-readable version of the summary |
+| `YYYYMMDD_HHMMSS_pseudonym_mapping_V_01.json` | Only when pseudonymization is active |
+| `YYYYMMDD_HHMMSS_vault_V_01.json` | Only when encryption is active |
+
+- Timestamp comes from the first packet in the capture
+- `_V_01` is always present; auto-increments to `_V_02`, `_V_03` if files already exist
+- Both JSON files include `schema_version`, `generated_at` (ISO 8601 UTC), and `capture_sha256`
+
+By default `detail.json` contains the first **1 000 packets**. Use `--all-packets` to remove the limit or `--max-packets N` to set a custom value. Inspection and all summary statistics always run on the full capture regardless of this setting.
+
+---
+
+## Profiles
+
+Choose the profile that matches your capture:
+
+| Profile | Use case |
+|---|---|
+| `lte-core` | LTE / EPC — Diameter, GTPv2-C, S1AP, NAS-EPS, DNS |
+| `5g-core` | 5G Core — PFCP, NGAP, NAS-5GS, HTTP/2 SBI |
+| `2g3g-ss7-geran` | Legacy 2G/3G — SS7, MAP, CAP, ISUP, BSSAP, GERAN |
 
 ```bash
-pcap2llm analyze sample.pcapng --profile lte-core --llm-mode
+pcap2llm analyze trace.pcapng --profile 5g-core --out ./artifacts
 ```
 
-In `--llm-mode`, stdout contains strict JSON only. The usual artifact files are still written, but the CLI return value becomes easier for an external agent to parse reliably. See [`docs/LLM_MODE.md`](docs/LLM_MODE.md).
+To create a custom profile: [`docs/PROFILES.md`](docs/PROFILES.md)
+
+---
+
+## Privacy
+
+Privacy is controlled per data class. The built-in privacy profiles cover the most common cases:
+
+| Privacy profile | What it does |
+|---|---|
+| `internal` | Keep everything as-is |
+| `share` | Pseudonymize subscriber IDs (IMSI, MSISDN), remove tokens |
+| `lab` | Pseudonymize all subscriber data, mask IPs |
+| `prod-safe` | Maximum protection — mask IPs, pseudonymize all PII, remove tokens/email/URI |
+
+```bash
+pcap2llm analyze trace.pcapng --profile lte-core --privacy-profile share --out ./artifacts
+```
+
+Available modes per class: `keep` · `mask` · `pseudonymize` · `encrypt` · `remove`
+
+Override individual classes on the command line:
+
+```bash
+pcap2llm analyze trace.pcapng --profile lte-core \
+  --privacy-profile share \
+  --imei-mode remove \
+  --ip-mode mask
+```
+
+Pseudonyms are **stable across runs** — same input value always produces the same alias (BLAKE2s hash), e.g. `IMSI_a3f2b1c4`. Full privacy reference: [`docs/PRIVACY_SHARING.md`](docs/PRIVACY_SHARING.md)
+
+---
 
 ## Endpoint Mapping
 
-Two mapping sources are supported and can be combined:
+Resolve raw IPs to readable names using a hosts file or a custom mapping:
 
-- **`--hosts-file`**: Wireshark-style hosts file (`<IP>  <hostname>`)
-- **`--mapping-file`**: YAML/JSON with aliases, roles, sites, CIDR ranges
+```bash
+pcap2llm analyze trace.pcapng --profile lte-core \
+  --hosts-file ./examples/wireshark_hosts.sample \
+  --mapping-file ./examples/mapping.sample.yaml
+```
 
-**Precedence**: `--mapping-file` overrides `--hosts-file` for the same IP.
-
-Example mapping file with CIDR support:
+The mapping file supports individual IPs, hostnames, and CIDR ranges:
 
 ```yaml
 nodes:
@@ -202,89 +118,95 @@ nodes:
   - cidr: 10.20.0.0/16
     alias: HSS_CLUSTER
     role: hss
-    site: Munich
 ```
 
-If no mapping entry is found for an IP, the resolver falls back to port-based role inference (e.g. port 3868 → `diameter`, port 8805 → `pfcp`).
+If no mapping entry exists for an IP, the resolver infers a role from the port (e.g. port 3868 → `diameter`, port 8805 → `pfcp`).
 
-## Privacy Model
-
-Privacy is policy-driven and protocol-aware. The tool classifies fields and free-form text into data classes, then applies the configured action for each class.
-
-Privacy is controlled per data class via `--<class>-mode`:
-
-| Data class | Default (lte-core) |
-|---|---|
-| `ip` | `keep` |
-| `hostname` | `keep` |
-| `subscriber_id` | `pseudonymize` |
-| `msisdn` | `pseudonymize` |
-| `imsi` | `pseudonymize` |
-| `imei` | `mask` |
-| `email` | `mask` |
-| `distinguished_name` | `pseudonymize` |
-| `token` | `remove` |
-| `uri` | `mask` |
-| `apn_dnn` | `keep` |
-| `diameter_identity` | `pseudonymize` |
-| `payload_text` | `mask` |
-
-Supported modes (aliases in parentheses):
-
-- `keep` (alias: `off`) — no change
-- `mask` (alias: `redact`) — replace with `[redacted]`
-- `pseudonymize` — replace with a stable hash-based alias, e.g. `IMSI_a3f2b1c4`
-- `encrypt` — Fernet encryption (requires `cryptography` extra)
-- `remove` — delete the field entirely
-
-Pseudonyms are **stable across runs**: the same original value always produces the same alias (BLAKE2s hash).
-
-### Encryption Workflow
-
-1. Install the `encrypt` extra: `pip install -e .[dev,encrypt]`
-2. Generate a Fernet key: `python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
-3. Export the key: `export PCAP2LLM_VAULT_KEY=<key>`
-4. Run the analysis: `pcap2llm analyze sample.pcapng --imsi-mode encrypt`
-5. The key source is documented in the generated `*_vault.json`. Without the key the encrypted values cannot be recovered.
-
-If `PCAP2LLM_VAULT_KEY` is not set, encryption mode fails fast. `*_vault.json` contains metadata only and never stores the decryption secret.
-
-Do not store or share `PCAP2LLM_VAULT_KEY` together with the exported artifacts.
-
-## Profiles
-
-Profiles are YAML-driven and define protocol priorities, field extraction, and privacy defaults.
-
-Built-in profiles:
-
-| Profile | Use case |
-|---|---|
-| `lte-core` | LTE/EPC: Diameter, GTPv2-C, S1AP, NAS-EPS |
-| `5g-core` | 5G: PFCP, NGAP, NAS-5GS, HTTP/2 SBI |
-| `2g3g-ss7-geran` | Legacy 2G/3G: SS7, MAP, CAP, ISUP, BSSAP, GERAN (no UTRAN) |
-
-To create a custom profile, see [`docs/PROFILES.md`](docs/PROFILES.md).
+---
 
 ## Anomaly Detection
 
-The tool produces deterministic anomaly summaries from transport-layer and application-layer rules:
+The tool automatically flags:
 
-**Transport**: TCP retransmissions, out-of-order segments, SCTP analysis warnings.
+- **Transport**: TCP retransmissions, out-of-order segments, SCTP warnings
+- **Diameter**: unanswered requests, error result codes (≥ 3000), duplicate hop-by-hop IDs
+- **GTPv2-C**: unanswered Create Session Requests, rejected sessions, Error Indications
 
-**Diameter**: unanswered requests, error result codes (≥ 3000), duplicate hop-by-hop IDs.
+Anomalies appear in `summary.json` under `anomalies` and `anomaly_counts_by_layer`.
 
-**GTPv2-C**: unanswered Create Session Requests, rejected sessions, Error Indications.
+---
 
-Anomalies appear in the generated `*_summary.json` under `anomalies` and are classified by layer in `anomaly_counts_by_layer`. They are sidecar signals, not generative conclusions.
+## Full CLI Reference
 
-## Public Artifact Contract
+### `pcap2llm inspect`
 
-The public Schema 1.0 contract is documented in:
+Inspect a capture without writing analysis artifacts.
 
-- [`docs/schema/detail.schema.md`](docs/schema/detail.schema.md)
-- [`docs/schema/summary.schema.md`](docs/schema/summary.schema.md)
+```
+pcap2llm inspect <capture> [options]
 
-Generated `*_detail.json` message objects follow this general shape:
+  --profile             Protocol profile (default: lte-core)
+  -Y / --display-filter TShark display filter
+  --config              YAML config file
+  --out                 Write JSON result to file instead of stdout
+  --dry-run             Print planned tshark command only
+  --two-pass            Override two-pass dissection mode
+  --tshark-path         Path to tshark executable
+  --tshark-arg          Extra tshark argument (repeatable)
+```
+
+### `pcap2llm analyze`
+
+Run the full pipeline and write artifacts.
+
+```
+pcap2llm analyze <capture> [options]
+
+Profile & filtering:
+  --profile             Protocol profile (default: lte-core)
+  --privacy-profile     Privacy profile (internal | share | lab | prod-safe | <path>)
+  -Y / --display-filter TShark display filter
+  --config              YAML config file
+
+Output:
+  --out                 Output directory (default: artifacts)
+  --max-packets         Max packets in detail.json (default: 1000)
+  --all-packets         Include all packets, overrides --max-packets
+  --fail-on-truncation  Error if detail would be truncated
+  --max-capture-size-mb Reject captures larger than N MiB (default: 250, 0=off)
+  --dry-run             Print plan only, no tshark execution
+  --llm-mode            Output strict JSON for agent/automation use
+
+Endpoint resolution:
+  --hosts-file          Wireshark-style hosts file
+  --mapping-file        YAML/JSON alias mapping (supports CIDR)
+
+Privacy overrides (per class):
+  --ip-mode / --hostname-mode / --subscriber-id-mode / --msisdn-mode
+  --imsi-mode / --imei-mode / --email-mode / --dn-mode / --token-mode
+  --uri-mode / --apn-dnn-mode / --diameter-identity-mode / --payload-text-mode
+                        keep | mask | pseudonymize | encrypt | remove
+
+TShark:
+  --two-pass            Override two-pass dissection mode
+  --tshark-path         Path to tshark executable
+  --tshark-arg          Extra tshark argument (repeatable)
+```
+
+### `pcap2llm init-config`
+
+Write a starter configuration file.
+
+```
+pcap2llm init-config [path]   (default: pcap2llm.config.yaml)
+  --force               Overwrite existing file
+```
+
+---
+
+## Output Schema (detail.json)
+
+Each packet object in `detail.json`:
 
 ```json
 {
@@ -300,44 +222,93 @@ Generated `*_detail.json` message objects follow this general shape:
 }
 ```
 
+Full schema reference: [`docs/schema/`](docs/schema/)
+
+---
+
 ## Troubleshooting
 
 **`tshark was not found in PATH`**
-Install Wireshark/TShark and ensure it is on `PATH`. On macOS: `brew install wireshark`. On Ubuntu: `sudo apt install tshark`. Use `--tshark-path /path/to/tshark` if it is not in `PATH`.
+Install Wireshark/TShark and ensure it is on PATH.
+- macOS: `brew install wireshark`
+- Ubuntu: `sudo apt install tshark`
+- Custom path: `pcap2llm analyze sample.pcapng --tshark-path /usr/local/bin/tshark`
 
 **`tshark output is not valid JSON`**
-Usually caused by a very old TShark version or a corrupt capture. Try upgrading TShark (≥ 3.6 recommended) or re-capturing.
+Usually an old TShark version (< 3.6) or a corrupt capture. Upgrade TShark or re-capture.
 
 **`PCAP2LLM_VAULT_KEY is not a valid Fernet key`**
-The key must be a URL-safe base64-encoded 32-byte value. Generate one with:
+Generate a valid key:
 ```bash
 python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-**`Expected an object at the root of <file>`**
-Your YAML config or mapping file has an invalid root type. The top-level element must be a mapping (`key: value`), not a list or scalar.
+**`detail.json` has fewer packets than expected**
+Default limit is 1 000 packets. Check `summary.json` for a `detail_truncated` entry.
+Use `--all-packets` or `--max-packets N` to adjust.
 
-**Generated `*_detail.json` contains fewer packets than expected**
-By default only the first 1 000 packets are written to the generated `*_detail.json`. Use `--all-packets` to include everything, or increase the limit with `--max-packets N`. Check the generated `*_summary.json` for a `detail_truncated` entry that shows the total exported count.
+**Empty `detail.json`**
+Check your display filter — it may be filtering out everything. Try without `-Y` first.
+Also verify the profile matches the traffic (e.g. use `5g-core` for 5G captures).
 
-**Empty `*_detail.json` / no packets at all**
-Check the display filter (`-Y`) — it may be filtering out all packets. Run without a filter first. Also verify the profile matches the traffic (e.g. use `5g-core` for 5G captures).
+---
+
+## Documentation
+
+| Document | What it covers |
+|---|---|
+| **README.md** (this file) | Overview, quick start, full CLI reference |
+| [`docs/QUICKSTART_DE.md`](docs/QUICKSTART_DE.md) | German 5-minute start |
+| [`docs/ANLEITUNG_DE.md`](docs/ANLEITUNG_DE.md) | Vollständige deutsche Referenz |
+| [`docs/WORKFLOWS.md`](docs/WORKFLOWS.md) | Step-by-step workflows for LTE, 5G, SS7 |
+| [`docs/PROFILES.md`](docs/PROFILES.md) | Creating custom analysis profiles |
+| [`docs/LLM_MODE.md`](docs/LLM_MODE.md) | Machine-readable JSON mode for automation |
+| [`docs/PRIVACY_SHARING.md`](docs/PRIVACY_SHARING.md) | Privacy model and data sharing guidance |
+| [`docs/schema/`](docs/schema/) | JSON schema reference for both output files |
+| [`docs/security/`](docs/security/) | Threat model, encryption model |
+| [`docs/architecture/`](docs/architecture/) | Pipeline internals |
+
+---
+
+## Installation
+
+### Linux / macOS
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .[dev]
+```
+
+### Windows (PowerShell)
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e .[dev]
+```
+
+### With encryption support
+
+```bash
+pip install -e .[dev,encrypt]
+export PCAP2LLM_VAULT_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+```
+
+---
 
 ## Development
 
 ```bash
-pytest          # run tests
-ruff check .    # lint
+pytest           # run all tests
+pytest tests/test_pipeline.py -v   # single file
+ruff check .     # lint
 ```
 
-Run a single test file:
-```bash
-pytest tests/test_pipeline.py -v
-```
+18 test modules. Key test files: `test_pipeline.py`, `test_normalizer.py`, `test_privacy_profiles.py`, `test_cli.py`.
 
-## Contribution Notes
+---
 
-- Keep parsing logic resilient to small `tshark` JSON differences across versions.
-- Prefer extending profiles before adding protocol-specific branching in code.
-- Do not send raw PCAP contents to remote services.
-- Keep secrets and encryption keys local.
+## License
+
+Apache License 2.0 — Copyright (c) 2026 Frank März

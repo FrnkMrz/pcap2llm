@@ -93,21 +93,54 @@ class TSharkRunner:
         self,
         capture_path: Path,
         *,
+        fields: tuple[str, ...] = INDEX_FIELDS,
         display_filter: str | None = None,
         extra_args: list[str] | None = None,
         two_pass: bool = False,
     ) -> list[str]:
-        """Build the TShark command for pass-1 lightweight field export."""
+        """Build the TShark command for pass-1 lightweight field export.
+
+        *fields* defaults to :data:`INDEX_FIELDS` but can be narrowed to a
+        subset when some field names are not supported by the local TShark
+        version (see :meth:`export_packet_index` for the retry logic).
+        """
         command = [self.binary, "-n", "-r", str(capture_path), "-T", "fields"]
         if two_pass:
             command.append("-2")
         if display_filter:
             command.extend(["-Y", display_filter])
-        for field in INDEX_FIELDS:
+        for field in fields:
             command.extend(["-e", field])
         command.extend(["-E", f"separator={INDEX_SEPARATOR}", "-E", "header=n"])
         command.extend(extra_args or [])
         return command
+
+    @staticmethod
+    def _parse_invalid_fields(stderr: str) -> set[str]:
+        """Extract field names from a TShark 'Some fields aren't valid' error message.
+
+        TShark formats this as::
+
+            tshark: Some fields aren't valid:
+            \\tfield.name.one
+            \\tfield.name.two
+
+        Returns the set of rejected field names, or an empty set if the stderr
+        does not match this pattern.
+        """
+        invalid: set[str] = set()
+        in_block = False
+        for line in stderr.splitlines():
+            if "fields aren't valid" in line:
+                in_block = True
+                continue
+            if in_block:
+                stripped = line.strip()
+                if stripped:
+                    invalid.add(stripped)
+                else:
+                    break  # blank line ends the block
+        return invalid
 
     def export_packet_index(
         self,
@@ -119,22 +152,53 @@ class TSharkRunner:
     ) -> list[PacketIndexRecord]:
         """Run pass-1 TShark export and return lightweight per-packet records.
 
-        Uses ``tshark -T fields`` with a fixed set of fields (:data:`INDEX_FIELDS`)
-        sufficient for inspection, anomaly detection, and frame selection.
-        Malformed rows are logged and skipped; callers can detect data loss via
-        ``len(result) < expected``.
+        Uses ``tshark -T fields`` with the fields from :data:`INDEX_FIELDS`.
+        Because ``INDEX_FIELDS`` includes alternative spellings for field names
+        that differ across TShark versions, some names may be rejected on a
+        given installation.  When TShark exits with a "Some fields aren't
+        valid" error, those names are removed and the export is retried once
+        with the reduced field list.  The active field list is then passed to
+        :func:`~pcap2llm.index_models.parse_index_row` so the parser knows
+        which column corresponds to which name.
+
+        Malformed rows are logged and skipped silently.
         """
         self.ensure_available()
+        active_fields = INDEX_FIELDS
         command = self.build_index_command(
             capture_path,
+            fields=active_fields,
             display_filter=display_filter,
             extra_args=extra_args,
             two_pass=two_pass,
         )
         result = subprocess.run(command, capture_output=True, text=True, check=False)
+
+        # Retry once if TShark rejected some field names.
+        if result.returncode != 0:
+            stderr = result.stderr.strip() or ""
+            invalid = self._parse_invalid_fields(stderr)
+            if invalid:
+                logger.warning(
+                    "pass-1: TShark rejected %d field name(s) on this installation "
+                    "(version-specific): %s — retrying without them.",
+                    len(invalid),
+                    ", ".join(sorted(invalid)),
+                )
+                active_fields = tuple(f for f in INDEX_FIELDS if f not in invalid)
+                command = self.build_index_command(
+                    capture_path,
+                    fields=active_fields,
+                    display_filter=display_filter,
+                    extra_args=extra_args,
+                    two_pass=two_pass,
+                )
+                result = subprocess.run(command, capture_output=True, text=True, check=False)
+
         if result.returncode != 0:
             stderr = result.stderr.strip() or "unknown tshark error"
             raise TSharkError(stderr)
+
         payload = result.stdout
         if not payload.strip():
             return []
@@ -143,14 +207,17 @@ class TSharkRunner:
         for line in payload.splitlines():
             if not line.strip():
                 continue
-            record = parse_index_row(line)
+            record = parse_index_row(line, active_fields)
             if record is None:
                 dropped += 1
                 logger.warning("pass-1: skipped malformed index row: %r", line[:120])
             else:
                 records.append(record)
         if dropped:
-            logger.warning("pass-1: dropped %d malformed rows out of %d total", dropped, dropped + len(records))
+            logger.warning(
+                "pass-1: dropped %d malformed rows out of %d total",
+                dropped, dropped + len(records),
+            )
         return records
 
     # ------------------------------------------------------------------

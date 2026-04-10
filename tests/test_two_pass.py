@@ -48,14 +48,15 @@ def _make_tsv_row(
     udp_stream: str = "",
     diam_flags: str = "0x80",
     diam_cmd: str = "316",
-    diam_hbh: str = "abc123",
-    diam_hbhid: str = "",
-    diam_rc: str = "",
-    diam_rc_lc: str = "",
-    diam_resultcode: str = "",
+    diam_hbh: str = "abc123",    # diameter.hop_by_hop_id  (older TShark)
+    diam_hbhid: str = "",        # diameter.hopbyhopid     (TShark 4.x)
+    diam_rc: str = "",           # diameter.Result-Code    (mixed-case primary)
+    diam_rc_lc: str = "",        # diameter.result_code    (lowercase alt)
+    diam_resultcode: str = "",   # diameter.resultcode     (no-separator alt)
     gtpv2_msgtype: str = "",
-    gtpv2_seqno: str = "",
-    gtpv2_seqno_alt: str = "",
+    gtpv2_seq: str = "",         # gtpv2.seq               (TShark 4.x primary)
+    gtpv2_seqno: str = "",       # gtpv2.seq_no            (older builds)
+    gtpv2_seqno_alt: str = "",   # gtpv2.sequence_number   (alt spelling)
     gtpv2_cause: str = "",
 ) -> str:
     values = [
@@ -66,7 +67,7 @@ def _make_tsv_row(
         udp_srcport, udp_dstport, udp_stream,
         diam_flags, diam_cmd, diam_hbh, diam_hbhid,
         diam_rc, diam_rc_lc, diam_resultcode,
-        gtpv2_msgtype, gtpv2_seqno, gtpv2_seqno_alt, gtpv2_cause,
+        gtpv2_msgtype, gtpv2_seq, gtpv2_seqno, gtpv2_seqno_alt, gtpv2_cause,
     ]
     assert len(values) == len(INDEX_FIELDS), (
         f"Row has {len(values)} columns, INDEX_FIELDS has {len(INDEX_FIELDS)}"
@@ -185,16 +186,41 @@ class TestParseIndexRow:
         assert record is not None
         assert record.diameter_result_code == "2001"
 
-    def test_gtpv2_sequence_number_alt_spelling(self) -> None:
+    def test_gtpv2_seq_primary_spelling(self) -> None:
+        """gtpv2.seq (TShark 4.x primary) must populate gtpv2_seq_no."""
         row = _make_tsv_row(
             protocols="eth:ip:udp:gtpv2",
             sctp_srcport="", sctp_dstport="", sctp_assoc="",
             diam_flags="", diam_cmd="",
-            gtpv2_msgtype="32", gtpv2_seqno="", gtpv2_seqno_alt="99",
+            gtpv2_msgtype="32", gtpv2_seq="77",
+        )
+        record = parse_index_row(row)
+        assert record is not None
+        assert record.gtpv2_seq_no == "77"
+
+    def test_gtpv2_sequence_number_alt_spelling(self) -> None:
+        """gtpv2.sequence_number alt spelling must also populate gtpv2_seq_no."""
+        row = _make_tsv_row(
+            protocols="eth:ip:udp:gtpv2",
+            sctp_srcport="", sctp_dstport="", sctp_assoc="",
+            diam_flags="", diam_cmd="",
+            gtpv2_msgtype="32", gtpv2_seqno_alt="99",
         )
         record = parse_index_row(row)
         assert record is not None
         assert record.gtpv2_seq_no == "99"
+
+    def test_gtpv2_seq_primary_wins_over_alt(self) -> None:
+        """When multiple spellings are present, gtpv2.seq wins."""
+        row = _make_tsv_row(
+            protocols="eth:ip:udp:gtpv2",
+            sctp_srcport="", sctp_dstport="", sctp_assoc="",
+            diam_flags="", diam_cmd="",
+            gtpv2_msgtype="32", gtpv2_seq="55", gtpv2_seqno_alt="99",
+        )
+        record = parse_index_row(row)
+        assert record is not None
+        assert record.gtpv2_seq_no == "55"
 
     def test_tcp_retransmission_flag(self) -> None:
         row = _make_tsv_row(tcp_srcport="1234", tcp_dstport="5678", tcp_retr="1")
@@ -472,6 +498,73 @@ class TestExportPacketIndex:
         with patch("subprocess.run", return_value=mock_result):
             records = runner.export_packet_index(tmp_path / "x.pcapng")
         assert len(records) == 1
+
+    def test_parse_invalid_fields_extracts_names(self) -> None:
+        """_parse_invalid_fields must return all field names from TShark's error message."""
+        stderr = (
+            "tshark: Some fields aren't valid:\n"
+            "\tgtpv2.seq_no\n"
+            "\tdiameter.resultcode\n"
+            "\tdiameter.result_code\n"
+            "\tdiameter.hop_by_hop_id\n"
+        )
+        invalid = TSharkRunner._parse_invalid_fields(stderr)
+        assert invalid == {"gtpv2.seq_no", "diameter.resultcode", "diameter.result_code", "diameter.hop_by_hop_id"}
+
+    def test_parse_invalid_fields_empty_on_other_error(self) -> None:
+        """_parse_invalid_fields must return empty set for unrelated errors."""
+        assert TSharkRunner._parse_invalid_fields("tshark: file not found") == set()
+
+    def test_export_packet_index_retries_on_invalid_fields(self, tmp_path: Path) -> None:
+        """When TShark rejects field names, export_packet_index must retry without them."""
+        from pcap2llm.index_models import INDEX_FIELDS
+
+        runner = TSharkRunner()
+        runner.ensure_available = lambda: None
+
+        # Simulate: first call fails with "fields aren't valid"; second call succeeds
+        # but with a reduced field set (drop gtpv2.seq_no + diameter.hop_by_hop_id)
+        bad_result = type("R", (), {
+            "returncode": 1,
+            "stdout": "",
+            "stderr": "tshark: Some fields aren't valid:\n\tgtpv2.seq_no\n\tdiameter.hop_by_hop_id\n",
+        })()
+
+        # Build a row for the reduced field set (without the two rejected fields)
+        reduced_fields = tuple(f for f in INDEX_FIELDS if f not in {"gtpv2.seq_no", "diameter.hop_by_hop_id"})
+        reduced_values = {f: "" for f in reduced_fields}
+        reduced_values.update({
+            "frame.number": "1",
+            "frame.time_epoch": "1712390000.0",
+            "frame.protocols": "eth:ip:sctp:diameter",
+            "ip.src": "10.0.0.1",
+            "ip.dst": "10.0.0.2",
+            "sctp.srcport": "3868",
+            "sctp.dstport": "3868",
+            "sctp.assoc_index": "0",
+            "diameter.flags": "0x80",
+            "diameter.cmd.code": "316",
+        })
+        reduced_row = "|".join(reduced_values.get(f, "") for f in reduced_fields)
+        good_result = type("R", (), {
+            "returncode": 0,
+            "stdout": reduced_row + "\n",
+            "stderr": "",
+        })()
+
+        call_count = 0
+        def mock_run(cmd, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return bad_result if call_count == 1 else good_result
+
+        with patch("subprocess.run", side_effect=mock_run):
+            records = runner.export_packet_index(tmp_path / "x.pcapng")
+
+        assert call_count == 2, "Should have retried exactly once"
+        assert len(records) == 1
+        assert records[0].frame_no == 1
+        assert records[0].diameter_flags == "0x80"
 
 
 # ---------------------------------------------------------------------------

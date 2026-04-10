@@ -18,8 +18,14 @@ from dataclasses import dataclass
 # Fields exported in pass 1
 # ---------------------------------------------------------------------------
 #
-# Order here must match INDEX_FIELDS exactly — the TSV parser uses positional
-# indexing.
+# INDEX_FIELDS is the *desired* full set.  TShark versions differ in which
+# field names they accept — some of the alt-spelling names below may not exist
+# on a given installation.  ``export_packet_index`` in tshark_runner.py
+# handles this by retrying without any fields TShark rejects, and passing the
+# active subset to ``parse_index_row`` via the *fields* parameter.
+#
+# All aliases are included so that whichever spelling a given TShark version
+# exports, at least one will be present in the active field list.
 
 INDEX_FIELDS: tuple[str, ...] = (
     "frame.number",
@@ -44,20 +50,20 @@ INDEX_FIELDS: tuple[str, ...] = (
     "udp.srcport",
     "udp.dstport",
     "udp.stream",
-    # Diameter anomaly fields — primary names and alternative spellings
-    # (TShark emits different names depending on version/config;
-    # _detect_diameter() uses _get() with fallbacks — we mirror those here)
+    # Diameter anomaly fields — include multiple spellings; TShark version
+    # determines which names are valid.  The parser merges aliases.
     "diameter.flags",
     "diameter.cmd.code",
-    "diameter.hop_by_hop_id",
-    "diameter.hopbyhopid",          # alt spelling
-    "diameter.Result-Code",
-    "diameter.result_code",         # alt spelling
-    "diameter.resultcode",          # alt spelling
-    # GTPv2-C anomaly fields — primary and alternative
+    "diameter.hop_by_hop_id",        # TShark < 4.x
+    "diameter.hopbyhopid",           # TShark 4.x
+    "diameter.Result-Code",          # mixed-case primary
+    "diameter.result_code",          # lowercase alt (some builds)
+    "diameter.resultcode",           # no-separator alt (some builds)
+    # GTPv2-C anomaly fields — multiple spellings across TShark versions
     "gtpv2.message_type",
-    "gtpv2.seq_no",
-    "gtpv2.sequence_number",        # alt spelling
+    "gtpv2.seq",                     # TShark 4.x
+    "gtpv2.seq_no",                  # older builds
+    "gtpv2.sequence_number",         # another alt spelling
     "gtpv2.cause",
 )
 
@@ -128,64 +134,41 @@ def _v(raw: str) -> str | None:
     return stripped if stripped else None
 
 
-def parse_index_row(row: str) -> PacketIndexRecord | None:
-    """Parse one tab-separated row from TShark ``-T fields`` output.
+def parse_index_row(
+    row: str,
+    fields: tuple[str, ...] = INDEX_FIELDS,
+) -> PacketIndexRecord | None:
+    """Parse one ``|``-separated row from TShark ``-T fields`` output.
 
-    Returns ``None`` and logs a warning for malformed rows.  Callers should
-    skip ``None`` entries and count them as dropped.
+    *fields* must match the ``-e`` field sequence used when TShark was invoked.
+    It defaults to :data:`INDEX_FIELDS` but callers can pass a reduced subset
+    (e.g. when some field names were rejected by a particular TShark version and
+    the export was retried without them).
 
-    The separator is :data:`INDEX_SEPARATOR` (``|``) to avoid clashes with
-    protocol field values that may contain tabs.
+    Returns ``None`` for malformed rows (too few columns, non-integer frame
+    number).  Callers should skip ``None`` entries.
     """
     cols = row.split(INDEX_SEPARATOR)
-    if len(cols) < len(INDEX_FIELDS):
+    if len(cols) < len(fields):
         return None
 
-    # Positional unpacking — must mirror INDEX_FIELDS order exactly.
-    (
-        frame_number_raw,
-        time_epoch_raw,
-        protocols_raw,
-        ip_src_raw,
-        ip_dst_raw,
-        ipv6_src_raw,
-        ipv6_dst_raw,
-        sctp_srcport_raw,
-        sctp_dstport_raw,
-        sctp_assoc_raw,
-        tcp_srcport_raw,
-        tcp_dstport_raw,
-        tcp_stream_raw,
-        tcp_retr_raw,
-        tcp_ooo_raw,
-        udp_srcport_raw,
-        udp_dstport_raw,
-        udp_stream_raw,
-        diam_flags_raw,
-        diam_cmd_raw,
-        diam_hopbyhop_raw,
-        diam_hopbyhopid_raw,        # alt spelling
-        diam_result_raw,
-        diam_result_lc_raw,         # alt spelling diameter.result_code
-        diam_resultcode_raw,        # alt spelling diameter.resultcode
-        gtpv2_msgtype_raw,
-        gtpv2_seqno_raw,
-        gtpv2_seqno_alt_raw,        # alt spelling gtpv2.sequence_number
-        gtpv2_cause_raw,
-    ) = cols[:len(INDEX_FIELDS)]
+    # Build a name→value mapping so the rest of the parser is position-independent.
+    fv: dict[str, str | None] = {field: _v(cols[i]) for i, field in enumerate(fields)}
 
+    # Frame number — mandatory
+    fn_raw = fv.get("frame.number")
     try:
-        frame_no = int(frame_number_raw.strip())
+        frame_no = int((fn_raw or "").strip())
     except (ValueError, AttributeError):
         return None
 
     # Protocol list
-    proto_str = _v(protocols_raw)
+    proto_str = fv.get("frame.protocols")
     protocols = [p for p in proto_str.split(":") if p] if proto_str else []
 
     # Network addresses — prefer IPv4 over IPv6
-    src_ip = _v(ip_src_raw) or _v(ipv6_src_raw)
-    dst_ip = _v(ip_dst_raw) or _v(ipv6_dst_raw)
+    src_ip = fv.get("ip.src") or fv.get("ipv6.src")
+    dst_ip = fv.get("ip.dst") or fv.get("ipv6.dst")
 
     # Transport resolution — prefer SCTP > TCP > UDP
     transport: str | None = None
@@ -193,43 +176,56 @@ def parse_index_row(row: str) -> PacketIndexRecord | None:
     dst_port: int | None = None
     stream: str | None = None
 
-    if _v(sctp_srcport_raw):
+    if fv.get("sctp.srcport"):
         transport = "sctp"
         try:
-            src_port = int(sctp_srcport_raw.strip())
-            dst_port = int(sctp_dstport_raw.strip())
+            src_port = int((fv.get("sctp.srcport") or "").strip())
+            dst_port = int((fv.get("sctp.dstport") or "").strip())
         except (ValueError, AttributeError):
             pass
-        stream = _v(sctp_assoc_raw)
-    elif _v(tcp_srcport_raw):
+        stream = fv.get("sctp.assoc_index")
+    elif fv.get("tcp.srcport"):
         transport = "tcp"
         try:
-            src_port = int(tcp_srcport_raw.strip())
-            dst_port = int(tcp_dstport_raw.strip())
+            src_port = int((fv.get("tcp.srcport") or "").strip())
+            dst_port = int((fv.get("tcp.dstport") or "").strip())
         except (ValueError, AttributeError):
             pass
-        stream = _v(tcp_stream_raw)
-    elif _v(udp_srcport_raw):
+        stream = fv.get("tcp.stream")
+    elif fv.get("udp.srcport"):
         transport = "udp"
         try:
-            src_port = int(udp_srcport_raw.strip())
-            dst_port = int(udp_dstport_raw.strip())
+            src_port = int((fv.get("udp.srcport") or "").strip())
+            dst_port = int((fv.get("udp.dstport") or "").strip())
         except (ValueError, AttributeError):
             pass
-        stream = _v(udp_stream_raw)
+        stream = fv.get("udp.stream")
 
     # TCP anomaly flags — TShark emits "1" when present
-    tcp_retransmission = bool(_v(tcp_retr_raw))
-    tcp_out_of_order = bool(_v(tcp_ooo_raw))
+    tcp_retransmission = bool(fv.get("tcp.analysis.retransmission"))
+    tcp_out_of_order = bool(fv.get("tcp.analysis.out_of_order"))
 
-    # Merge field-name aliases: use first non-None value across all spellings.
-    diam_hbh = _v(diam_hopbyhop_raw) or _v(diam_hopbyhopid_raw)
-    diam_rc = _v(diam_result_raw) or _v(diam_result_lc_raw) or _v(diam_resultcode_raw)
-    gtpv2_seq = _v(gtpv2_seqno_raw) or _v(gtpv2_seqno_alt_raw)
+    # Diameter — merge all known spellings (whichever are present wins)
+    diam_hbh = (
+        fv.get("diameter.hop_by_hop_id")
+        or fv.get("diameter.hopbyhopid")
+    )
+    diam_rc = (
+        fv.get("diameter.Result-Code")
+        or fv.get("diameter.result_code")
+        or fv.get("diameter.resultcode")
+    )
+
+    # GTPv2 — merge all known spellings
+    gtpv2_seq = (
+        fv.get("gtpv2.seq")
+        or fv.get("gtpv2.seq_no")
+        or fv.get("gtpv2.sequence_number")
+    )
 
     return PacketIndexRecord(
         frame_no=frame_no,
-        time_epoch=_v(time_epoch_raw),
+        time_epoch=fv.get("frame.time_epoch"),
         protocols=protocols,
         src_ip=src_ip,
         dst_ip=dst_ip,
@@ -239,11 +235,11 @@ def parse_index_row(row: str) -> PacketIndexRecord | None:
         stream=stream,
         tcp_retransmission=tcp_retransmission,
         tcp_out_of_order=tcp_out_of_order,
-        diameter_flags=_v(diam_flags_raw),
-        diameter_cmd_code=_v(diam_cmd_raw),
+        diameter_flags=fv.get("diameter.flags"),
+        diameter_cmd_code=fv.get("diameter.cmd.code"),
         diameter_hop_by_hop_id=diam_hbh,
         diameter_result_code=diam_rc,
-        gtpv2_message_type=_v(gtpv2_msgtype_raw),
+        gtpv2_message_type=fv.get("gtpv2.message_type"),
         gtpv2_seq_no=gtpv2_seq,
-        gtpv2_cause=_v(gtpv2_cause_raw),
+        gtpv2_cause=fv.get("gtpv2.cause"),
     )

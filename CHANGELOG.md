@@ -8,6 +8,12 @@ The format is intentionally simple and optimized for humans reading repo history
 
 ### Added — 2026-04-10
 
+- Focused LTE / EPC interface profile family: `lte-s1`, `lte-s1-nas`, `lte-s6a`, `lte-s11`, `lte-s10`, `lte-sgs`, `lte-s5`, `lte-s8`, `lte-dns`, `lte-sbc-cbc`.
+- Focused 2G/3G core and GERAN profile family: `2g3g-gn`, `2g3g-gp`, `2g3g-gr`, `2g3g-gs`, `2g3g-geran`, `2g3g-dns`, `2g3g-map-core`, `2g3g-cap`, `2g3g-bssap`, `2g3g-isup`, `2g3g-sccp-mtp`.
+- Focused 5G SA core profile family: `5g-n1-n2`, `5g-n2`, `5g-nas-5gs`, `5g-sbi`, `5g-sbi-auth`, `5g-n8`, `5g-n10`, `5g-n11`, `5g-n12`, `5g-n13`, `5g-n14`, `5g-n15`, `5g-n16`, `5g-n22`, `5g-n26`, `5g-n40`, `5g-dns`, `5g-cbc-cbs`.
+- Focused Voice-over-IMS family for VoLTE and VoNR: `volte-sip`, `volte-sip-register`, `volte-sip-call`, `volte-diameter-cx`, `volte-diameter-rx`, `volte-diameter-sh`, `volte-dns`, `volte-rtp-signaling`, `volte-sbc`, `volte-ims-core`, `vonr-sip`, `vonr-sip-register`, `vonr-sip-call`, `vonr-ims-core`, `vonr-policy`, `vonr-dns`, `vonr-n1-n2-voice`, `vonr-sbi-auth`, `vonr-sbi-pdu`, `vonr-sbc`.
+- Profile-family regression tests for 5G SA and Voice-over-IMS selections and differentiation (`tests/test_profiles_5g_core_interfaces.py`, `tests/test_profiles_volte_vonr.py`) plus expanded profile/dx coverage.
+- Runtime CLI override for `verbatim_protocols`: `--verbatim-protocol` and `--no-verbatim-protocol`, with dry-run and `--llm-mode` reporting of the effective verbatim set and per-run profile overrides.
 - **Oversize-ratio guard** (`--oversize-factor`, default 10×): after TShark export, if `total_exported > max_packets × factor` the pipeline fails fast with a clear error and a `-Y` hint. Fires after the inspection stage so `summary.json` statistics remain accurate; fires before the expensive normalization and protection stages. Set `--oversize-factor 0` to disable.
 - New error code `capture_oversize` in `error_codes.py` and in the LLM-mode error contract for machine consumers.
 - New warning code `oversize_guard_disabled` when `--oversize-factor 0` is used explicitly.
@@ -19,6 +25,12 @@ The format is intentionally simple and optimized for humans reading repo history
 
 ### Changed — 2026-04-10
 
+- Profile loading now accepts names with or without `.yaml` suffix (for example `--profile lte-s6a` and `--profile lte-s6a.yaml` now resolve identically).
+- Diameter verbatim extraction is substantially deeper and cleaner: repeated `diameter.avp_tree` structures are preserved, nested AVPs are surfaced into flat `diameter.*` fields, and raw AVP / `*_tree` decoder dumps are removed by default unless explicitly kept.
+- TShark field-rejection warnings for version-specific index fields are now explained more clearly as compatibility fallback rather than a likely capture problem.
+- Redundant top-level `profiles/` directory removed so `src/pcap2llm/profiles/` is the single authoritative built-in profile path.
+- Profile documentation refactored from one growing catalog into a navigable structure: `docs/PROFILES.md` now acts as an overview and custom-authoring entry point, with family-specific references in `docs/PROFILES_LTE.md`, `docs/PROFILES_5G.md`, `docs/PROFILES_VOICE.md`, and `docs/PROFILES_2G3G.md`.
+- README and DE/EN guidance docs were slimmed down so they act as entry points and navigation aids rather than duplicating large profile catalogs.
 - `REFERENCE.md` and `CLAUDE.md` updated with `--oversize-factor` option.
 
 ### Added — 2026-04-09

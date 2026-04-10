@@ -1,0 +1,65 @@
+name: lte-dns
+description: >
+  DNS troubleshooting profile for LTE, EPC, and IMS-adjacent environments.
+  Focused on resolution failures, missing answers, retry patterns, unexpected
+  resolvers, and TCP fallback during subscriber- and service-resolution flows.
+
+# ---------------------------------------------------------------------------
+# DNS focus
+#
+# Useful display filters:
+#   DNS only:                      dns
+#   Error replies:                 dns.flags.rcode > 0
+#   NXDOMAIN only:                 dns.flags.rcode == 3
+#   SERVFAIL only:                 dns.flags.rcode == 2
+#   DNS over TCP:                  dns && tcp
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - dns
+  - tcp
+  - udp
+  - ip
+
+top_protocol_priority:
+  - dns
+  - tcp
+  - udp
+  - ip
+
+protocol_aliases:
+  dns: [dns]
+  tcp: [tcp]
+  udp: [udp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  dns:
+    - dns.id
+    - dns.qry.name
+    - dns.qry.type
+    - dns.resp.name
+    - dns.a
+    - dns.aaaa
+    - dns.cname
+    - dns.flags.response
+    - dns.flags.rcode
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Flag NXDOMAIN, SERVFAIL, and missing-response patterns for EPC or IMS name resolution as likely service-discovery blockers.
+  - Highlight repeated identical queries, TCP fallback, and unusual resolver destinations as signs of resolution instability or misconfiguration.
+  - Note bursts of DNS retries or concentrated error responses as likely upstream resolver or transport-path issues.

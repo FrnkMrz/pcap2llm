@@ -1,0 +1,61 @@
+name: lte-s10
+description: >
+  S10 inter-MME profile for mobility and context transfer signaling over
+  GTPv2-C on UDP. Focused on Forward Relocation, Context Transfer, and TAU or
+  MME-change procedures rather than generic bearer handling.
+
+# ---------------------------------------------------------------------------
+# S10 / inter-MME focus
+#
+# Useful display filters:
+#   S10-like GTPv2-C:              gtpv2 && udp.port == 2123
+#   Forward Relocation:            gtpv2.message_type
+#   Context transfer problems:     gtpv2.cause
+#   Mobility failures:             gtpv2 && gtpv2.cause
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - gtpv2
+  - udp
+  - ip
+
+top_protocol_priority:
+  - gtpv2
+  - udp
+  - ip
+
+protocol_aliases:
+  gtpv2: [gtpv2, gtpv2-c]
+  udp: [udp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  gtpv2:
+    - gtpv2.message_type
+    - gtpv2.teid
+    - gtpv2.imsi
+    - gtpv2.msisdn
+    - gtpv2.cause
+    - gtpv2.seq
+    - gtpv2.sequence_number
+    - gtpv2.uli_ecgi_eci
+    - gtpv2.rat_type
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight inter-MME relocation and context-transfer exchanges that do not complete or return failure causes.
+  - Flag TAU and MME-change related GTPv2-C activity that loops, restarts, or shows repeated cause-value failures.
+  - Note unanswered relocation procedures or sequence mismatches as likely inter-MME coordination issues rather than ordinary S11 bearer problems.

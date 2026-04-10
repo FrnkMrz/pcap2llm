@@ -1,0 +1,70 @@
+name: lte-s8
+description: >
+  S8 roaming-oriented profile for SGW to PGW or inter-PLMN GTP signaling.
+  Technically similar to S5, but documented and interpreted for roaming and
+  inter-operator context rather than purely intra-EPC bearer management.
+
+# ---------------------------------------------------------------------------
+# S8 / roaming focus
+#
+# Useful display filters:
+#   S8 control plane:              gtpv2 && udp.port == 2123
+#   S8 user plane:                 gtp && udp
+#   Roaming failures:              gtpv2.cause
+#   Session setup:                 gtpv2.message_type == 32
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - gtpv2
+  - gtp
+  - udp
+  - ip
+
+top_protocol_priority:
+  - gtpv2
+  - gtp
+  - udp
+  - ip
+
+protocol_aliases:
+  gtpv2: [gtpv2, gtpv2-c]
+  gtp: [gtp]
+  udp: [udp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  gtpv2:
+    - gtpv2.message_type
+    - gtpv2.teid
+    - gtpv2.imsi
+    - gtpv2.msisdn
+    - gtpv2.apn
+    - gtpv2.ebi
+    - gtpv2.cause
+    - gtpv2.seq
+    - gtpv2.sequence_number
+    - gtpv2.uli_ecgi_eci
+  gtp:
+    - gtp.message
+    - gtp.teid
+    - gtp.ext_hdr
+    - gtp.length
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight Create Session, Modify Bearer, and Delete Session exchanges that fail in roaming-style control-plane context.
+  - Flag repeated GTPv2-C cause failures and missing responses as likely inter-PLMN or remote-PGW coordination problems.
+  - Note user-plane presence only as supporting evidence for roaming-path behavior, not as a full deep-packet inspection goal.

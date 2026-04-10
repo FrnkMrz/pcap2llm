@@ -1,0 +1,70 @@
+name: lte-s1-nas
+description: >
+  NAS-centric S1 profile for EPS mobility-management and session-management
+  troubleshooting between UE-facing eNodeB signaling and the MME. Prioritizes
+  NAS-EPS message flows over surrounding S1AP transport scaffolding.
+
+# ---------------------------------------------------------------------------
+# NAS-EPS on S1 focus
+#
+# Useful display filters:
+#   NAS on S1 only:                 nas-eps && s1ap
+#   Attach signaling:               nas_eps.emm.message_type
+#   Authentication failures:        nas_eps.emm.cause
+#   PDN connectivity issues:        nas_eps.esm.cause
+#   TAU-related traffic:            nas_eps && s1ap
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - nas-eps
+  - s1ap
+  - sctp
+
+top_protocol_priority:
+  - nas-eps
+  - s1ap
+  - sctp
+  - ip
+
+protocol_aliases:
+  nas-eps: [nas-eps, nas_eps]
+  s1ap: [s1ap]
+  sctp: [sctp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  nas-eps:
+    - nas_eps.emm.message_type
+    - nas_eps.esm.message_type
+    - nas_eps.imsi
+    - nas_eps.guti
+    - nas_eps.m_tmsi
+    - nas_eps.apn
+    - nas_eps.emm.cause
+    - nas_eps.esm.cause
+  s1ap:
+    - s1ap.procedureCode
+    - s1ap.MME_UE_S1AP_ID
+    - s1ap.ENB_UE_S1AP_ID
+    - s1ap.nas_pdu
+    - s1ap.Cause
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - sctp_stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight Attach Request, Authentication, Security Mode, and Attach Accept or Reject sequences that stop before completion.
+  - Flag EMM and ESM reject causes, especially repeated Authentication Failure, Security Mode failure, and PDN Connectivity rejection patterns.
+  - Note TAU-related NAS exchanges that stall or loop, especially when the surrounding S1AP context is repeatedly released and recreated.

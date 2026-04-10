@@ -1,0 +1,73 @@
+name: lte-s1
+description: >
+  S1-MME interface profile for LTE attach, paging, inter-cell mobility, and
+  UE context procedures between eNodeB and MME over S1AP/NAS-EPS on SCTP.
+  Keeps SCTP context visible so control-plane stalls and release patterns can
+  be correlated with transport issues.
+
+# ---------------------------------------------------------------------------
+# S1AP procedure focus
+#
+# Useful display filters:
+#   S1-MME only:                    s1ap && sctp
+#   Initial UE signaling:           s1ap.procedureCode == 12
+#   Downlink NAS transport:         s1ap && nas-eps
+#   Context setup failures:         s1ap && s1ap.Cause
+#   UE context release activity:    s1ap.procedureCode == 23
+#   Specific SCTP association:      sctp.assoc_index == 0
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - s1ap
+  - nas-eps
+  - sctp
+
+top_protocol_priority:
+  - s1ap
+  - nas-eps
+  - sctp
+  - ip
+
+protocol_aliases:
+  s1ap: [s1ap]
+  nas-eps: [nas-eps, nas_eps]
+  sctp: [sctp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  s1ap:
+    - s1ap.procedureCode
+    - s1ap.MME_UE_S1AP_ID
+    - s1ap.ENB_UE_S1AP_ID
+    - s1ap.Cause
+    - s1ap.cause
+    - s1ap.causeGroup
+    - s1ap.nas_pdu
+  nas-eps:
+    - nas_eps.emm.message_type
+    - nas_eps.esm.message_type
+    - nas_eps.imsi
+    - nas_eps.guti
+    - nas_eps.m_tmsi
+    - nas_eps.emm.cause
+    - nas_eps.esm.cause
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - sctp_stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight Initial UE Message and Downlink NAS Transport sequences that do not progress into expected context setup or NAS completion.
+  - Flag Initial Context Setup failures and recurring S1AP cause values as likely attach or service-establishment blockers.
+  - Note UE Context Release storms or abnormal release patterns, especially when paired with SCTP retransmissions or association churn.

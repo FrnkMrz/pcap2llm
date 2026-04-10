@@ -117,10 +117,20 @@ class ProfileDefinition(BaseModel):
     verbatim_protocols: list[str] = Field(
         default_factory=list,
         description=(
-            "Protocols whose TShark layer is passed through completely without "
-            "any field selection or _flatten transformation. The raw key/value "
-            "pairs from the TShark JSON are kept as-is (only _ws.* keys are "
-            "stripped). Takes priority over full_detail_fields for the same protocol."
+            "Protocols whose TShark layer is retained with minimal transformation. "
+            "Top-level protocol fields are kept, repeated nested protocol fields "
+            "such as Diameter AVPs are surfaced into flat protocol-prefixed keys, "
+            "and _ws.* keys are stripped. Takes priority over full_detail_fields "
+            "for the same protocol."
+        ),
+    )
+    keep_raw_avps: bool = Field(
+        default=False,
+        description=(
+            "When true, retain raw AVP dump fields such as diameter.avp, "
+            "diameter.avp_tree, and related *_tree decoder structures alongside "
+            "surfaced semantic Diameter fields. Default false keeps output "
+            "smaller and less noisy for LLM consumption."
         ),
     )
     reduced_transport_fields: list[str] = Field(default_factory=list)

@@ -1,0 +1,69 @@
+name: lte-s5
+description: >
+  S5 profile for SGW to PGW signaling inside the EPC. Prioritizes GTPv2-C
+  control-plane procedures and keeps a bounded user-plane GTP view only where
+  it helps explain bearer setup or teardown behavior.
+
+# ---------------------------------------------------------------------------
+# S5 focus
+#
+# Useful display filters:
+#   S5 control plane:              gtpv2 && udp.port == 2123
+#   S5 user plane:                 gtp && udp
+#   Bearer setup issues:           gtpv2.cause
+#   Session teardown:              gtpv2.message_type == 36
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - gtpv2
+  - gtp
+  - udp
+  - ip
+
+top_protocol_priority:
+  - gtpv2
+  - gtp
+  - udp
+  - ip
+
+protocol_aliases:
+  gtpv2: [gtpv2, gtpv2-c]
+  gtp: [gtp]
+  udp: [udp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  gtpv2:
+    - gtpv2.message_type
+    - gtpv2.teid
+    - gtpv2.imsi
+    - gtpv2.msisdn
+    - gtpv2.apn
+    - gtpv2.ebi
+    - gtpv2.cause
+    - gtpv2.seq
+    - gtpv2.sequence_number
+  gtp:
+    - gtp.message
+    - gtp.teid
+    - gtp.ext_hdr
+    - gtp.length
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight bearer establishment, modification, and teardown exchanges that lack matching responses or carry failure causes on S5 control plane.
+  - Flag repeated GTPv2-C cause failures and unanswered requests as likely SGW to PGW signaling issues.
+  - Note only high-value user-plane hints such as unexpected GTP presence during teardown or unusual transport imbalance, without turning the profile into a generic payload dump.

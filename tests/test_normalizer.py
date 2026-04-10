@@ -263,6 +263,75 @@ def test_verbatim_strips_ws_keys():
     assert list(result.keys()) == ["gtpv2.message_type"]
 
 
+def test_verbatim_includes_flat_candidate_fields():
+    profile = _make_profile(verbatim_protocols=["diameter"])
+    layers = {
+        "frame.protocols": "eth:ip:sctp:diameter",
+        "diameter.cmd.code": "316",
+        "diameter.origin_host": "mme.example.net",
+        "diameter.destination_host": "hss.example.net",
+    }
+    result = _retain_message_fields(layers, profile, "diameter")
+    assert result["diameter.cmd.code"] == "316"
+    assert result["diameter.origin_host"] == "mme.example.net"
+    assert result["diameter.destination_host"] == "hss.example.net"
+
+
+def test_verbatim_collects_nested_duplicate_avp_tree_fields():
+    profile = _make_profile(verbatim_protocols=["diameter"])
+    layers = {
+        "diameter": {
+            "diameter.cmd.code": "257",
+            "diameter.avp_tree": [
+                {"diameter.Origin-Host": "mme.example.net"},
+                {"diameter.Origin-Realm": "example.net"},
+                {
+                    "diameter.Host-IP-Address": "00:01:0a:72:2c:6a",
+                    "diameter.Host-IP-Address_tree": {
+                        "diameter.Host-IP-Address.IPv4": "10.114.44.106",
+                    },
+                },
+                {
+                    "diameter.Host-IP-Address": "00:01:0a:72:2c:72",
+                    "diameter.Host-IP-Address_tree": {
+                        "diameter.Host-IP-Address.IPv4": "10.114.44.114",
+                    },
+                },
+                {"diameter.Auth-Application-Id": "16777251"},
+            ],
+        }
+    }
+    result = _retain_message_fields(layers, profile, "diameter")
+    assert result["diameter.cmd.code"] == "257"
+    assert result["diameter.Origin-Host"] == "mme.example.net"
+    assert result["diameter.Origin-Realm"] == "example.net"
+    assert result["diameter.Auth-Application-Id"] == "16777251"
+    assert result["diameter.Host-IP-Address"] == [
+        "00:01:0a:72:2c:6a",
+        "00:01:0a:72:2c:72",
+    ]
+    assert result["diameter.Host-IP-Address.IPv4"] == [
+        "10.114.44.106",
+        "10.114.44.114",
+    ]
+    assert "diameter.avp_tree" not in result
+    assert "diameter.Host-IP-Address_tree" not in result
+
+
+def test_verbatim_keeps_raw_avps_when_enabled():
+    profile = _make_profile(verbatim_protocols=["diameter"], keep_raw_avps=True)
+    layers = {
+        "diameter": {
+            "diameter.cmd.code": "257",
+            "diameter.avp": "hexblob",
+            "diameter.avp_tree": [{"diameter.Origin-Host": "mme.example.net"}],
+        }
+    }
+    result = _retain_message_fields(layers, profile, "diameter")
+    assert result["diameter.avp"] == "hexblob"
+    assert result["diameter.avp_tree"] == [{"diameter.Origin-Host": "mme.example.net"}]
+
+
 def test_verbatim_preserves_nested_dict_as_is():
     """Verbatim must not call _flatten — nested dicts stay nested."""
     profile = _make_profile(verbatim_protocols=["gtpv2"])

@@ -1,0 +1,59 @@
+name: lte-sgs
+description: >
+  SGs interface profile for MME to MSC/VLR signaling over SGsAP on SCTP.
+  Focused on CS fallback, combined attach or TAU, paging, and legacy
+  interworking behavior between EPS and circuit-switched domains.
+
+# ---------------------------------------------------------------------------
+# SGs / SGsAP focus
+#
+# Useful display filters:
+#   SGs only:                      sgsap && sctp
+#   Paging-related traffic:        sgsap
+#   Combined attach or TAU:        sgsap && nas-eps
+#   SCTP transport issues:         sctp.analysis || tcp.analysis
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - sgsap
+  - sctp
+  - ip
+
+top_protocol_priority:
+  - sgsap
+  - sctp
+  - ip
+
+protocol_aliases:
+  sgsap: [sgsap]
+  sctp: [sctp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  sgsap:
+    - sgsap.msg_type
+    - sgsap.imsi
+    - sgsap.mme_name
+    - sgsap.service_indicator
+    - sgsap.eps_location_update_type
+    - sgsap.reject_cause
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - sctp_stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight paging request and response exchanges that do not complete or repeat abnormally in CS fallback scenarios.
+  - Flag SGsAP location-update or combined attach failures via reject causes and repeated retry patterns.
+  - Note SCTP retransmissions or association instability on SGs as likely transport contributors to paging or legacy interworking issues.

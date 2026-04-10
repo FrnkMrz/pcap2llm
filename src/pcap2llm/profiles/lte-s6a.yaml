@@ -1,8 +1,9 @@
 name: lte-s6a
 description: >
   S6a interface — Diameter over SCTP between MME and HSS (3GPP TS 29.272).
-  Includes multi-homed SCTP association tracking. Diameter is verbatim:
-  the complete raw TShark layer is preserved without field filtering.
+  Includes multi-homed SCTP association tracking. Diameter keeps its core
+  header and surfaced AVP content, while raw AVP dumps are removed by default
+  to keep artifacts compact and LLM-friendly.
 
 # ---------------------------------------------------------------------------
 # S6a Diameter command codes (for reference / display filter hints)
@@ -41,13 +42,17 @@ protocol_aliases:
   ip: [ip, ipv6]
 
 # ---------------------------------------------------------------------------
-# Diameter is verbatim: the complete raw TShark layer dict is written to
-# message.fields as-is (minus _ws.* keys). full_detail_fields for diameter
-# is therefore ignored — it is listed below for documentation only and can
-# be used as a starting point if verbatim is ever removed.
+# Diameter is handled in verbatim mode with AVP surfacing: top-level header
+# fields are preserved and nested AVPs are promoted to flat diameter.* keys.
+# Raw AVP dump structures (e.g. diameter.avp, diameter.avp_tree, *_tree) are
+# removed by default unless keep_raw_avps: true is set on the profile.
+# full_detail_fields for diameter is therefore ignored — it is listed below
+# for documentation only and can be used as a starting point if verbatim is
+# ever removed.
 # ---------------------------------------------------------------------------
 verbatim_protocols:
   - diameter
+keep_raw_avps: false
 
 # full_detail_fields is only active for protocols NOT listed in verbatim_protocols.
 # Diameter entries below are inactive but document the key fields for reference.

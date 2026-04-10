@@ -23,6 +23,37 @@ logger = logging.getLogger(__name__)
 _FRAME_CHUNK_SIZE = 500
 
 
+def _merge_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Preserve duplicate object keys emitted by TShark as lists.
+
+    TShark's JSON output can contain repeated keys such as ``diameter.avp_tree``
+    for repeated AVPs. Standard ``json.loads`` keeps only the last occurrence,
+    which drops earlier AVPs. This hook retains all occurrences by converting
+    duplicate keys into lists while leaving unique keys unchanged.
+    """
+    merged: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in merged:
+            existing = merged[key]
+            if isinstance(existing, list):
+                existing.append(value)
+            else:
+                merged[key] = [existing, value]
+        else:
+            merged[key] = value
+    return merged
+
+
+def _decode_tshark_json(payload: str, *, context: str) -> list[dict[str, Any]]:
+    try:
+        decoded = json.loads(payload, object_pairs_hook=_merge_duplicate_json_keys)
+    except json.JSONDecodeError as exc:
+        raise TSharkError(f"{context} tshark output is not valid JSON: {exc}") from exc
+    if not isinstance(decoded, list):
+        raise TSharkError(f"Unexpected {context} tshark JSON structure (expected a list)")
+    return decoded
+
+
 class TSharkError(RuntimeError):
     """Raised when tshark execution fails."""
 
@@ -75,15 +106,7 @@ class TSharkRunner:
         payload = result.stdout.strip()
         if not payload:
             return []
-        try:
-            decoded = json.loads(payload)
-        except json.JSONDecodeError as exc:
-            raise TSharkError(
-                f"tshark output is not valid JSON: {exc}"
-            ) from exc
-        if not isinstance(decoded, list):
-            raise TSharkError("Unexpected tshark JSON structure (expected a list)")
-        return decoded
+        return _decode_tshark_json(payload, context="")
 
     # ------------------------------------------------------------------
     # Pass-1: lightweight packet-index export
@@ -181,7 +204,8 @@ class TSharkRunner:
             if invalid:
                 logger.warning(
                     "pass-1: TShark rejected %d field name(s) on this installation "
-                    "(version-specific): %s — retrying without them.",
+                    "(likely version-specific): %s. Falling back to the supported "
+                    "subset and continuing analysis.",
                     len(invalid),
                     ", ".join(sorted(invalid)),
                 )
@@ -281,15 +305,6 @@ class TSharkRunner:
             payload = result.stdout.strip()
             if not payload:
                 continue
-            try:
-                decoded = json.loads(payload)
-            except json.JSONDecodeError as exc:
-                raise TSharkError(
-                    f"pass-2 tshark output is not valid JSON: {exc}"
-                ) from exc
-            if not isinstance(decoded, list):
-                raise TSharkError(
-                    "Unexpected pass-2 tshark JSON structure (expected a list)"
-                )
+            decoded = _decode_tshark_json(payload, context="pass-2")
             packets.extend(decoded)
         return packets

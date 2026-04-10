@@ -94,6 +94,47 @@ def _candidate_layers(profile: ProfileDefinition, protocol: str) -> list[str]:
     return profile.protocol_aliases.get(protocol, [protocol])
 
 
+def _merge_field_value(existing: Any, new_value: Any) -> Any:
+    if existing == new_value:
+        return existing
+    if isinstance(existing, list):
+        if new_value not in existing:
+            existing.append(new_value)
+        return existing
+    if existing == new_value:
+        return existing
+    return [existing, new_value]
+
+
+def _collect_prefixed_fields(value: Any, prefix: str, out: dict[str, Any]) -> None:
+    """Recursively collect nested TShark fields whose keys start with *prefix*."""
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            if isinstance(key, str) and key.startswith(prefix):
+                if key in out:
+                    out[key] = _merge_field_value(out[key], nested)
+                else:
+                    out[key] = nested
+            _collect_prefixed_fields(nested, prefix, out)
+    elif isinstance(value, list):
+        for item in value:
+            _collect_prefixed_fields(item, prefix, out)
+
+
+def _prune_diameter_raw_avps(fields: dict[str, Any]) -> dict[str, Any]:
+    """Drop raw AVP dump structures once semantic Diameter fields are surfaced."""
+    pruned: dict[str, Any] = {}
+    for key, value in fields.items():
+        if key == "diameter.avp_tree":
+            continue
+        if key.startswith("diameter.avp"):
+            continue
+        if key.endswith("_tree") and key.startswith("diameter."):
+            continue
+        pruned[key] = value
+    return pruned
+
+
 def pick_top_protocol(layers: dict[str, Any], profile: ProfileDefinition) -> str:
     """Determine the most-significant application protocol for a packet.
 
@@ -167,10 +208,21 @@ def _retain_message_fields(
     if top_protocol in profile.verbatim_protocols:
         raw: dict[str, Any] = {}
         for candidate in _candidate_layers(profile, top_protocol):
+            prefix = f"{candidate}."
+            for key, value in layers.items():
+                if not key.startswith(prefix):
+                    continue
+                if key.startswith("_ws."):
+                    continue
+                raw[key] = value
             if candidate in layers and isinstance(layers[candidate], dict):
                 for key, value in layers[candidate].items():
                     if not key.startswith("_ws."):
                         raw[key] = value
+                for value in layers[candidate].values():
+                    _collect_prefixed_fields(value, prefix, raw)
+        if top_protocol == "diameter" and not profile.keep_raw_avps:
+            raw = _prune_diameter_raw_avps(raw)
         return raw
 
     retained: dict[str, Any] = {}

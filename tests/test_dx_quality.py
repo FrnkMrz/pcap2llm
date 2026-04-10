@@ -112,7 +112,21 @@ class TestMaxConversations:
 
     def test_yaml_max_conversations_loaded(self) -> None:
         """All built-in profiles must have max_conversations >= 1."""
-        for name in ("lte-core", "5g-core", "2g3g-ss7-geran"):
+        for name in (
+            "lte-core",
+            "lte-s1",
+            "lte-s1-nas",
+            "lte-s6a",
+            "lte-s11",
+            "lte-s10",
+            "lte-sgs",
+            "lte-s5",
+            "lte-s8",
+            "lte-dns",
+            "lte-sbc-cbc",
+            "5g-core",
+            "2g3g-ss7-geran",
+        ):
             profile = load_profile(name)
             assert profile.max_conversations >= 1, f"{name}: max_conversations must be >= 1"
 

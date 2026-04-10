@@ -1,4 +1,4 @@
-# Custom Analysis Profiles
+# Analysis Profiles
 
 Profiles are YAML files that tell pcap2llm which protocols to extract, which fields to keep, and how to run TShark. You can create a custom profile without changing any Python code.
 
@@ -12,6 +12,32 @@ Drop the YAML file into `src/pcap2llm/profiles/` and reference it by its filenam
 # File: src/pcap2llm/profiles/voip-sip.yaml
 pcap2llm analyze capture.pcapng --profile voip-sip
 ```
+
+## Built-In LTE Interface Profiles
+
+The LTE family includes focused interface profiles so you can choose a profile
+that matches the actual troubleshooting question instead of always using one
+generic EPC bundle.
+
+| Profile | Best used for |
+|---|---|
+| `lte-core` | Broad EPC overview across Diameter, GTPv2-C, S1AP, NAS-EPS, DNS |
+| `lte-s1` | General S1-MME control-plane troubleshooting |
+| `lte-s1-nas` | NAS-centric Attach, TAU, authentication, and ESM analysis |
+| `lte-s6a` | Diameter on S6a between MME and HSS |
+| `lte-s11` | MME ↔ SGW GTPv2-C control-plane procedures |
+| `lte-s10` | Inter-MME relocation and context transfer |
+| `lte-sgs` | SGsAP paging, CS fallback, and legacy interworking |
+| `lte-s5` | SGW ↔ PGW EPC context with control-plane emphasis |
+| `lte-s8` | Roaming-oriented SGW ↔ PGW / inter-PLMN context |
+| `lte-dns` | LTE/EPC/IMS-adjacent DNS issues |
+| `lte-sbc-cbc` | SBc between MME and CBC for Cell Broadcast / ETWS / CMAS |
+
+Important distinctions:
+
+- `lte-s1` vs `lte-s1-nas`: use `lte-s1` when the main question is procedure flow or S1AP cause handling; use `lte-s1-nas` when NAS sequencing and reject causes are the main signal.
+- `lte-s5` vs `lte-s8`: both are GTP-heavy, but `lte-s8` is intentionally documented for roaming and inter-PLMN interpretation rather than pure intra-EPC handling.
+- `lte-sbc-cbc` means Cell Broadcast SBc, not Session Border Controller traffic.
 
 ## Minimal Working Example
 
@@ -103,11 +129,15 @@ full_detail_fields:
     - gtpv2.message_type
     - gtpv2.cause
 
-# Protocols passed through completely without any field selection or
-# _flatten transformation. Only _ws.* keys are stripped.
+# Protocols retained with minimal transformation. Top-level protocol fields
+# are kept, repeated nested protocol fields can be surfaced into flat
+# protocol-prefixed keys, and _ws.* keys are stripped.
 # Takes priority over full_detail_fields for the same protocol.
-# Use when you want every TShark field exactly as dissected.
 verbatim_protocols: []
+
+# Optional: keep raw AVP or decoder-tree dump structures for protocols such as
+# Diameter. Default false keeps output smaller and less noisy for LLM use.
+keep_raw_avps: false
 
 # TransportContext fields kept in the reduced output.
 # Available: proto, src_port, dst_port, stream, sctp_stream, anomaly, notes
@@ -149,7 +179,7 @@ tshark -r sample.pcap -T json | python3 -m json.tool | grep -A5 '"sip"'
 
 ### Verbatim Protocols
 
-By default pcap2llm applies `_flatten` (collapses single-element lists) and filters fields. To get a protocol's layer exactly as TShark dissects it:
+By default pcap2llm applies `_flatten` (collapses single-element lists) and filters fields. `verbatim_protocols` is the escape hatch for protocols where you want near-raw dissector coverage with minimal transformation:
 
 ```yaml
 verbatim_protocols:
@@ -157,7 +187,13 @@ verbatim_protocols:
   - pfcp
 ```
 
-The complete layer dict goes into `message.fields` as-is. `full_detail_fields` for the same protocol is ignored.
+`full_detail_fields` for the same protocol is ignored.
+
+Important nuance:
+
+- `verbatim` does not magically create fields that TShark did not dissect.
+- For some protocols, especially Diameter, pcap2llm may still surface nested fields into flat `diameter.*` keys for usability.
+- Raw decoder dump structures such as `diameter.avp`, `diameter.avp_tree`, and related `*_tree` blocks can be suppressed with `keep_raw_avps: false` to reduce LLM noise.
 
 Use this when:
 - You are unsure which fields you need and want everything

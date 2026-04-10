@@ -1,24 +1,40 @@
 # Workflows by Protocol
 
-Step-by-step analysis workflows for the three built-in profiles.
+Step-by-step analysis workflows for the built-in profile families.
 General rule: always run `inspect` first, then narrow with `-Y` before running `analyze`.
 
 ---
 
 ## LTE / EPC
 
-**Relevant protocols:** Diameter, GTPv2-C, S1AP, NAS-EPS, DNS
+**Recommended profiles:** `lte-core`, `lte-s1`, `lte-s1-nas`, `lte-s6a`, `lte-s11`, `lte-s10`, `lte-sgs`, `lte-s5`, `lte-s8`, `lte-dns`, `lte-sbc-cbc`
+
+### Pick the right LTE profile
+
+| Situation | Best profile |
+|---|---|
+| Broad EPC overview, unknown signaling mix | `lte-core` |
+| S1AP procedures and UE context handling | `lte-s1` |
+| Attach, TAU, NAS reject causes | `lte-s1-nas` |
+| MME ↔ HSS Diameter | `lte-s6a` |
+| MME ↔ SGW bearer control | `lte-s11` |
+| Inter-MME relocation | `lte-s10` |
+| CS fallback / SGs paging | `lte-sgs` |
+| SGW ↔ PGW inside EPC | `lte-s5` |
+| Roaming-oriented SGW ↔ PGW context | `lte-s8` |
+| EPC-adjacent DNS issues | `lte-dns` |
+| Cell Broadcast / public warning via SBc | `lte-sbc-cbc` |
 
 ### Typical workflow
 
 ```bash
 # Step 1 — understand what is in the capture
-pcap2llm inspect trace.pcapng --profile lte-core
+pcap2llm inspect trace.pcapng --profile lte-s6a
 
-# Step 2 — full analysis, filtered to signaling only
+# Step 2 — full analysis, filtered to the interface you actually care about
 pcap2llm analyze trace.pcapng \
-  --profile lte-core \
-  -Y "diameter || gtpv2 || s1ap || nas-eps" \
+  --profile lte-s6a \
+  -Y "diameter && sctp" \
   --privacy-profile share \
   --mapping-file ./mapping.yaml \
   --out ./artifacts
@@ -27,17 +43,20 @@ pcap2llm analyze trace.pcapng \
 ### Common display filters
 
 ```bash
-# Diameter only (e.g. HSS ↔ MME)
+# Diameter on S6a (e.g. HSS ↔ MME)
 -Y "diameter"
 
 # Failed sessions (Diameter error codes)
 -Y "diameter.resultcode >= 3000"
 
-# GTPv2 session setup
+# GTPv2 session setup on S11
 -Y "gtpv2.message_type == 32 || gtpv2.message_type == 33"
 
-# Combined signaling
--Y "diameter || gtpv2 || s1ap"
+# NAS-centric S1 analysis
+-Y "nas-eps && s1ap"
+
+# SBc / Cell Broadcast
+-Y "sbcap && sctp"
 ```
 
 ### Privacy recommendation
@@ -46,20 +65,21 @@ Use `--privacy-profile share` for internal tickets. Use `--privacy-profile prod-
 
 ### LTE-specific notes
 
-- Enable `--two-pass` if captures contain IP fragmentation or TCP reassembly
+- Enable `--two-pass` if captures contain fragmentation or incomplete dissector output that benefits from two-pass decoding
 - If TShark decodes a port as the wrong protocol, force it:
   ```bash
   --tshark-arg "-d" --tshark-arg "tcp.port==3868,diameter"
   ```
+- `lte-s6a` keeps surfaced Diameter AVPs but removes raw AVP dump structures by default to keep artifacts smaller and less noisy for LLMs
 
 ### If something goes wrong — LTE
 
 | Symptom | Next step |
 |---|---|
-| Diameter messages missing from output | Check port: add `--tshark-arg "-d" --tshark-arg "sctp.port==3868,diameter"`. Run inspect without filter to verify the protocol appears at all. |
-| GTPv2-C output too noisy | Narrow to specific message types: `-Y "gtpv2.message_type == 32"` (Create Session Request) or `gtpv2.message_type == 33` (Response). |
+| Diameter messages missing from output | Use `lte-s6a`, check port with `--tshark-arg "-d" --tshark-arg "sctp.port==3868,diameter"`, and run inspect without filter to verify the protocol appears at all. |
+| GTPv2-C output too noisy | Use `lte-s11`, `lte-s10`, `lte-s5`, or `lte-s8` instead of `lte-core`, then narrow to specific message types such as `gtpv2.message_type == 32`. |
 | `detail_truncated: true` | Refine the display filter to the specific call flow. Most LTE issues involve ≤ 100 signaling messages. |
-| No relevant protocols detected | Check that `--profile lte-core` matches the traffic. Run inspect without `-Y` to see what protocols are present. |
+| No relevant protocols detected | Check that the interface-specific profile matches the traffic. Run inspect without `-Y` to see what protocols are present. |
 
 ---
 

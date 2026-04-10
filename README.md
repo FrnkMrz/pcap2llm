@@ -72,6 +72,16 @@ Choose the profile that matches your capture:
 | Profile | Use case |
 |---|---|
 | `lte-core` | LTE / EPC — Diameter, GTPv2-C, S1AP, NAS-EPS, DNS |
+| `lte-s1` | S1-MME — eNodeB ↔ MME, S1AP-focused control plane |
+| `lte-s1-nas` | NAS on S1 — Attach, TAU, authentication, ESM flows |
+| `lte-s6a` | S6a — MME ↔ HSS, Diameter over SCTP |
+| `lte-s11` | S11 — MME ↔ SGW, GTPv2-C bearer control |
+| `lte-s10` | S10 — inter-MME relocation and context transfer |
+| `lte-sgs` | SGs — MME ↔ MSC/VLR, CSFB and paging interworking |
+| `lte-s5` | S5 — SGW ↔ PGW, EPC control plane with bounded GTP-UP context |
+| `lte-s8` | S8 — roaming-oriented SGW ↔ PGW / inter-PLMN GTP context |
+| `lte-dns` | LTE/EPC/IMS-adjacent DNS troubleshooting |
+| `lte-sbc-cbc` | SBc — MME ↔ CBC for Cell Broadcast / ETWS / CMAS |
 | `5g-core` | 5G Core — PFCP, NGAP, NAS-5GS, HTTP/2 SBI |
 | `2g3g-ss7-geran` | Legacy 2G/3G — SS7, MAP, CAP, ISUP, BSSAP, GERAN |
 
@@ -79,7 +89,7 @@ Choose the profile that matches your capture:
 pcap2llm analyze trace.pcapng --profile 5g-core --out ./artifacts
 ```
 
-To create a custom profile: [`docs/PROFILES.md`](docs/PROFILES.md)
+For interface selection guidance across the LTE family: [`docs/PROFILES.md`](docs/PROFILES.md)
 
 ---
 
@@ -157,6 +167,27 @@ Anomalies appear in `summary.json` under `anomalies` and `anomaly_counts_by_laye
 Three commands: `inspect` (no files written), `analyze` (full pipeline + artifacts), `init-config` (create config file).
 
 Full option reference: [`docs/REFERENCE.md`](docs/REFERENCE.md)
+
+---
+
+## LTE Interface Family
+
+The LTE family is now split into focused interface profiles instead of forcing
+everything through one generic EPC view:
+
+- `lte-s1` for broad S1-MME procedure troubleshooting
+- `lte-s1-nas` when NAS-EPS sequencing is the real subject
+- `lte-s6a` for Diameter on S6a, with surfaced AVPs and raw AVP dumps removed by default
+- `lte-s11` for MME ↔ SGW control-plane GTPv2-C
+- `lte-s10` for inter-MME relocation and context transfer
+- `lte-sgs` for CSFB and SGs interworking
+- `lte-s5` and `lte-s8` for SGW ↔ PGW contexts, with `lte-s8` framed for roaming
+- `lte-dns` for resolver and name-resolution faults
+- `lte-sbc-cbc` for Cell Broadcast SBc signaling, not Session Border Controllers
+
+Use `lte-core` when you need a quick mixed-EPC overview. Use the interface
+profiles when you want cleaner protocol prioritization, better heuristics, and
+more focused `detail.json` output.
 
 ---
 

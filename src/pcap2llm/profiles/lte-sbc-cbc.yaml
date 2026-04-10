@@ -1,0 +1,59 @@
+name: lte-sbc-cbc
+description: >
+  SBc interface profile for Cell Broadcast and public-warning signaling between
+  MME and CBC over SBc-AP on SCTP. This profile is explicitly about Cell
+  Broadcast, ETWS, and CMAS workflows, not Session Border Controllers or IMS.
+
+# ---------------------------------------------------------------------------
+# SBc / CBC focus
+#
+# Useful display filters:
+#   SBc only:                      sbcap && sctp
+#   Warning write/replace flows:   sbcap
+#   Warning stop flows:            sbcap
+#   SCTP issues:                   sctp.analysis || tcp.analysis
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - sbcap
+  - sctp
+  - ip
+
+top_protocol_priority:
+  - sbcap
+  - sctp
+  - ip
+
+protocol_aliases:
+  sbcap: [sbcap]
+  sctp: [sctp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  sbcap:
+    - sbcap.procedureCode
+    - sbcap.Cause
+    - sbcap.Warning-Message-Identifier
+    - sbcap.Serial-Number
+    - sbcap.Repetition-Period
+    - sbcap.Number-of-Broadcasts-Requested
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - sctp_stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight Write-Replace Warning and Stop Warning procedures that do not receive matching responses.
+  - Flag SBc-AP cause values, warning rejection patterns, and repeated retries as likely CBC to MME workflow failures.
+  - Note SCTP transport anomalies that coincide with warning distribution activity, especially for public-warning delivery scenarios.

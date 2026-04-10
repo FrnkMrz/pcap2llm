@@ -219,6 +219,29 @@ class TestTSharkRunnerJsonParsing:
             with pytest.raises(TSharkError):
                 runner.export_packets(tmp_path / "sample.pcapng")
 
+    def test_duplicate_json_keys_are_preserved_as_lists(self, tmp_path: Path) -> None:
+        payload = """
+[
+  {
+    "_source": {
+      "layers": {
+        "diameter": {
+          "diameter.avp_tree": {"diameter.Origin-Host": "mme.example.net"},
+          "diameter.avp_tree": {"diameter.Origin-Realm": "example.net"}
+        }
+      }
+    }
+  }
+]
+""".strip()
+        runner, mock_result = self._runner_with_mocked_output(payload)
+        with patch("subprocess.run", return_value=mock_result):
+            result = runner.export_packets(tmp_path / "sample.pcapng")
+        avp_tree = result[0]["_source"]["layers"]["diameter"]["diameter.avp_tree"]
+        assert isinstance(avp_tree, list)
+        assert avp_tree[0]["diameter.Origin-Host"] == "mme.example.net"
+        assert avp_tree[1]["diameter.Origin-Realm"] == "example.net"
+
 
 # ---------------------------------------------------------------------------
 # Protector – vault key validation

@@ -109,6 +109,33 @@ Current fallback behavior:
 This keeps old profiles recommendable while allowing newer profiles to become
 more explicit over time.
 
+## Domain Scoring and Profile Selection
+
+`suspected_domains` is the primary decision aid. It answers "what kind of network
+is this?" before you choose a profile. The domain scoring rules are:
+
+- Protocol co-occurrence combos produce higher confidence than single-protocol
+  presence. `ngap + nas-5gs + sctp` gives `5g-sa-core` a score near 0.95;
+  `ngap` alone gives 0.55.
+- Scores are frequency-dampened. A protocol that appears in fewer than 0.5% of
+  packets contributes at 0.2× weight. This prevents rare stray frames from
+  dominating the domain result.
+- Transport protocols (`ip`, `ipv6`, `tcp`, `udp`, `sctp`, `eth`, `frame`,
+  `data`) are excluded from domain and profile scoring unless a domain-specific
+  signal is already present.
+
+Use `suspected_domains[0].domain` to pick the profile family, then use
+`recommended_profiles` to pick the specific interface profile.
+
+Example decision logic:
+
+| `suspected_domains[0].domain` | Suggested profile family |
+|---|---|
+| `5g-sa-core`      | `5g-n2`, `5g-n1-n2`, `5g-sbi`, ... |
+| `lte-eps`         | `lte-s1`, `lte-s6a`, `lte-s11`, ... |
+| `ims-voice`       | `volte-sip`, `volte-sip-call`, ...  |
+| `legacy-2g3g`     | `2g3g-map-core`, `2g3g-bssap`, ...  |
+
 ## Practical Use
 
 Good pattern:

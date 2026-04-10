@@ -51,8 +51,14 @@ def test_discover_command_writes_discovery_artifacts(tmp_path: Path) -> None:
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["mode"] == "discovery"
-    assert (out_dir / "discovery.json").exists()
-    assert (out_dir / "discovery.md").exists()
+    assert "run_dir" in payload
+    # discover now writes into a timestamped run subdirectory
+    run_dirs = list(out_dir.iterdir()) if out_dir.exists() else []
+    assert len(run_dirs) == 1, f"expected one run dir, got {run_dirs}"
+    run_dir = run_dirs[0]
+    assert run_dir.name.endswith("_discovery")
+    assert (run_dir / "discovery.json").exists()
+    assert (run_dir / "discovery.md").exists()
 
 
 def test_recommend_profiles_reads_discovery_json(tmp_path: Path) -> None:

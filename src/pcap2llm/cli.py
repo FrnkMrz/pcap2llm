@@ -278,6 +278,17 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _artifact_timestamp_from_epoch(first_seen: str) -> str:
+    """Return YYYYMMDD_HHMMSS from a first_seen epoch string, or current time as fallback."""
+    if first_seen:
+        try:
+            dt = datetime.fromtimestamp(float(first_seen), tz=timezone.utc)
+            return dt.strftime("%Y%m%d_%H%M%S")
+        except (ValueError, OSError):
+            pass
+    return datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+
+
 @app.command("init-config")
 def init_config(
     path: Path = typer.Argument(Path("pcap2llm.config.yaml")),
@@ -379,12 +390,17 @@ def discover_command(
             two_pass=two_pass,
             on_stage=on_stage,
         )
-    outputs = write_discovery_artifacts(out_dir, discovery, markdown)
+    # Write into a timestamped run directory (same pattern as analyze)
+    first_seen = discovery.get("capture", {}).get("first_seen") or ""
+    ts = _artifact_timestamp_from_epoch(first_seen)
+    run_dir = out_dir / f"{ts}_discovery"
+    outputs = write_discovery_artifacts(run_dir, discovery, markdown)
     typer.echo(
         json.dumps(
             {
                 "status": "ok",
                 "mode": "discovery",
+                "run_dir": str(run_dir),
                 "discovery_json": str(outputs["discovery_json"]),
                 "discovery_md": str(outputs["discovery_md"]),
             },

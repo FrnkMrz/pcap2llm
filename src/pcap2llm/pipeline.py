@@ -8,8 +8,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from pcap2llm.index_inspector import inspect_index_records, select_frame_numbers
 from pcap2llm.models import AnalyzeArtifacts, ProfileDefinition
-from pcap2llm.normalizer import inspect_raw_packets, normalize_packets
+from pcap2llm.normalizer import normalize_packets
 from pcap2llm.protector import Protector
 from pcap2llm.reducer import reduce_packets
 from pcap2llm.resolver import EndpointResolver
@@ -128,12 +129,19 @@ def analyze_capture(
     oversize_factor: float = _DEFAULT_OVERSIZE_FACTOR,
     on_stage: OnStage | None = None,
 ) -> AnalyzeArtifacts:
-    """Run the full analysis pipeline.
+    """Run the full two-pass analysis pipeline.
 
-    *max_packets* controls how many packets end up in ``detail.json``.
-    Inspection (metadata, anomaly detection) always runs on the full capture
-    so that ``summary.json`` remains accurate.  Pass ``max_packets=0`` to
-    include every exported packet in the detail output.
+    **Pass 1** runs a lightweight TShark ``-T fields`` export to build per-packet
+    index records.  These are used for inspection (metadata, protocol counts,
+    anomaly detection) and frame selection.  The pass-1 records are released
+    after selection.
+
+    **Pass 2** exports full JSON *only* for the selected frames and feeds them
+    into normalization, reduction, protection, and serialization.
+
+    When the capture is not truncated (``max_packets=0`` or total ≤ max_packets),
+    pass 2 falls back to a full ``-T json`` export — identical to the original
+    behavior — to avoid constructing a large frame-number filter.
     """
     def _step(msg: str, i: int) -> None:
         if on_stage:
@@ -141,18 +149,20 @@ def analyze_capture(
 
     _check_capture_size(capture_path, max_capture_size_mb=max_capture_size_mb)
 
-    _step("Inspect stage: exporting packets via TShark…", 0)
-    raw_packets = _export_packets(
+    # ------------------------------------------------------------------
+    # Pass 1: lightweight packet-index export
+    # ------------------------------------------------------------------
+    _step("Pass 1: exporting lightweight packet index via TShark…", 0)
+    index_records = runner.export_packet_index(
         capture_path,
-        runner=runner,
         display_filter=display_filter,
         extra_args=extra_args,
         two_pass=two_pass,
     )
 
-    _step(f"Inspect stage: inspecting {len(raw_packets):,} packets…", 1)
-    inspect_result = inspect_raw_packets(
-        raw_packets,
+    _step(f"Pass 1: inspecting {len(index_records):,} packets…", 1)
+    inspect_result = inspect_index_records(
+        index_records,
         capture_path=capture_path,
         display_filter=display_filter,
         profile=profile,
@@ -167,40 +177,61 @@ def analyze_capture(
     protector = Protector(privacy_modes)
     protector.validate_vault_key()
 
-    # Oversize guard: fail fast if the export is far larger than the detail
-    # limit.  This fires after inspection (so summary.json stays accurate) but
-    # before the expensive normalization/protection stages.
+    # Oversize guard: uses pass-1 counts — same semantics as before.
     _check_oversize_ratio(
-        len(raw_packets),
+        len(index_records),
         max_packets,
         oversize_factor=oversize_factor,
     )
 
-    _step("Select stage: applying bounded detail export policy…", 2)
-    selected = _select_packets(raw_packets, max_packets=max_packets)
-    if selected.truncated and fail_on_truncation:
+    selected_frames = select_frame_numbers(index_records, max_packets=max_packets)
+    if selected_frames.truncated and fail_on_truncation:
         raise RuntimeError(
             f"detail export would be truncated at {max_packets:,} of "
-            f"{selected.total_exported:,} packets"
+            f"{selected_frames.total_exported:,} packets"
         )
-    # Release the full TShark export from memory now that packet selection is
-    # complete.  Normalization and protection only need the bounded detail slice
-    # (selected.detail_packets), so keeping raw_packets alive through those
-    # stages wastes memory proportional to total_exported, not max_packets.
-    del raw_packets
+    # Release pass-1 index records — downstream stages only need frame numbers
+    # and the inspect_result already derived from them.
+    del index_records
 
+    # ------------------------------------------------------------------
+    # Pass 2: full JSON export for selected frames only
+    # ------------------------------------------------------------------
+    detail_count = len(selected_frames.frame_numbers)
+    total_exported = selected_frames.total_exported
     detail_label = (
-        f"{len(selected.detail_packets):,}"
-        if not selected.truncated
-        else f"{len(selected.detail_packets):,}/{selected.total_exported:,}"
+        f"{detail_count:,}"
+        if not selected_frames.truncated
+        else f"{detail_count:,}/{total_exported:,}"
     )
+    _step(f"Pass 2: exporting {detail_label} selected frames via TShark…", 2)
+
+    if selected_frames.truncated:
+        # Only export the selected frames — the real benefit of two-pass.
+        detail_raw = runner.export_selected_packets(
+            capture_path,
+            frame_numbers=selected_frames.frame_numbers,
+            extra_args=extra_args,
+            two_pass=two_pass,
+        )
+    else:
+        # Not truncated: full export is simpler and avoids a large filter string.
+        detail_raw = runner.export_packets(
+            capture_path,
+            display_filter=display_filter,
+            extra_args=extra_args,
+            two_pass=two_pass,
+        )
+
     _step(f"Normalize stage: normalizing {detail_label} packets…", 3)
     normalized, dropped = normalize_packets(
-        selected.detail_packets,
+        detail_raw,
         resolver=resolver,
         profile=profile,
         privacy_modes=privacy_modes,
     )
+    del detail_raw  # release pass-2 raw JSON before protection
+
     _step("Protect stage: reducing and privacy-filtering packets…", 4)
     reduced = reduce_packets(normalized, profile)
     protected_packets = protector.protect_packets(reduced)
@@ -213,13 +244,13 @@ def analyze_capture(
     )
     if dropped:
         summary_payload["dropped_packets"] = dropped
-    if selected.truncated:
+    if selected_frames.truncated:
         summary_payload["detail_truncated"] = {
             "included": max_packets,
-            "total_exported": selected.total_exported,
-            "note": (
+            "total_exported": selected_frames.total_exported,
+            "note": selected_frames.truncation_note or (
                 f"detail.json contains only the first {max_packets:,} of "
-                f"{selected.total_exported:,} packets. Use --all-packets to include all."
+                f"{selected_frames.total_exported:,} packets. Use --all-packets to include all."
             ),
         }
     audit = protector.pseudonym_audit()
@@ -233,7 +264,7 @@ def analyze_capture(
 
     coverage = build_coverage(
         detail_packets_included=len(protected_packets),
-        detail_packets_available=selected.total_exported,
+        detail_packets_available=selected_frames.total_exported,
         summary_packet_count=inspect_result.metadata.packet_count,
     )
 

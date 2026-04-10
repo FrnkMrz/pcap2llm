@@ -82,7 +82,7 @@ Warnings are structured objects in the `warnings` array. Each has a `code` and a
 
 | Warning code | When it appears | Suggested next action |
 |---|---|---|
-| `full_load_ingestion_applies` | Always — every success run | Informational. Use focused captures and `-Y` filters. |
+| `full_load_ingestion_applies` | Always — every success run | Informational. Pass 1 scans all packets as lightweight field data; pass 2 exports full JSON only for selected packets. Use focused captures and `-Y` filters for large inputs. |
 | `detail_truncated` | `total_exported > max_packets` | Re-filter with `-Y` to narrow to the relevant call flow. Do **not** just raise `--max-packets`. |
 | `capture_size_guard_disabled` | `--max-capture-size-mb 0` was set | Verify the operator intended this. Flag for human review in automated pipelines. |
 | `oversize_guard_disabled` | `--oversize-factor 0` was set | Same as above — guard bypass should be intentional. |
@@ -240,6 +240,7 @@ Prefer `inspect` first when:
 - still a local CLI tool
 - not a Python API
 - not an MCP/server integration
-- still not streaming ingestion — structured JSON output does not imply streaming processing; the full capture is exported by TShark before any packet limit is applied
+- two-pass ingestion: pass 1 scans all packets as lightweight field data (low memory); pass 2 exports full JSON only for the selected packet window — memory is proportional to `--max-packets`, not the full capture
+- pass 1 still scans the full capture: a large rolling trace still requires a full pass-1 scan; the remedy is a tighter `-Y` filter, not a bigger `--max-packets`
 - still best for focused captures
 - reasoning remains the responsibility of the downstream LLM or orchestrator

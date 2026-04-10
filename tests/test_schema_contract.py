@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
 
 from pcap2llm.pipeline import analyze_capture
 from pcap2llm.profiles import load_profile
 from pcap2llm.tshark_runner import TSharkRunner
+from testutils import mock_runner_two_pass
 
 
 def _raw_packet() -> dict:
@@ -30,7 +30,7 @@ def test_public_artifacts_include_schema_metadata_and_roles(tmp_path: Path) -> N
     capture = tmp_path / "capture.pcapng"
     capture.write_bytes(b"fixture")
 
-    with patch.object(runner, "export_packets", return_value=[_raw_packet()]):
+    with mock_runner_two_pass(runner, [_raw_packet()]):
         artifacts = analyze_capture(
             capture,
             out_dir=tmp_path,
@@ -55,7 +55,7 @@ def test_fail_on_truncation_raises(tmp_path: Path) -> None:
     capture = tmp_path / "capture.pcapng"
     capture.write_bytes(b"fixture")
 
-    with patch.object(runner, "export_packets", return_value=[_raw_packet(), _raw_packet()]):
+    with mock_runner_two_pass(runner, [_raw_packet(), _raw_packet()]):
         try:
             analyze_capture(
                 capture,

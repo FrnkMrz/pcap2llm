@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import patch
 
 from pcap2llm.pipeline import analyze_capture
 from pcap2llm.profiles import load_profile
 from pcap2llm.tshark_runner import TSharkRunner
+from testutils import mock_runner_two_pass
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "golden"
@@ -32,7 +32,7 @@ def test_golden_corpus_matches_expected(tmp_path: Path) -> None:
         capture = tmp_path / f"{scenario_dir.name}.pcapng"
         capture.write_bytes(scenario_dir.name.encode("utf-8"))
 
-        with patch.object(runner, "export_packets", return_value=raw_packets):
+        with mock_runner_two_pass(runner, raw_packets):
             artifacts = analyze_capture(
                 capture,
                 out_dir=tmp_path,

@@ -39,9 +39,11 @@ pcap2llm init-config
 
 | Module | Purpose |
 |---|---|
-| `pipeline.py` | Main orchestrator — 7-stage pipeline, file naming, capture size guard |
+| `pipeline.py` | Main orchestrator — two-pass pipeline, file naming, capture size guard |
 | `cli.py` | Typer CLI — 3 commands, privacy resolution, progress display, LLM mode |
 | `models.py` | Pydantic v2 data models and schema constants |
+| `index_models.py` | `PacketIndexRecord`, `SelectedFrames`, `parse_index_row()` — pass-1 data model |
+| `index_inspector.py` | Pass-1 inspection: `inspect_index_records()`, `select_frame_numbers()` |
 | `normalizer.py` | TShark JSON → `NormalizedPacket`; verbatim protocol passthrough |
 | `inspector.py` | Thin wrapper for inspection with `on_stage` callback support |
 | `reducer.py` | Strips transport fields to profile-specified set |
@@ -60,14 +62,14 @@ pcap2llm init-config
 
 ## Architecture
 
-**Processing pipeline** (`pipeline.py` orchestrates 7 stages):
+**Processing pipeline** (`pipeline.py` orchestrates two TShark passes + 5 processing stages):
 
 1. **Size guard** — rejects captures exceeding `max_capture_size_mb` (default 250 MiB) before TShark runs
-2. **TShark export** (`tshark_runner.py`) — runs `tshark -T json`; full capture is exported regardless of packet limit
-3. **Inspection** (`inspector.py` → `normalizer.py`) — extracts metadata, protocol counts, conversations, transport anomalies; runs on all exported packets so `summary.json` stays accurate
-4. **Packet selection** — slices to `max_packets` (default 1000, 0 = unlimited); records truncation metadata; raises if `fail_on_truncation=True`
-5. **Normalization** (`normalizer.py`) — transforms raw TShark layers into `NormalizedPacket` objects with resolved endpoints; malformed packets are logged and counted as `dropped`
-6. **Reduction + Protection** (`reducer.py` + `protector.py`) — strips transport fields to profile spec; applies per-class privacy modes
+2. **Pass 1 — lightweight export** (`tshark_runner.export_packet_index()`) — runs `tshark -T fields` with 29 fields and `|` separator; produces `PacketIndexRecord` objects for every packet; no full JSON materialization
+3. **Inspection** (`index_inspector.inspect_index_records()`) — extracts metadata, protocol counts, conversations, anomalies from pass-1 records; covers the full capture so `summary.json` stays accurate
+4. **Oversize guard + frame selection** — rejects if oversize ratio exceeded; `select_frame_numbers()` derives the bounded frame list from pass-1 records; raises if `fail_on_truncation=True`
+5. **Pass 2 — selective export** (`tshark_runner.export_selected_packets()` or `export_packets()`) — runs `tshark -T json -Y "frame.number in {N,...}"` for selected frames only (chunked at 500); memory proportional to `max_packets`
+6. **Normalization + Reduction + Protection** (`normalizer.py`, `reducer.py`, `protector.py`) — transforms raw TShark JSON into `NormalizedPacket` objects; strips to profile-specified fields; applies per-class privacy modes
 7. **Serialization** (`serializers.py` + `summarizer.py`) — produces versioned `SummaryArtifactV1` and `DetailArtifactV1` with coverage metadata, then writes timestamped, versioned files
 
 **App-layer anomaly detection** (`app_anomaly.py`) — stateful, runs during inspection; detects Diameter (unanswered requests, duplicate hop-by-hop IDs, error result codes ≥ 3000) and GTPv2-C (unanswered Create Session, non-success cause, Error Indications).

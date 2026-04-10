@@ -13,6 +13,7 @@ from pcap2llm.pipeline import _artifact_timestamp_prefix, _check_oversize_ratio,
 from pcap2llm.profiles import load_profile
 from pcap2llm.protector import ProtectionError, Protector
 from pcap2llm.tshark_runner import TSharkError, TSharkRunner
+from testutils import mock_runner_two_pass
 
 
 _TIMESTAMP_PREFIX = "20240406_075320"
@@ -75,7 +76,6 @@ def test_oversize_ratio_disabled_when_max_packets_zero() -> None:
 
 def test_oversize_ratio_pipeline_integration(tmp_path: Path) -> None:
     """Pipeline must raise RuntimeError before normalization when ratio is exceeded."""
-    from unittest.mock import patch
     from pcap2llm.profiles import load_profile
     from pcap2llm.tshark_runner import TSharkRunner
 
@@ -83,7 +83,7 @@ def test_oversize_ratio_pipeline_integration(tmp_path: Path) -> None:
     runner = TSharkRunner()
     packets = [_make_raw_packet(number=str(i)) for i in range(1, 12)]  # 11 packets
 
-    with patch.object(runner, "export_packets", return_value=packets):
+    with mock_runner_two_pass(runner, packets):
         with pytest.raises(RuntimeError, match="oversize"):
             analyze_capture(
                 tmp_path / "sample.pcapng",
@@ -98,7 +98,6 @@ def test_oversize_ratio_pipeline_integration(tmp_path: Path) -> None:
 
 def test_oversize_ratio_bypassed_in_pipeline(tmp_path: Path) -> None:
     """Setting oversize_factor=0 must allow the pipeline to continue past the guard."""
-    from unittest.mock import patch
     from pcap2llm.profiles import load_profile
     from pcap2llm.tshark_runner import TSharkRunner
 
@@ -106,7 +105,7 @@ def test_oversize_ratio_bypassed_in_pipeline(tmp_path: Path) -> None:
     runner = TSharkRunner()
     packets = [_make_raw_packet(number=str(i)) for i in range(1, 12)]  # 11 packets
 
-    with patch.object(runner, "export_packets", return_value=packets):
+    with mock_runner_two_pass(runner, packets):
         # Should not raise — oversize guard is disabled
         artifacts = analyze_capture(
             tmp_path / "sample.pcapng",
@@ -128,7 +127,6 @@ def test_early_raw_packet_release_produces_correct_artifacts(tmp_path: Path) -> 
     This test confirms the pipeline produces correct coverage metadata and
     detail content after that change — i.e. no data loss from early release.
     """
-    from unittest.mock import patch
     from pcap2llm.profiles import load_profile
     from pcap2llm.tshark_runner import TSharkRunner
 
@@ -138,7 +136,7 @@ def test_early_raw_packet_release_produces_correct_artifacts(tmp_path: Path) -> 
     # selection; normalization runs only on the 3-packet slice.
     packets = [_make_raw_packet(number=str(i)) for i in range(1, 6)]
 
-    with patch.object(runner, "export_packets", return_value=packets):
+    with mock_runner_two_pass(runner, packets):
         artifacts = analyze_capture(
             tmp_path / "sample.pcapng",
             out_dir=tmp_path / "out",
@@ -408,7 +406,7 @@ class TestAnalyzeCapturePipeline:
         runner = TSharkRunner()
         raw_packets = [_make_raw_packet(number=str(i), src_ip=f"10.0.0.{i}") for i in range(1, 4)]
 
-        with patch.object(runner, "export_packets", return_value=raw_packets):
+        with mock_runner_two_pass(runner, raw_packets):
             artifacts = analyze_capture(
                 tmp_path / "sample.pcapng",
                 out_dir=tmp_path / "out",
@@ -426,7 +424,7 @@ class TestAnalyzeCapturePipeline:
         profile = load_profile("lte-core")
         runner = TSharkRunner()
 
-        with patch.object(runner, "export_packets", return_value=[]):
+        with mock_runner_two_pass(runner, []):
             artifacts = analyze_capture(
                 tmp_path / "empty.pcapng",
                 out_dir=tmp_path / "out",
@@ -460,7 +458,7 @@ class TestAnalyzeCapturePipeline:
         malformed = {"_source": None}
         good = _make_raw_packet()
 
-        with patch.object(runner, "export_packets", return_value=[malformed, good]):
+        with mock_runner_two_pass(runner, [malformed, good]):
             artifacts = analyze_capture(
                 tmp_path / "mixed.pcapng",
                 out_dir=tmp_path / "out",
@@ -476,7 +474,7 @@ class TestAnalyzeCapturePipeline:
         runner = TSharkRunner()
         raw_packets = [_make_raw_packet()]
 
-        with patch.object(runner, "export_packets", return_value=raw_packets):
+        with mock_runner_two_pass(runner, raw_packets):
             artifacts = analyze_capture(
                 tmp_path / "sample.pcapng",
                 out_dir=tmp_path / "out",
@@ -500,7 +498,7 @@ class TestAnalyzeCapturePipeline:
         runner = TSharkRunner()
         raw_packets = [_make_raw_packet()]
 
-        with patch.object(runner, "export_packets", return_value=raw_packets):
+        with mock_runner_two_pass(runner, raw_packets):
             artifacts = analyze_capture(
                 tmp_path / "sample.pcapng",
                 out_dir=tmp_path / "out",
@@ -519,7 +517,7 @@ class TestAnalyzeCapturePipeline:
         profile = load_profile("lte-core")
         runner = TSharkRunner()
 
-        with patch.object(runner, "export_packets", return_value=[_make_raw_packet()]):
+        with mock_runner_two_pass(runner, [_make_raw_packet()]):
             artifacts = analyze_capture(
                 tmp_path / "sample.pcapng",
                 out_dir=tmp_path / "out",
@@ -542,7 +540,7 @@ class TestAnalyzeCapturePipeline:
         profile = load_profile("lte-core")
         runner = TSharkRunner()
 
-        with patch.object(runner, "export_packets", return_value=[_make_raw_packet()]):
+        with mock_runner_two_pass(runner, [_make_raw_packet()]):
             artifacts = analyze_capture(
                 tmp_path / "sample.pcapng",
                 out_dir=tmp_path / "out",
@@ -563,7 +561,7 @@ class TestAnalyzeCapturePipeline:
         profile = load_profile("lte-core")
         runner = TSharkRunner()
 
-        with patch.object(runner, "export_packets", return_value=[_make_raw_packet()]):
+        with mock_runner_two_pass(runner, [_make_raw_packet()]):
             artifacts = analyze_capture(
                 tmp_path / "sample.pcapng",
                 out_dir=tmp_path / "out",
@@ -582,7 +580,7 @@ class TestAnalyzeCapturePipeline:
         capture = tmp_path / "large_sample.pcapng"
         capture.write_bytes(b"x" * (2 * 1024 * 1024))
 
-        with patch.object(runner, "export_packets", return_value=[_make_raw_packet()]):
+        with mock_runner_two_pass(runner, [_make_raw_packet()]):
             artifacts = analyze_capture(
                 capture,
                 out_dir=tmp_path / "out",
@@ -598,7 +596,7 @@ class TestAnalyzeCapturePipeline:
         runner = TSharkRunner()
         raw_packets = [_make_raw_packet(number=str(i)) for i in range(1, 4)]
 
-        with patch.object(runner, "export_packets", return_value=raw_packets):
+        with mock_runner_two_pass(runner, raw_packets):
             artifacts = analyze_capture(
                 tmp_path / "sample.pcapng",
                 out_dir=tmp_path / "out",
@@ -618,7 +616,7 @@ class TestAnalyzeCapturePipeline:
         profile = load_profile("lte-core")
         runner = TSharkRunner()
 
-        with patch.object(runner, "export_packets", return_value=[_make_raw_packet()]):
+        with mock_runner_two_pass(runner, [_make_raw_packet()]):
             with pytest.raises(ProtectionError, match="not a valid Fernet key"):
                 analyze_capture(
                     tmp_path / "sample.pcapng",

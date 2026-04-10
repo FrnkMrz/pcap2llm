@@ -18,6 +18,7 @@ from pcap2llm.normalizer import _flatten
 from pcap2llm.pipeline import analyze_capture, write_artifacts
 from pcap2llm.profiles import load_profile
 from pcap2llm.tshark_runner import TSharkRunner
+from testutils import mock_runner_two_pass
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +151,7 @@ class TestArtifactMetadata:
         capture = tmp_path / "sample.pcapng"
         capture.write_bytes(b"fake pcap content")
 
-        with patch.object(runner, "export_packets", return_value=[_make_raw_packet()]):
+        with mock_runner_two_pass(runner, [_make_raw_packet()]):
             return analyze_capture(
                 capture,
                 out_dir=tmp_path / "out",
@@ -189,7 +190,7 @@ class TestArtifactMetadata:
 
         profile = load_profile("lte-core")
         runner = TSharkRunner()
-        with patch.object(runner, "export_packets", return_value=[_make_raw_packet()]):
+        with mock_runner_two_pass(runner, [_make_raw_packet()]):
             artifacts = analyze_capture(
                 capture,
                 out_dir=tmp_path / "out",
@@ -333,7 +334,6 @@ class TestMaxPackets:
     def test_truncation_when_over_limit(self, tmp_path: Path) -> None:
         from pcap2llm.pipeline import analyze_capture
         from pcap2llm.tshark_runner import TSharkRunner
-        from unittest.mock import patch
 
         profile = load_profile("lte-core")
         runner = TSharkRunner()
@@ -341,7 +341,7 @@ class TestMaxPackets:
         capture.write_bytes(b"fake")
         raw = self._make_raw_packets(50)
 
-        with patch.object(runner, "export_packets", return_value=raw):
+        with mock_runner_two_pass(runner, raw):
             artifacts = analyze_capture(
                 capture,
                 out_dir=tmp_path / "out",
@@ -360,7 +360,6 @@ class TestMaxPackets:
     def test_no_truncation_when_under_limit(self, tmp_path: Path) -> None:
         from pcap2llm.pipeline import analyze_capture
         from pcap2llm.tshark_runner import TSharkRunner
-        from unittest.mock import patch
 
         profile = load_profile("lte-core")
         runner = TSharkRunner()
@@ -368,7 +367,7 @@ class TestMaxPackets:
         capture.write_bytes(b"fake")
         raw = self._make_raw_packets(5)
 
-        with patch.object(runner, "export_packets", return_value=raw):
+        with mock_runner_two_pass(runner, raw):
             artifacts = analyze_capture(
                 capture,
                 out_dir=tmp_path / "out",
@@ -384,7 +383,6 @@ class TestMaxPackets:
     def test_all_packets_zero_means_unlimited(self, tmp_path: Path) -> None:
         from pcap2llm.pipeline import analyze_capture
         from pcap2llm.tshark_runner import TSharkRunner
-        from unittest.mock import patch
 
         profile = load_profile("lte-core")
         runner = TSharkRunner()
@@ -392,7 +390,7 @@ class TestMaxPackets:
         capture.write_bytes(b"fake")
         raw = self._make_raw_packets(20)
 
-        with patch.object(runner, "export_packets", return_value=raw):
+        with mock_runner_two_pass(runner, raw):
             artifacts = analyze_capture(
                 capture,
                 out_dir=tmp_path / "out",
@@ -409,7 +407,6 @@ class TestMaxPackets:
         """summary.json must reflect ALL packets, not just the truncated set."""
         from pcap2llm.pipeline import analyze_capture
         from pcap2llm.tshark_runner import TSharkRunner
-        from unittest.mock import patch
 
         profile = load_profile("lte-core")
         runner = TSharkRunner()
@@ -417,7 +414,7 @@ class TestMaxPackets:
         capture.write_bytes(b"fake")
         raw = self._make_raw_packets(30)
 
-        with patch.object(runner, "export_packets", return_value=raw):
+        with mock_runner_two_pass(runner, raw):
             artifacts = analyze_capture(
                 capture,
                 out_dir=tmp_path / "out",

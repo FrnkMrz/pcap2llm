@@ -452,7 +452,7 @@ def analyze_command(
     warnings.append(
         build_warning(
             "full_load_ingestion_applies",
-            "the current tshark JSON ingestion path still loads the exported packet JSON before selection.",
+            "pass 1 scans all packets as lightweight field data; pass 2 exports full JSON only for selected packets. For large captures, use a -Y display filter to narrow the input.",
         )
     )
 

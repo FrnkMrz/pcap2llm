@@ -244,7 +244,7 @@ def test_llm_mode_maps_artifact_write_failure(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 def test_llm_mode_full_load_ingestion_warning_always_present(tmp_path: Path) -> None:
-    """full_load_ingestion_applies must appear in every success run."""
+    """full_load_ingestion_applies must appear in every success run (two-pass: informational about pass-1 scan scope)."""
     capture = tmp_path / "sample.pcapng"
     capture.write_bytes(b"fake")
     out_dir = tmp_path / "artifacts"

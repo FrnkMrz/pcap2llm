@@ -45,7 +45,7 @@ Every `analyze` run writes a timestamped, versioned file set:
 - `_V_01` is always present; auto-increments to `_V_02`, `_V_03` if files already exist
 - Both JSON files include `schema_version`, `generated_at` (ISO 8601 UTC), and `capture_sha256`
 
-By default `detail.json` contains the first **1 000 packets**. Use `--all-packets` to remove the limit or `--max-packets N` to set a custom value. Inspection and all summary statistics always run on the full capture regardless of this setting. **The packet limit controls the output artifact only — TShark still exports the full capture first.** A large rolling trace with a 500-packet limit is still a large trace with a slow export and a random slice as output. The remedy is a tighter `-Y` filter, not a bigger limit.
+By default `detail.json` contains the first **1 000 packets**. Use `--all-packets` to remove the limit or `--max-packets N` to set a custom value. The pipeline uses **two passes**: pass 1 exports lightweight field data for all packets (inspection and summary stats always cover the full capture); pass 2 exports full JSON only for the selected N packets. **Pass 1 still scans the entire capture.** A large rolling trace with a 500-packet limit still requires a full pass-1 scan and produces a random slice as output. The remedy is a tighter `-Y` filter, not a bigger limit.
 
 ---
 

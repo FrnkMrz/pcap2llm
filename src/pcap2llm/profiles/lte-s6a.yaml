@@ -1,0 +1,119 @@
+name: lte-s6a
+description: >
+  S6a interface — Diameter over SCTP between MME and HSS (3GPP TS 29.272).
+  Includes multi-homed SCTP association tracking. Diameter is verbatim:
+  the complete raw TShark layer is preserved without field filtering.
+
+# ---------------------------------------------------------------------------
+# S6a Diameter command codes (for reference / display filter hints)
+#
+#   316  ULR / ULA  — Update Location
+#   317  CLR / CLA  — Cancel Location
+#   318  AIR / AIA  — Authentication Information
+#   319  IDR / IDA  — Insert Subscriber Data
+#   320  DSR / DSA  — Delete Subscriber Data
+#   321  PUR / PUA  — Purge UE
+#   322  RSR / RSA  — Reset
+#   323  NOR / NOA  — Notify
+#   324  ECR / ECA  — ME Identity Check
+#
+# Useful display filters:
+#   Diameter S6a only:          diameter && sctp
+#   Authentication failures:    diameter.Result-Code >= 3000 && diameter.cmd.code == 318
+#   Location update errors:     diameter.Result-Code >= 3000 && diameter.cmd.code == 316
+#   All error responses:        diameter.Result-Code >= 3000
+#   Specific SCTP association:  sctp.assoc_index == 0
+#   Force decoder (if needed):  --tshark-arg "-d" --tshark-arg "sctp.port==3868,diameter"
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - diameter
+  - sctp
+
+top_protocol_priority:
+  - diameter
+  - sctp
+  - ip
+
+protocol_aliases:
+  diameter: [diameter]
+  sctp: [sctp]
+  ip: [ip, ipv6]
+
+# ---------------------------------------------------------------------------
+# Diameter is verbatim: the complete raw TShark layer dict is written to
+# message.fields as-is (minus _ws.* keys). full_detail_fields for diameter
+# is therefore ignored — it is listed below for documentation only and can
+# be used as a starting point if verbatim is ever removed.
+# ---------------------------------------------------------------------------
+verbatim_protocols:
+  - diameter
+
+# full_detail_fields is only active for protocols NOT listed in verbatim_protocols.
+# Diameter entries below are inactive but document the key fields for reference.
+full_detail_fields:
+  diameter:
+    # --- inactive (diameter is verbatim) ---
+    # Core header
+    - diameter.cmd.code
+    - diameter.applicationid
+    - diameter.flags
+    - diameter.hop_by_hop_id
+    - diameter.end_to_end_id
+    - diameter.session_id
+    # Routing
+    - diameter.origin_host
+    - diameter.origin_realm
+    - diameter.destination_host
+    - diameter.destination_realm
+    # Subscriber identity
+    - diameter.User_Name         # IMSI carried as NAI
+    - diameter.msisdn
+    # Result / error
+    - diameter.Result-Code
+    - diameter.Experimental-Result-Code
+    # S6a-specific AVPs (3GPP TS 29.272)
+    - diameter.3gpp.ulr_flags
+    - diameter.3gpp.ula_flags
+    - diameter.3gpp.cancellation_type
+    - diameter.3gpp.context_identifier
+    - diameter.3gpp.rat-type
+    - diameter.3gpp.visited_plmn_id
+    - diameter.3gpp.authentication_info
+    - diameter.3gpp.rand
+    - diameter.3gpp.autn
+    - diameter.3gpp.xres
+    - diameter.3gpp.kasme
+
+# Transport fields to retain after reduction.
+# sctp_stream is preserved so multi-homed association streams stay visible.
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - sctp_stream
+  - anomaly
+  - notes
+
+# ---------------------------------------------------------------------------
+# TShark options
+#
+# two_pass is off by default. Enable it if you see incomplete Diameter PDUs
+# due to SCTP fragmentation:
+#   pcap2llm analyze trace.pcap --profile lte-s6a --two-pass
+#
+# To force Diameter decode on a non-standard port add:
+#   --tshark-arg "-d" --tshark-arg "sctp.port==<port>,diameter"
+# ---------------------------------------------------------------------------
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Flag all Diameter Result-Code >= 3000 as errors and group by command code.
+  - Highlight unanswered AIR (cmd 318) — authentication stalls indicate HSS issues.
+  - Highlight unanswered ULR (cmd 316) — location update stalls affect service.
+  - Note SCTP association count; multiple assoc_index values indicate multi-homing.
+  - Flag retransmissions — SCTP retransmits on S6a suggest path or congestion issues.
+  - Note CLR (cmd 317) sequences — cancel location indicates inter-MME handover or HSS purge.

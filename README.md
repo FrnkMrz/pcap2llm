@@ -25,6 +25,22 @@ pcap2llm analyze sample.pcapng --profile lte-core --out ./artifacts
 pcap2llm analyze sample.pcapng --profile lte-core --dry-run
 ```
 
+Windows PowerShell:
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e .[dev]
+```
+
+Behind a corporate proxy:
+
+```powershell
+$env:HTTP_PROXY="http://proxy.example.com:8080"
+$env:HTTPS_PROXY="http://proxy.example.com:8080"
+python -m pip install --proxy http://proxy.example.com:8080 -e .[dev]
+```
+
 Requirements: Python 3.11+, `tshark` in PATH (Wireshark package).
 
 ---

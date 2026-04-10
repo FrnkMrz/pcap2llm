@@ -39,6 +39,15 @@ py -3 -m venv .venv
 python -m pip install -e .[dev]
 ```
 
+**Falls du hinter einem Unternehmens-Proxy arbeitest:**
+```powershell
+$env:HTTP_PROXY="http://proxy.example.com:8080"
+$env:HTTPS_PROXY="http://proxy.example.com:8080"
+python -m pip install --proxy http://proxy.example.com:8080 -e .[dev]
+```
+
+Wenn `pip` mit Meldungen wie `getaddrinfo failed` oder `Could not find a version that satisfies the requirement setuptools>=69` scheitert, ist das in der Regel ein Proxy-/Netzwerkproblem und kein Problem mit `setuptools` oder dem Projekt selbst.
+
 ---
 
 ## Die drei Befehle

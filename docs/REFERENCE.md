@@ -38,6 +38,15 @@ py -3 -m venv .venv
 python -m pip install -e .[dev]
 ```
 
+**Behind a corporate proxy:**
+```powershell
+$env:HTTP_PROXY="http://proxy.example.com:8080"
+$env:HTTPS_PROXY="http://proxy.example.com:8080"
+python -m pip install --proxy http://proxy.example.com:8080 -e .[dev]
+```
+
+If `pip` fails with messages such as `getaddrinfo failed` or `Could not find a version that satisfies the requirement setuptools>=69`, the usual cause is missing proxy configuration rather than a missing `setuptools` release.
+
 **With encryption support:**
 ```bash
 pip install -e .[dev,encrypt]

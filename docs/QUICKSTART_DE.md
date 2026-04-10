@@ -18,6 +18,22 @@ source .venv/bin/activate
 pip install -e .[dev]
 ```
 
+Windows PowerShell:
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e .[dev]
+```
+
+Falls du hinter einem Proxy arbeitest:
+
+```powershell
+$env:HTTP_PROXY="http://proxy.example.com:8080"
+$env:HTTPS_PROXY="http://proxy.example.com:8080"
+python -m pip install --proxy http://proxy.example.com:8080 -e .[dev]
+```
+
 ## Drei Befehle reichen fuer den Einstieg
 
 **Schritt 1 — Was steckt in der Datei?**

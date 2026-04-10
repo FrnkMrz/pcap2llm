@@ -181,8 +181,29 @@ Profiles control which protocols are extracted, which fields are kept, and how T
 | Profile | Use case |
 |---|---|
 | `lte-core` | LTE / EPC — Diameter, GTPv2-C, S1AP, NAS-EPS, DNS, TLS |
+| `lte-s1` | S1-MME — eNodeB ↔ MME, S1AP-focused control plane |
+| `lte-s1-nas` | NAS on S1 — Attach, TAU, authentication, and ESM flows |
+| `lte-s6a` | S6a — MME ↔ HSS, Diameter over SCTP |
+| `lte-s11` | S11 — MME ↔ SGW, GTPv2-C bearer control |
+| `lte-s10` | S10 — inter-MME relocation and context transfer |
+| `lte-sgs` | SGs — MME ↔ MSC/VLR CSFB and paging interworking |
+| `lte-s5` | S5 — SGW ↔ PGW, EPC control plane with bounded GTP-UP context |
+| `lte-s8` | S8 — roaming-oriented SGW ↔ PGW / inter-PLMN GTP context |
+| `lte-dns` | LTE/EPC/IMS-adjacent DNS troubleshooting |
+| `lte-sbc-cbc` | SBc — MME ↔ CBC for Cell Broadcast / ETWS / CMAS |
 | `5g-core` | 5G Core — PFCP, NGAP, NAS-5GS, HTTP/2 SBI |
-| `2g3g-ss7-geran` | Legacy 2G/3G — SS7, M3UA, TCAP, SCCP, MAP, CAP, ISUP, BSSAP, GERAN |
+| `2g3g-ss7-geran` | Broad legacy 2G/3G bundle across SS7, MAP, CAP, ISUP, and GERAN |
+| `2g3g-gn` | Gn — SGSN ↔ GGSN, intra-PLMN GTPv1 control plane |
+| `2g3g-gp` | Gp — roaming/inter-PLMN GTPv1 control plane |
+| `2g3g-gr` | Gr — SGSN ↔ HLR MAP signaling |
+| `2g3g-gs` | Gs — SGSN ↔ MSC/VLR paging and combined CS/PS procedures |
+| `2g3g-geran` | GERAN/A-interface-adjacent core-side BSSAP and DTAP view |
+| `2g3g-dns` | Legacy/core DNS troubleshooting |
+| `2g3g-map-core` | Generic MAP-core analysis beyond one interface |
+| `2g3g-cap` | CAP / CAMEL service-control signaling |
+| `2g3g-bssap` | Focused BSSAP/BSSMAP/DTAP technical view |
+| `2g3g-isup` | Legacy voice/circuit ISUP signaling |
+| `2g3g-sccp-mtp` | Lower-layer SCCP / MTP routing and transport issues |
 
 ```bash
 pcap2llm analyze trace-5g.pcapng --profile 5g-core --out ./artifacts
@@ -190,14 +211,16 @@ pcap2llm analyze trace-5g.pcapng --profile 5g-core --out ./artifacts
 
 ### Verbatim protocol passthrough
 
-By default pcap2llm filters protocol fields and applies `_flatten` to TShark values. To get a protocol's layer exactly as TShark dissects it — every field, no transformation — add it to `verbatim_protocols` in a custom profile:
+By default pcap2llm filters protocol fields and applies `_flatten` to TShark values. `verbatim_protocols` keeps minimally transformed protocol detail when you need broader dissector coverage:
 
 ```yaml
 verbatim_protocols:
   - gtpv2
 ```
 
-The complete TShark layer dict is written to `message.fields` unchanged. Only `_ws.*` keys (Wireshark-internal metadata) are stripped. `full_detail_fields` for the same protocol is ignored.
+Top-level protocol fields are retained, repeated nested protocol fields can be surfaced into flat protocol-prefixed keys, and `_ws.*` keys are stripped. `full_detail_fields` for the same protocol is ignored.
+
+For protocols such as Diameter, raw decoder-dump structures like `diameter.avp`, `diameter.avp_tree`, and related `*_tree` blocks can be suppressed with `keep_raw_avps: false` to reduce LLM noise.
 
 For custom profile creation: [`docs/PROFILES.md`](PROFILES.md)
 

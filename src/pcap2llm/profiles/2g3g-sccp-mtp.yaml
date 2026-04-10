@@ -1,0 +1,63 @@
+name: 2g3g-sccp-mtp
+description: >
+  Technical SS7 transport profile for SCCP and MTP-layer troubleshooting when
+  higher-layer MAP, CAP, or ISUP interpretation is not enough. Focused on
+  routing failures, message handling, and lower-layer signaling-path problems.
+
+# ---------------------------------------------------------------------------
+# SCCP / MTP focus
+#
+# Useful display filters:
+#   SCCP only:                     sccp
+#   MTP3 only:                     mtp3
+#   Routing failures:              sccp.return_cause
+#   Lower-layer SS7 issues:        mtp || mtp3
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - sccp
+  - mtp3
+  - ss7
+
+top_protocol_priority:
+  - sccp
+  - mtp3
+  - ss7
+  - ip
+
+protocol_aliases:
+  sccp: [sccp]
+  mtp3: [mtp3, mtp3mg]
+  ss7: [mtp, ss7]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  sccp:
+    - sccp.called.digits
+    - sccp.calling.digits
+    - sccp.message_type
+    - sccp.return_cause
+  mtp3:
+    - mtp3.service_indicator
+    - mtp3.network_indicator
+    - mtp3.opc
+    - mtp3.dpc
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight SCCP routing failures, return causes, and repeated undelivered signaling attempts as likely addressing or routing problems.
+  - Flag MTP3 path indicators, point-code context, and lower-layer instability when they correlate with signaling delivery failures.
+  - Keep this profile intentionally lower-level than MAP, CAP, or ISUP so operators can focus on SS7 transport and routing mechanics.

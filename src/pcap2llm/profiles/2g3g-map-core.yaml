@@ -1,0 +1,72 @@
+name: 2g3g-map-core
+description: >
+  Generic MAP-core profile for legacy HLR, VLR, SGSN, and roaming traces where
+  a broad MAP, TCAP, and SCCP view is needed beyond one specific interface
+  such as Gr.
+
+# ---------------------------------------------------------------------------
+# MAP core focus
+#
+# Useful display filters:
+#   MAP only:                      gsm_map
+#   TCAP dialogue issues:          tcap.abort_reason || tcap
+#   MAP errors:                    gsm_map.error_code
+#   Subscriber-management context: gsm_map
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - map
+  - tcap
+  - sccp
+  - mtp3
+
+top_protocol_priority:
+  - map
+  - tcap
+  - sccp
+  - mtp3
+  - ip
+
+protocol_aliases:
+  map: [gsm_map, map]
+  tcap: [tcap]
+  sccp: [sccp]
+  mtp3: [mtp3, mtp3mg]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  map:
+    - gsm_map.localValue
+    - gsm_map.imsi
+    - gsm_map.msisdn
+    - gsm_map.error_code
+    - gsm_map.sm_rp_da
+    - gsm_map.sm_rp_oa
+  tcap:
+    - tcap.tid
+    - tcap.oid
+    - tcap.acn
+    - tcap.abort_reason
+  sccp:
+    - sccp.called.digits
+    - sccp.calling.digits
+    - sccp.return_cause
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight MAP dialogue lifecycles that abort, reject, or repeat without successful completion across mixed legacy-core roles.
+  - Flag TCAP abort reasons, MAP Return Error patterns, and SCCP return causes as likely core-signaling faults above the pure transport layer.
+  - Keep this profile intentionally broader than Gr while still centered on MAP-core operational troubleshooting rather than generic SS7 dumping.

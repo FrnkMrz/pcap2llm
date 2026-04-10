@@ -1,0 +1,71 @@
+name: 2g3g-gs
+description: >
+  Gs interface profile for SGSN to MSC/VLR coordination over BSSAP+, SCCP, and
+  SS7 layers. Focused on paging, combined CS/PS procedures, and abnormal
+  signaling sequences between packet-core and circuit-switched control domains.
+
+# ---------------------------------------------------------------------------
+# Gs / paging and combined-procedure focus
+#
+# Useful display filters:
+#   Gs-like signaling:             bssap+ || bssap
+#   Paging-oriented traffic:       bssap+ || sccp
+#   Combined procedure context:    bssap+ || dtap
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - bssap+
+  - dtap
+  - sccp
+  - mtp3
+  - ss7
+
+top_protocol_priority:
+  - bssap+
+  - dtap
+  - sccp
+  - mtp3
+  - ss7
+  - ip
+
+protocol_aliases:
+  bssap+: [bssap+, bssap]
+  dtap: [gsm_a.dtap, gsm_dtap, dtap]
+  sccp: [sccp]
+  mtp3: [mtp3, mtp3mg]
+  ss7: [mtp, ss7]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  bssap+:
+    - bssap.pdu_type
+    - bssap.message_type
+    - gsm_a.rr.cause
+    - gsm_a.rr.RR_cause
+  dtap:
+    - gsm_a.dtap.msg_mm_type
+    - gsm_a.dtap.msg_rr_type
+    - gsm_a.dtap.rej_cause
+  sccp:
+    - sccp.called.digits
+    - sccp.calling.digits
+    - sccp.return_cause
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight paging and combined CS/PS procedure exchanges that reject, abort, or stop without expected follow-up signaling.
+  - Flag BSSAP or DTAP reject causes and repeated retry patterns as likely Gs coordination failures between SGSN and MSC or VLR.
+  - Note SCCP return causes and lower-layer SS7 instability only when they coincide with paging or combined-procedure disruption.

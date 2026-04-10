@@ -121,8 +121,29 @@ Profile steuern, welche Protokolle extrahiert werden, welche Felder erhalten ble
 | Profil | Fuer was |
 |---|---|
 | `lte-core` | LTE / EPC — Diameter, GTPv2-C, S1AP, NAS-EPS, DNS, TLS |
+| `lte-s1` | S1-MME — eNodeB ↔ MME, S1AP-zentrierte Kontrolle |
+| `lte-s1-nas` | NAS auf S1 — Attach, TAU, Authentication, ESM |
+| `lte-s6a` | S6a — MME ↔ HSS, Diameter ueber SCTP |
+| `lte-s11` | S11 — MME ↔ SGW, GTPv2-C Bearer-Control |
+| `lte-s10` | S10 — Inter-MME Relocation und Context Transfer |
+| `lte-sgs` | SGs — MME ↔ MSC/VLR Paging und CSFB-Kontext |
+| `lte-s5` | S5 — SGW ↔ PGW, EPC Control Plane mit begrenzter GTP-UP-Sicht |
+| `lte-s8` | S8 — roaming-orientierter SGW ↔ PGW / Inter-PLMN GTP-Kontext |
+| `lte-dns` | LTE/EPC/IMS-nahe DNS-Fehlersuche |
+| `lte-sbc-cbc` | SBc — MME ↔ CBC fuer Cell Broadcast / ETWS / CMAS |
 | `5g-core` | 5G Core — PFCP, NGAP, NAS-5GS, HTTP/2 SBI |
-| `2g3g-ss7-geran` | Legacy 2G/3G — SS7, M3UA, TCAP, SCCP, MAP, CAP, ISUP, BSSAP, GERAN |
+| `2g3g-ss7-geran` | Breites Legacy-2G/3G-Buendel ueber SS7, MAP, CAP, ISUP und GERAN |
+| `2g3g-gn` | Gn — SGSN ↔ GGSN, GTPv1 im eigenen PLMN |
+| `2g3g-gp` | Gp — GPRS-Roaming / Inter-PLMN GTPv1 |
+| `2g3g-gr` | Gr — SGSN ↔ HLR ueber MAP |
+| `2g3g-gs` | Gs — SGSN ↔ MSC/VLR Paging und CS/PS-Koordination |
+| `2g3g-geran` | GERAN-/A-Interface-nahe Core-Sicht auf BSSAP und DTAP |
+| `2g3g-dns` | DNS im Legacy-/Core-Kontext |
+| `2g3g-map-core` | Generisches MAP-Core-Profil jenseits eines einzelnen Interfaces |
+| `2g3g-cap` | CAP / CAMEL Service-Control-Signalisierung |
+| `2g3g-bssap` | Fokusprofil fuer BSSAP/BSSMAP/DTAP |
+| `2g3g-isup` | Legacy Voice-/Circuit-Signalisierung mit ISUP |
+| `2g3g-sccp-mtp` | Niedrigere SCCP-/MTP-Routing- und Transportprobleme |
 
 ```bash
 pcap2llm analyze trace-5g.pcapng --profile 5g-core --out ./artifacts
@@ -130,14 +151,14 @@ pcap2llm analyze trace-5g.pcapng --profile 5g-core --out ./artifacts
 
 ### Protokoll vollstaendig durchreichen (verbatim)
 
-Standardmaessig filtert pcap2llm Protokollfelder und vereinfacht TShark-Werte. Wenn du ein Protokoll **komplett und ungekuerzt** in `detail.json` haben willst, trag es in `verbatim_protocols` in deinem Profil ein:
+Standardmaessig filtert pcap2llm Protokollfelder und vereinfacht TShark-Werte. `verbatim_protocols` behaelt ein Protokoll mit minimaler Transformation, wenn du mehr Dissektor-Detail brauchst:
 
 ```yaml
 verbatim_protocols:
   - gtpv2
 ```
 
-Das komplette TShark-Layer-Dict landet dann unveraendert in `message.fields`. Nur `_ws.*`-Schluesseln (Wireshark-intern) werden entfernt. Mehr dazu: [`docs/PROFILES.md`](PROFILES.md)
+Top-Level-Felder bleiben erhalten, wiederholte verschachtelte Felder koennen in flache `protokoll.*`-Keys hochgezogen werden, und `_ws.*`-Schluessel werden entfernt. Bei Protokollen wie Diameter koennen rohe Decoder-Bloecke wie `diameter.avp`, `diameter.avp_tree` und verwandte `*_tree`-Strukturen mit `keep_raw_avps: false` unterdrueckt werden. Mehr dazu: [`docs/PROFILES.md`](PROFILES.md)
 
 ---
 

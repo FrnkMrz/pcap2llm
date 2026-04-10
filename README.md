@@ -84,6 +84,17 @@ Choose the profile that matches your capture:
 | `lte-sbc-cbc` | SBc — MME ↔ CBC for Cell Broadcast / ETWS / CMAS |
 | `5g-core` | 5G Core — PFCP, NGAP, NAS-5GS, HTTP/2 SBI |
 | `2g3g-ss7-geran` | Legacy 2G/3G — SS7, MAP, CAP, ISUP, BSSAP, GERAN |
+| `2g3g-gn` | Gn — SGSN ↔ GGSN, intra-PLMN GTPv1 control plane |
+| `2g3g-gp` | Gp — roaming/inter-PLMN GTPv1 control plane |
+| `2g3g-gr` | Gr — SGSN ↔ HLR over MAP/TCAP/SCCP |
+| `2g3g-gs` | Gs — SGSN ↔ MSC/VLR paging and combined CS/PS procedures |
+| `2g3g-geran` | GERAN/A-interface-adjacent core-side BSSAP and DTAP view |
+| `2g3g-dns` | Legacy/core DNS troubleshooting |
+| `2g3g-map-core` | Generic MAP-core troubleshooting beyond one interface |
+| `2g3g-cap` | CAP / CAMEL service-control signaling |
+| `2g3g-bssap` | Focused BSSAP/BSSMAP/DTAP technical view |
+| `2g3g-isup` | Legacy voice/circuit ISUP signaling |
+| `2g3g-sccp-mtp` | Lower-layer SCCP / MTP routing and transport issues |
 
 ```bash
 pcap2llm analyze trace.pcapng --profile 5g-core --out ./artifacts
@@ -188,6 +199,27 @@ everything through one generic EPC view:
 Use `lte-core` when you need a quick mixed-EPC overview. Use the interface
 profiles when you want cleaner protocol prioritization, better heuristics, and
 more focused `detail.json` output.
+
+## 2G/3G Core Family
+
+The legacy family is also split into focused core-side profiles instead of one
+large SS7 bucket:
+
+- `2g3g-gn` for intra-PLMN GTPv1 control plane
+- `2g3g-gp` for roaming/inter-PLMN GTPv1 context
+- `2g3g-gr` for SGSN ↔ HLR MAP signaling
+- `2g3g-gs` for SGSN ↔ MSC/VLR paging and combined CS/PS procedures
+- `2g3g-geran` for broader GERAN/A-interface-adjacent core visibility
+- `2g3g-dns` for legacy/core DNS faults
+- `2g3g-map-core` for broader MAP-core analysis
+- `2g3g-cap` for CAP/CAMEL service logic
+- `2g3g-bssap` for a tighter BSSAP/BSSMAP/DTAP view
+- `2g3g-isup` for circuit-signaling call flows
+- `2g3g-sccp-mtp` for lower-layer SS7 routing and transport
+
+Use `2g3g-ss7-geran` only when you need the older broad bundle. Use the
+focused 2G/3G profiles when you want cleaner interface-specific heuristics and
+less cross-protocol noise.
 
 ---
 

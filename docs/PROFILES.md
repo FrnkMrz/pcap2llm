@@ -39,6 +39,33 @@ Important distinctions:
 - `lte-s5` vs `lte-s8`: both are GTP-heavy, but `lte-s8` is intentionally documented for roaming and inter-PLMN interpretation rather than pure intra-EPC handling.
 - `lte-sbc-cbc` means Cell Broadcast SBc, not Session Border Controller traffic.
 
+## Built-In 2G/3G Core and GERAN Profiles
+
+The 2G/3G family is intentionally split by interface and troubleshooting goal
+instead of collapsing everything into one generic legacy SS7 profile.
+
+| Profile | Best used for |
+|---|---|
+| `2g3g-ss7-geran` | Broad legacy bundle across MAP, CAP, ISUP, BSSAP, and GERAN |
+| `2g3g-gn` | Intra-PLMN Gn GTPv1 control plane |
+| `2g3g-gp` | Roaming/inter-PLMN Gp GTPv1 control plane |
+| `2g3g-gr` | Gr MAP signaling between SGSN and HLR |
+| `2g3g-gs` | Gs paging and combined CS/PS coordination |
+| `2g3g-geran` | Broader GERAN/A-interface-adjacent core-side view |
+| `2g3g-dns` | Legacy/core DNS troubleshooting |
+| `2g3g-map-core` | Generic MAP-core analysis beyond one interface |
+| `2g3g-cap` | CAP/CAMEL service-control flows |
+| `2g3g-bssap` | Focused BSSAP/BSSMAP/DTAP technical analysis |
+| `2g3g-isup` | Voice/circuit-signaling call flows |
+| `2g3g-sccp-mtp` | Lower-layer SCCP/MTP routing and transport issues |
+
+Important distinctions:
+
+- `2g3g-gn` vs `2g3g-gp`: both use GTPv1, but `2g3g-gp` is documented and heuristically framed for roaming and inter-PLMN interpretation.
+- `2g3g-gr` vs `2g3g-map-core`: use `2g3g-gr` when you know the path is SGSN ↔ HLR; use `2g3g-map-core` when the MAP question spans mixed HLR/VLR/SGSN roles.
+- `2g3g-geran` vs `2g3g-bssap`: use `2g3g-geran` for the broader core-side 2G signaling picture; use `2g3g-bssap` when the technical A-interface mechanics matter more than the broader context.
+- `2g3g-isup` vs `2g3g-sccp-mtp`: use `2g3g-isup` for call sequence and release-cause interpretation; use `2g3g-sccp-mtp` when routing and lower-layer SS7 delivery are the real issue.
+
 ## Minimal Working Example
 
 Start here, then add what you need:

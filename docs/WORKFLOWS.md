@@ -161,18 +161,35 @@ Use `--privacy-profile prod-safe` for SBI captures — they often contain tokens
 
 ## Legacy 2G/3G — SS7 / GERAN
 
-**Relevant protocols:** M3UA, SCCP, TCAP, MAP, CAP, ISUP, BSSAP
+**Recommended profiles:** `2g3g-ss7-geran`, `2g3g-gn`, `2g3g-gp`, `2g3g-gr`, `2g3g-gs`, `2g3g-geran`, `2g3g-dns`, `2g3g-map-core`, `2g3g-cap`, `2g3g-bssap`, `2g3g-isup`, `2g3g-sccp-mtp`
+
+### Pick the right 2G/3G profile
+
+| Situation | Best profile |
+|---|---|
+| Unknown legacy SS7 mix, broad first pass | `2g3g-ss7-geran` |
+| SGSN ↔ GGSN inside one PLMN | `2g3g-gn` |
+| GPRS roaming / inter-PLMN GTPv1 | `2g3g-gp` |
+| SGSN ↔ HLR MAP signaling | `2g3g-gr` |
+| SGSN ↔ MSC/VLR combined CS/PS coordination | `2g3g-gs` |
+| Core-side GERAN/A-interface signaling | `2g3g-geran` |
+| Legacy/core DNS behavior | `2g3g-dns` |
+| Broad MAP-core troubleshooting | `2g3g-map-core` |
+| CAP / CAMEL service logic | `2g3g-cap` |
+| Focused BSSAP/BSSMAP/DTAP mechanics | `2g3g-bssap` |
+| Legacy voice/circuit signaling | `2g3g-isup` |
+| SCCP or MTP routing/transport faults | `2g3g-sccp-mtp` |
 
 ### Typical workflow
 
 ```bash
 # Step 1 — understand what is in the capture
-pcap2llm inspect trace-ss7.pcapng --profile 2g3g-ss7-geran
+pcap2llm inspect trace-ss7.pcapng --profile 2g3g-gr
 
 # Step 2 — full analysis
 pcap2llm analyze trace-ss7.pcapng \
-  --profile 2g3g-ss7-geran \
-  -Y "gsm_map || cap || isup || bssap" \
+  --profile 2g3g-gr \
+  -Y "gsm_map || tcap || sccp" \
   --privacy-profile share \
   --out ./artifacts
 ```
@@ -183,13 +200,16 @@ pcap2llm analyze trace-ss7.pcapng \
 # MAP only (HLR ↔ MSC/VLR)
 -Y "gsm_map"
 
+# Gn / Gp GTPv1 control plane
+-Y "gtp && udp.port == 2123"
+
 # ISUP call control
 -Y "isup"
 
 # CAP (CAMEL application)
 -Y "cap"
 
-# Combined
+# Combined legacy sweep
 -Y "gsm_map || cap || isup || bssap"
 ```
 
@@ -211,6 +231,8 @@ MAP traffic contains IMSI, MSISDN, and location data. Use `--privacy-profile sha
 
 | Symptom | Next step |
 |---|---|
+| GTPv1 roaming vs intra-PLMN context is unclear | Split the run into `2g3g-gn` and `2g3g-gp`; the protocol is similar, but the heuristics and interpretation differ on purpose. |
+| MAP output is too broad | Use `2g3g-gr` for SGSN ↔ HLR or `2g3g-map-core` for broader MAP-only analysis instead of the broad legacy bundle. |
 | Too many layers, output is very large | Narrow to the relevant protocol: `-Y "gsm_map"` or `-Y "isup"` instead of a combined filter. |
 | Subscriber or location data visible in output | Switch to `--privacy-profile lab` or `prod-safe`. MAP traffic commonly carries IMSI and MSISDN. |
 | TCAP or SCCP not decoded | Verify TShark version (≥ 3.6 recommended). Check that M3UA port assignment is correct. |

@@ -1,0 +1,64 @@
+name: 2g3g-dns
+description: >
+  DNS profile for legacy GPRS, roaming, SS7-adjacent, and core-service
+  environments. Focused on resolver failures, missing answers, retries, and
+  unexpected name-resolution paths in older mobile-core deployments.
+
+# ---------------------------------------------------------------------------
+# Legacy/core DNS focus
+#
+# Useful display filters:
+#   DNS only:                      dns
+#   NXDOMAIN only:                 dns.flags.rcode == 3
+#   SERVFAIL only:                 dns.flags.rcode == 2
+#   DNS over TCP fallback:         dns && tcp
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - dns
+  - tcp
+  - udp
+  - ip
+
+top_protocol_priority:
+  - dns
+  - tcp
+  - udp
+  - ip
+
+protocol_aliases:
+  dns: [dns]
+  tcp: [tcp]
+  udp: [udp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  dns:
+    - dns.id
+    - dns.qry.name
+    - dns.qry.type
+    - dns.resp.name
+    - dns.a
+    - dns.aaaa
+    - dns.cname
+    - dns.flags.response
+    - dns.flags.rcode
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight NXDOMAIN, SERVFAIL, timeout-like missing-response patterns, and repeated identical queries in legacy core DNS traffic.
+  - Flag unusual resolver or destination-server choices when DNS appears in SGSN, GGSN, HLR, STP, or roaming-adjacent environments.
+  - Note TCP fallback and concentrated retry bursts as likely resolver-path instability rather than ordinary background noise.

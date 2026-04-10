@@ -22,6 +22,12 @@ def test_load_2g3g_ss7_geran_profile() -> None:
     assert profile.protocol_aliases["map"] == ["gsm_map", "map"]
 
 
+def test_load_profile_accepts_yaml_suffix_for_2g3g_profile() -> None:
+    profile = load_profile("2g3g-gn.yaml")
+    assert profile.name == "2g3g-gn"
+    assert "gtpv1" in profile.relevant_protocols
+
+
 def test_load_profile_accepts_yaml_suffix() -> None:
     profile = load_profile("lte-s6a.yaml")
     assert profile.name == "lte-s6a"

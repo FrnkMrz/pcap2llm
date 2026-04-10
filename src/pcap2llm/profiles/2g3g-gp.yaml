@@ -1,0 +1,64 @@
+name: 2g3g-gp
+description: >
+  Gp interface profile for inter-PLMN or roaming-adjacent GPRS core signaling
+  over GTPv1 on UDP/IP. Technically close to Gn, but interpreted for partner,
+  transit, and roaming context rather than pure intra-PLMN core behavior.
+
+# ---------------------------------------------------------------------------
+# Gp / roaming GTPv1-C focus
+#
+# Useful display filters:
+#   Gp control plane only:         gtp && udp.port == 2123
+#   PDP context setup:             gtp.message == 16 || gtp.message == 17
+#   Error indications:             gtp.message == 26
+#   Suspect roaming issues:        gtp.cause
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - gtpv1
+  - gtp
+  - udp
+  - ip
+
+top_protocol_priority:
+  - gtpv1
+  - gtp
+  - udp
+  - ip
+
+protocol_aliases:
+  gtpv1: [gtp, gtpv1]
+  gtp: [gtp]
+  udp: [udp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  gtpv1:
+    - gtp.message
+    - gtp.teid
+    - gtp.cause
+    - gtp.seq
+    - gtp.imsi
+    - gtp.msisdn
+    - gtp.apn
+    - gtp.end_user_address
+    - gtp.nsapi
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight PDP context setup, update, and teardown exchanges that fail or remain unanswered in roaming-oriented GTPv1-C traffic.
+  - Flag Error Indication traffic, cause-value clusters, and delayed or missing responses as likely inter-PLMN or partner-network coordination issues on Gp.
+  - Note unusual latency or prolonged request-response gaps as higher-value roaming symptoms, not just generic transport noise.

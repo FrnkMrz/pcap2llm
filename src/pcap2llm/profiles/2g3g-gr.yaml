@@ -1,0 +1,75 @@
+name: 2g3g-gr
+description: >
+  Gr interface profile for SGSN to HLR signaling over MAP, TCAP, SCCP, and
+  SS7 layers. Focused on subscriber state, GPRS location management, and
+  MAP-core transaction failures relevant to Gr procedures.
+
+# ---------------------------------------------------------------------------
+# Gr / MAP core focus
+#
+# Useful display filters:
+#   Gr-like MAP only:              gsm_map && tcap
+#   Update GPRS Location:          gsm_map
+#   Purge or Cancel Location:      gsm_map
+#   TCAP aborts and rejects:       tcap.abort_reason || tcap
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - map
+  - tcap
+  - sccp
+  - mtp3
+  - ss7
+
+top_protocol_priority:
+  - map
+  - tcap
+  - sccp
+  - mtp3
+  - ss7
+  - ip
+
+protocol_aliases:
+  map: [gsm_map, map]
+  tcap: [tcap]
+  sccp: [sccp]
+  mtp3: [mtp3, mtp3mg]
+  ss7: [mtp, ss7]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  map:
+    - gsm_map.localValue
+    - gsm_map.imsi
+    - gsm_map.msisdn
+    - gsm_map.error_code
+    - gsm_map.sm_rp_da
+    - gsm_map.sm_rp_oa
+  tcap:
+    - tcap.tid
+    - tcap.acn
+    - tcap.abort_reason
+  sccp:
+    - sccp.called.digits
+    - sccp.calling.digits
+    - sccp.message_type
+    - sccp.return_cause
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight Update GPRS Location, Purge MS, Cancel Location, and related MAP exchanges that abort, reject, or do not complete.
+  - Flag TCAP aborts, MAP Return Error patterns, and SCCP return causes as likely Gr subscriber-management failures.
+  - Note repeated dialogue setup without successful completion as a sign of HLR reachability, timeout, or transaction-state problems on Gr.

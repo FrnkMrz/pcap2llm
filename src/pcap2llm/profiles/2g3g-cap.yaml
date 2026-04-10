@@ -1,0 +1,69 @@
+name: 2g3g-cap
+description: >
+  CAP and CAMEL profile for legacy intelligent-network and service-control
+  signaling over TCAP, SCCP, and SS7 layers. Focused on CAP operation flows,
+  dialogue failures, and service-logic troubleshooting.
+
+# ---------------------------------------------------------------------------
+# CAP / CAMEL focus
+#
+# Useful display filters:
+#   CAP only:                      cap || camel
+#   CAP dialogue issues:           tcap.abort_reason || camel.returnError_element
+#   Service-control operations:    camel.operationCode
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - cap
+  - tcap
+  - sccp
+  - mtp3
+
+top_protocol_priority:
+  - cap
+  - tcap
+  - sccp
+  - mtp3
+  - ip
+
+protocol_aliases:
+  cap: [camel, cap]
+  tcap: [tcap]
+  sccp: [sccp]
+  mtp3: [mtp3, mtp3mg]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  cap:
+    - camel.local.arg.operationCode
+    - camel.operationCode
+    - camel.returnError_element
+    - e164.msisdn
+    - e212.imsi
+  tcap:
+    - tcap.tid
+    - tcap.acn
+    - tcap.abort_reason
+  sccp:
+    - sccp.called.digits
+    - sccp.calling.digits
+    - sccp.return_cause
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight CAP operation flows that fail, abort, or return CAP-specific error elements before service logic completes.
+  - Flag TCAP aborts, SCCP return causes, and repeated CAP dialogue setup without progress as likely IN or CAMEL control issues.
+  - Keep the profile tightly centered on CAP behavior instead of mixing MAP and CAP into one generic SS7 bundle.

@@ -1,0 +1,77 @@
+name: 2g3g-geran
+description: >
+  GERAN- and A-interface-adjacent core profile for BSSAP, DTAP, GSM A, and
+  lower SS7 layers where the operational question is core-side visibility into
+  2G signaling rather than access-network internals.
+
+# ---------------------------------------------------------------------------
+# GERAN core-side focus
+#
+# Useful display filters:
+#   BSSAP and DTAP only:           bssap || gsm_a.dtap
+#   Location update context:       gsm_a.dtap
+#   Assignment or paging context:  bssap
+#   Core-side signaling errors:    gsm_a.rr.cause || gsm_a.dtap.rej_cause
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - bssap
+  - dtap
+  - gsm_a
+  - sccp
+  - mtp3
+
+top_protocol_priority:
+  - bssap
+  - dtap
+  - gsm_a
+  - sccp
+  - mtp3
+  - ip
+
+protocol_aliases:
+  bssap: [bssap]
+  dtap: [gsm_a.dtap, gsm_dtap, dtap]
+  gsm_a: [gsm_a]
+  sccp: [sccp]
+  mtp3: [mtp3, mtp3mg]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  bssap:
+    - bssap.pdu_type
+    - bssap.message_type
+    - gsm_a.rr.cause
+    - gsm_a.rr.RR_cause
+  dtap:
+    - gsm_a.dtap.msg_mm_type
+    - gsm_a.dtap.msg_rr_type
+    - gsm_a.dtap.rej_cause
+    - gsm_a.imsi
+  gsm_a:
+    - gsm_a.imsi
+    - e212.imsi
+    - e164.msisdn
+  sccp:
+    - sccp.called.digits
+    - sccp.calling.digits
+    - sccp.return_cause
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight paging, assignment, and location-update related signaling that fails or repeats abnormally from the core-side GERAN view.
+  - Flag BSSAP cause values, DTAP reject causes, and repeated CM or LU patterns as likely A-interface or core-side coordination problems.
+  - Keep the profile focused on operator-visible signaling state rather than radio-depth decoding or UTRAN-specific troubleshooting.

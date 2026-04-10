@@ -1,0 +1,72 @@
+name: 2g3g-gn
+description: >
+  Gn interface profile for intra-PLMN GPRS core signaling, typically SGSN to
+  GGSN over GTPv1 on UDP/IP. Focused on PDP context lifecycle, GTP-C causes,
+  error indications, and control-plane response matching inside one operator
+  core network.
+
+# ---------------------------------------------------------------------------
+# Gn / GTPv1-C focus
+#
+# Useful display filters:
+#   Gn control plane only:         gtp && udp.port == 2123
+#   PDP context activation:        gtp.message == 16 || gtp.message == 17
+#   Delete PDP context:            gtp.message == 20 || gtp.message == 21
+#   Error indication traffic:      gtp.message == 26
+#   ICMP side-signals:             icmp
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - gtpv1
+  - gtp
+  - icmp
+  - udp
+  - ip
+
+top_protocol_priority:
+  - gtpv1
+  - gtp
+  - icmp
+  - udp
+  - ip
+
+protocol_aliases:
+  gtpv1: [gtp, gtpv1]
+  gtp: [gtp]
+  icmp: [icmp, icmpv6]
+  udp: [udp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  gtpv1:
+    - gtp.message
+    - gtp.teid
+    - gtp.cause
+    - gtp.seq
+    - gtp.imsi
+    - gtp.msisdn
+    - gtp.apn
+    - gtp.end_user_address
+    - gtp.nsapi
+  icmp:
+    - icmp.type
+    - icmp.code
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight PDP Context Activation, Update PDP Context, and Delete PDP Context exchanges that lack matching responses or return failure causes.
+  - Flag GTP Error Indication traffic, repeated cause-value failures, and sequence mismatches as likely SGSN to GGSN control-plane faults on Gn.
+  - Note ICMP reachability problems only as supporting evidence when they coincide with GTP-C failures or prolonged unanswered requests.

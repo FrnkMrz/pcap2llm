@@ -1,0 +1,75 @@
+name: 2g3g-bssap
+description: >
+  Focused BSSAP, BSSMAP, and DTAP profile for core-visible signaling on the A
+  interface. Intended for paging, assignment, handover-adjacent, and reject or
+  cause-analysis scenarios where a narrower technical view is better than the
+  broader GERAN profile.
+
+# ---------------------------------------------------------------------------
+# BSSAP / BSSMAP focus
+#
+# Useful display filters:
+#   BSSAP only:                    bssap
+#   DTAP on A interface:           gsm_a.dtap
+#   Cause analysis:                gsm_a.rr.cause || gsm_a.dtap.rej_cause
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - bssap
+  - bssmap
+  - dtap
+  - sccp
+  - mtp3
+
+top_protocol_priority:
+  - bssap
+  - bssmap
+  - dtap
+  - sccp
+  - mtp3
+  - ip
+
+protocol_aliases:
+  bssap: [bssap]
+  bssmap: [bssap, bssmap]
+  dtap: [gsm_a.dtap, gsm_dtap, dtap]
+  sccp: [sccp]
+  mtp3: [mtp3, mtp3mg]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  bssap:
+    - bssap.pdu_type
+    - bssap.message_type
+    - gsm_a.rr.cause
+    - gsm_a.rr.RR_cause
+  bssmap:
+    - bssap.pdu_type
+    - bssap.message_type
+  dtap:
+    - gsm_a.dtap.msg_mm_type
+    - gsm_a.dtap.msg_rr_type
+    - gsm_a.dtap.rej_cause
+  sccp:
+    - sccp.called.digits
+    - sccp.calling.digits
+    - sccp.return_cause
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight paging, assignment, and handover-adjacent signaling that returns BSSMAP or DTAP failure causes.
+  - Flag repeated BSSAP procedure attempts, DTAP reject causes, and SCCP return causes as likely A-interface signaling faults.
+  - Keep this profile technically tighter than 2g3g-geran so operators can isolate BSSAP mechanics without broader GERAN context.

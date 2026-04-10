@@ -1,0 +1,60 @@
+name: 2g3g-isup
+description: >
+  ISUP profile for legacy voice and circuit-signaling troubleshooting in
+  core-network traces. Focused on call setup, answer, release, and abnormal
+  clearing sequences rather than generic SS7 lower-layer transport.
+
+# ---------------------------------------------------------------------------
+# ISUP focus
+#
+# Useful display filters:
+#   ISUP only:                     isup
+#   Call setup progression:        isup.message_type
+#   Release analysis:              isup.cause_value || isup.cause_indicator
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - isup
+  - mtp3
+  - ss7
+
+top_protocol_priority:
+  - isup
+  - mtp3
+  - ss7
+  - ip
+
+protocol_aliases:
+  isup: [isup]
+  mtp3: [mtp3, mtp3mg]
+  ss7: [mtp, ss7]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  isup:
+    - isup.message_type
+    - e164.called_party_number.digits
+    - e164.calling_party_number.digits
+    - isup.cause_indicator
+    - isup.cause_value
+  mtp3:
+    - mtp3.service_indicator
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight incomplete IAM, ACM, ANM, REL, and RLC sequences that suggest broken call setup or abnormal call clearing.
+  - Flag ISUP release cause patterns and repeated unsuccessful setup attempts as likely circuit-signaling failures.
+  - Keep lower-layer SS7 symptoms subordinate to call-sequence analysis so this profile stays voice-signaling focused.

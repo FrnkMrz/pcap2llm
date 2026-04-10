@@ -61,6 +61,10 @@ pcap2llm analyze sample.pcapng --profile lte-core --out ./artifacts
 | `lte-core` | LTE / EPC — Diameter, GTPv2-C, S1AP, NAS-EPS |
 | `5g-core` | 5G Core — PFCP, NGAP, NAS-5GS, HTTP/2 SBI |
 | `2g3g-ss7-geran` | Legacy 2G/3G — SS7, MAP, CAP, ISUP, BSSAP |
+| `2g3g-gn` | Gn — SGSN ↔ GGSN, GTPv1 im eigenen PLMN |
+| `2g3g-gp` | Gp — GPRS-Roaming / Inter-PLMN GTPv1 |
+| `2g3g-gr` | Gr — SGSN ↔ HLR ueber MAP |
+| `2g3g-gs` | Gs — SGSN ↔ MSC/VLR Paging und CS/PS-Koordination |
 
 ## Haeufige Optionen
 

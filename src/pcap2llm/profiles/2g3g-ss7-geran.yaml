@@ -1,5 +1,9 @@
 name: 2g3g-ss7-geran
-description: 2G/3G legacy mobile troubleshooting profile for SS7 signaling and GERAN access, without UTRAN.
+description: >
+  Broad legacy 2G/3G bundle for mixed SS7, MAP, CAP, ISUP, BSSAP, and
+  GERAN-adjacent signaling when the exact interface is not yet isolated.
+  Prefer the newer focused 2g3g-* interface profiles when the troubleshooting
+  target is already known.
 relevant_protocols:
   - map
   - cap

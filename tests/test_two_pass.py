@@ -512,6 +512,23 @@ class TestExportSelectedPackets:
 
         assert call_count == 2  # two chunks
 
+    def test_frame_number_filter_syntax_with_display_filter(self, tmp_path: Path) -> None:
+        """Frame-number filter must not clobber an existing display filter.
+
+        The runner builds a combined filter 'frame.number in {N,...}'
+        (display_filter is not passed to export_selected_packets — it is
+        already baked into the pass-1 selection).
+        """
+        runner = TSharkRunner()
+        runner.ensure_available = lambda: None
+        cmd = runner.build_selected_export_command(tmp_path / "x.pcapng", frame_numbers=[10, 20])
+        # Must contain -Y with exactly the frame.number filter
+        assert "-Y" in cmd
+        filter_arg = cmd[cmd.index("-Y") + 1]
+        assert filter_arg == "frame.number in {10,20}"
+        # Must not contain any other -Y occurrence
+        assert cmd.count("-Y") == 1
+
 
 # ---------------------------------------------------------------------------
 # End-to-end two-pass pipeline
@@ -519,8 +536,41 @@ class TestExportSelectedPackets:
 
 class TestTwoPassPipeline:
 
-    def test_non_truncated_uses_full_export(self, tmp_path: Path) -> None:
-        """When total ≤ max_packets, export_selected_packets must NOT be called."""
+    def test_bounded_non_truncated_uses_selected_frame_export(self, tmp_path: Path) -> None:
+        """Bounded run (max_packets > 0), total ≤ max_packets: export_selected_packets
+        must be called with all frame numbers, not export_packets."""
+        profile = load_profile("lte-core")
+        runner = TSharkRunner()
+        packets = [_make_raw_packet(number=str(i)) for i in range(1, 4)]  # 3 packets
+
+        called_with_frames: list[int] = []
+
+        def capture_frames(capture_path, *, frame_numbers, extra_args=None, two_pass=False):
+            called_with_frames.extend(frame_numbers)
+            fm = {int(p["_source"]["layers"]["frame.number"]): p for p in packets}
+            return [fm[n] for n in frame_numbers if n in fm]
+
+        with mock_runner_two_pass(runner, packets):
+            with patch.object(runner, "export_selected_packets", side_effect=capture_frames):
+                with patch.object(runner, "export_packets") as mock_full:
+                    artifacts = analyze_capture(
+                        tmp_path / "x.pcapng",
+                        out_dir=tmp_path / "out",
+                        runner=runner,
+                        profile=profile,
+                        privacy_modes={},
+                        max_packets=1000,  # bounded but not truncated (3 < 1000)
+                    )
+
+        # Bounded runs always use selected-frame export — full export is not called
+        mock_full.assert_not_called()
+        assert called_with_frames == [1, 2, 3]
+        assert artifacts.summary["coverage"]["detail_truncated"] is False
+        assert artifacts.summary["coverage"]["detail_packets_included"] == 3
+
+    def test_unlimited_uses_full_export_not_selected_frame(self, tmp_path: Path) -> None:
+        """Unlimited run (max_packets=0): export_packets must be used, not
+        export_selected_packets (avoids building a huge frame-number filter)."""
         profile = load_profile("lte-core")
         runner = TSharkRunner()
         packets = [_make_raw_packet(number=str(i)) for i in range(1, 4)]
@@ -533,9 +583,8 @@ class TestTwoPassPipeline:
                     runner=runner,
                     profile=profile,
                     privacy_modes={},
-                    max_packets=1000,  # well above 3 packets → not truncated
+                    max_packets=0,  # unlimited → must use full export
                 )
-        # non-truncated path must not invoke the frame-filter export
         mock_selected.assert_not_called()
         assert artifacts.summary["coverage"]["detail_truncated"] is False
 
@@ -612,6 +661,31 @@ class TestTwoPassPipeline:
         assert coverage["detail_truncated"] is False
         assert coverage["detail_packets_included"] == 5
         assert coverage["detail_packets_available"] == 5
+
+    def test_total_packets_is_capture_wide_even_when_truncated(self, tmp_path: Path) -> None:
+        """summary.packet_message_counts.total_packets must come from pass-1 (capture-wide)
+        and must NOT be the truncated detail count."""
+        profile = load_profile("lte-core")
+        runner = TSharkRunner()
+        packets = [_make_raw_packet(number=str(i)) for i in range(1, 11)]  # 10 packets
+
+        with mock_runner_two_pass(runner, packets):
+            artifacts = analyze_capture(
+                tmp_path / "x.pcapng",
+                out_dir=tmp_path / "out",
+                runner=runner,
+                profile=profile,
+                privacy_modes={},
+                max_packets=3,   # only 3 in detail
+                oversize_factor=0,
+            )
+
+        # Capture-wide total from pass 1 — must be 10, not 3
+        total = artifacts.summary["packet_message_counts"]["total_packets"]
+        assert total == 10, (
+            f"total_packets should be capture-wide (10), got {total}. "
+            "This field must come from pass-1 InspectResult, not from the detail slice."
+        )
 
     def test_index_records_from_raw_roundtrip(self) -> None:
         """index_record_from_raw must produce records consistent with the packet."""

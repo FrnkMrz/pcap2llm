@@ -194,6 +194,25 @@ Use this table to decide what to do after receiving any result.
 | `error.code == "artifact_write_failed"` | Retry only after storage/permissions issue is resolved |
 | `error.code == "detail_truncated_and_disallowed"` | Tighten `-Y` filter and retry — do **not** raise `--max-packets` |
 
+### Safe automated behaviors
+
+These actions are safe to perform without human review:
+
+- **Retry** after `artifact_write_failed` once the storage or permissions issue is resolved
+- **Re-filter and retry** after `detail_truncated` — tighten `-Y` before retrying
+- **Stop immediately** on `tshark_missing` — no retry will help; alert on missing dependency
+- **Abort and request key** on `missing_vault_key` or `invalid_vault_key` — do not retry with the same credentials
+- **Pass** `files.detail` to downstream LLM on `status == "ok"` with no warnings
+
+### Human review recommended
+
+Pause and escalate to a human in these situations:
+
+- **Guard bypasses active**: `capture_size_guard_disabled` or `oversize_guard_disabled` warnings are present — verify the bypass was intentional before forwarding artifacts
+- **No relevant protocols**: `no_relevant_protocols_detected` — the profile or filter may be wrong; a human should confirm the capture content before proceeding
+- **Privacy boundary unclear**: the capture is going outside the originating team, but the effective `privacy_modes` in `summary.json` have not been reviewed
+- **Mapping sidecar present**: `pseudonym_mapping_created` warning — confirm the mapping file is NOT included in the artifact set before sharing
+
 ### When to run `inspect` before `analyze --llm-mode`
 
 Prefer `inspect` first when:

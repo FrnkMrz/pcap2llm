@@ -453,19 +453,29 @@ class TestAnalyzeCapturePipeline:
             )
 
     def test_full_pipeline_dropped_packets_in_summary(self, tmp_path: Path) -> None:
+        """When normalize_packets drops a packet, summary must record dropped_packets.
+
+        The two-pass architecture selects packets by frame number before passing
+        them to the normalizer.  We mock normalize_packets directly to simulate
+        a drop, testing the pipeline's handling of the drop count rather than
+        the normalizer's own malformed-packet logic.
+        """
         profile = load_profile("lte-core")
         runner = TSharkRunner()
-        malformed = {"_source": None}
-        good = _make_raw_packet()
+        packets = [_make_raw_packet()]
 
-        with mock_runner_two_pass(runner, [malformed, good]):
-            artifacts = analyze_capture(
-                tmp_path / "mixed.pcapng",
-                out_dir=tmp_path / "out",
-                runner=runner,
-                profile=profile,
-                privacy_modes={},
-            )
+        with mock_runner_two_pass(runner, packets):
+            with patch(
+                "pcap2llm.pipeline.normalize_packets",
+                return_value=([], 1),  # 0 normalized, 1 dropped
+            ):
+                artifacts = analyze_capture(
+                    tmp_path / "mixed.pcapng",
+                    out_dir=tmp_path / "out",
+                    runner=runner,
+                    profile=profile,
+                    privacy_modes={},
+                )
 
         assert artifacts.summary.get("dropped_packets") == 1
 

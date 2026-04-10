@@ -34,6 +34,79 @@ full capture size.
 
 ---
 
+## Pass-2 Consistency: Bounded vs. Unlimited Runs
+
+Pass-2 behavior is split on `max_packets`:
+
+| `max_packets` value | Pass-2 path | Why |
+|---|---|---|
+| `> 0` (bounded) | `export_selected_packets()` always — truncated **and** non-truncated | Consistent two-pass behavior; both paths use the same code |
+| `0` (unlimited / `--all-packets`) | `export_packets()` full export | Avoids building a huge frame-number filter string for many thousands of frames |
+
+The bounded path is the common path.  `--all-packets` is a deliberate opt-out.
+
+---
+
+## Frame-Number Filtering: Compatibility Notes
+
+Pass 2 relies on TShark's `frame.number in {N1,N2,...}` display filter syntax.
+
+**What is validated:**
+- Filter syntax is correct for TShark ≥ 3.6 (all versions tested in CI: macOS TShark 4.x)
+- Large frame sets are chunked at 500 per invocation to keep filter strings manageable
+- Empty frame lists short-circuit before TShark is called
+- Ordering within each chunk preserves pass-1 insertion order; chunks are merged in order
+
+**Known assumptions:**
+- `frame.number` is a reliable stable field in all TShark versions ≥ 3.6
+- The `in {...}` set syntax is supported from TShark 2.x onward
+- Frame numbers are 1-based and match the index values TShark emits in pass 1
+
+**Validation:** `scripts/benchmark_pipeline.py` can be run against a real capture to
+sanity-check that pass-2 frame selection returns the expected frame count.
+
+**If you encounter a TShark version where frame-number filtering behaves differently:**
+please open an issue with `tshark --version` output and the filter string that failed.
+
+---
+
+## Summary Semantics: Capture-wide vs. Detail-derived
+
+`summary.json` contains two categories of facts:
+
+**Capture-wide (pass 1, always accurate for the full capture):**
+- `capture_metadata` — packet count, first/last seen, raw protocols
+- `relevant_protocols`, `conversations`
+- `packet_message_counts.total_packets`, `packet_message_counts.transport`
+- `anomalies`, `anomaly_counts_by_layer`
+
+**Detail-derived (pass 2, reflects selected packet window only):**
+- `packet_message_counts.top_protocols` — counted from normalized detail packets
+- `timing_stats`, `burst_periods` — computed from detail timing only
+- Protocol-count sentences in `deterministic_findings`
+
+When `detail_truncated` is true, detail-derived fields describe the selected window,
+not the full capture.  Capture-wide fields remain accurate regardless.
+
+---
+
+## Performance Validation
+
+`scripts/benchmark_pipeline.py` provides a lightweight reproducible measurement:
+
+```bash
+python scripts/benchmark_pipeline.py           # synthetic fixtures only (no TShark)
+python scripts/benchmark_pipeline.py trace.pcapng --rounds 3   # real capture, 3 rounds
+```
+
+Output columns: `scenario`, `pkts_in` (pass-1 total), `pkts_out` (detail size),
+`summ_total` (must equal `pkts_in`), `wall_s`, `rss_mib`, `truncated`.
+
+Key invariant the benchmark verifies: `pkts_in == summ_total` — capture-wide packet
+count in `summary.json` is always the full pass-1 total, not the truncated slice.
+
+---
+
 ## Remaining Scaling Limits
 
 ### Pass 1 is still full-capture

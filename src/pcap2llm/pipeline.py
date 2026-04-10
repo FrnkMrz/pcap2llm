@@ -139,9 +139,14 @@ def analyze_capture(
     **Pass 2** exports full JSON *only* for the selected frames and feeds them
     into normalization, reduction, protection, and serialization.
 
-    When the capture is not truncated (``max_packets=0`` or total ≤ max_packets),
-    pass 2 falls back to a full ``-T json`` export — identical to the original
-    behavior — to avoid constructing a large frame-number filter.
+    **Pass 2 decision:**
+
+    - When ``max_packets > 0`` (bounded run): always uses ``export_selected_packets``
+      regardless of truncation.  Both truncated and non-truncated paths go through
+      the same code, making pass-2 behavior consistent and predictable.
+    - When ``max_packets <= 0`` (unlimited / ``--all-packets``): falls back to
+      ``export_packets`` to avoid constructing a potentially enormous frame-number
+      filter string across many TShark invocations.
     """
     def _step(msg: str, i: int) -> None:
         if on_stage:
@@ -206,8 +211,11 @@ def analyze_capture(
     )
     _step(f"Pass 2: exporting {detail_label} selected frames via TShark…", 2)
 
-    if selected_frames.truncated:
-        # Only export the selected frames — the real benefit of two-pass.
+    if max_packets > 0:
+        # Bounded run (max_packets set): always use selected-frame export,
+        # whether or not the capture is truncated.  This makes the two-pass path
+        # consistent — pass 2 always processes exactly the frames selected in
+        # pass 1, with no hybrid fallback for the non-truncation case.
         detail_raw = runner.export_selected_packets(
             capture_path,
             frame_numbers=selected_frames.frame_numbers,
@@ -215,7 +223,10 @@ def analyze_capture(
             two_pass=two_pass,
         )
     else:
-        # Not truncated: full export is simpler and avoids a large filter string.
+        # Unlimited run (--all-packets, max_packets=0): export all packets via a
+        # single TShark invocation.  Building a frame-number filter for a large
+        # capture would require many chunked invocations — this is cheaper and
+        # semantically equivalent since all frames are selected anyway.
         detail_raw = runner.export_packets(
             capture_path,
             display_filter=display_filter,

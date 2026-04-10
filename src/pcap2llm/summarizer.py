@@ -112,10 +112,26 @@ def build_summary(
     profile: ProfileDefinition,
     privacy_modes: dict[str, str],
 ) -> dict[str, Any]:
+    """Build the deterministic summary payload.
+
+    Semantic split — two sources of truth:
+
+    **Capture-wide (pass-1 InspectResult)** — accurate for the *entire* capture
+    regardless of the ``--max-packets`` limit:
+    ``capture_metadata``, ``relevant_protocols``, ``conversations``,
+    ``packet_message_counts.total_packets``, ``packet_message_counts.transport``,
+    ``anomalies``, ``anomaly_counts_by_layer``.
+
+    **Detail-derived (pass-2 selected packets)** — computed from the selected
+    detail packet window only; may not reflect the full capture when truncated:
+    ``packet_message_counts.top_protocols``, ``timing_stats``, ``burst_periods``,
+    and the protocol-count sentences inside ``deterministic_findings``.
+    """
+    # --- Detail-derived: computed from the pass-2 selected packet window ---
     top_protocols = Counter(packet["top_protocol"] for packet in detail_packets)
     deterministic_findings: list[str] = []
 
-    # Anomaly summary — grouped by layer
+    # Anomaly summary (capture-wide) — grouped by layer
     if inspect_result.anomalies:
         by_layer = _classify_anomalies(inspect_result.anomalies)
         total = sum(by_layer.values())
@@ -124,10 +140,11 @@ def build_summary(
             f"{total} anomalies detected ({layer_summary})"
         )
 
+    # Protocol-count sentences are detail-derived (based on selected window)
     for protocol, count in top_protocols.most_common(3):
         deterministic_findings.append(f"{protocol} accounts for {count} normalized packets")
 
-    # Timing statistics
+    # Timing and burst detection are detail-derived (selected window only)
     timing = _timing_stats(detail_packets)
     if timing:
         p95 = timing["inter_packet_ms"]["p95"]
@@ -136,7 +153,6 @@ def build_summary(
                 f"High p95 inter-packet delay: {p95} ms — possible congestion or gaps"
             )
 
-    # Burst detection
     bursts = _detect_bursts(detail_packets)
     if bursts:
         deterministic_findings.append(
@@ -144,25 +160,28 @@ def build_summary(
         )
 
     summary: dict[str, Any] = {
+        # --- Capture-wide fields (pass-1 InspectResult — always full-capture) ---
         "capture_metadata": inspect_result.metadata.model_dump(),
         "relevant_protocols": inspect_result.metadata.relevant_protocols,
         "conversations": inspect_result.conversations,
         "packet_message_counts": {
-            "total_packets": inspect_result.metadata.packet_count,
-            "top_protocols": dict(top_protocols),
-            "transport": inspect_result.transport_counts,
+            "total_packets": inspect_result.metadata.packet_count,   # capture-wide
+            "top_protocols": dict(top_protocols),                     # detail-derived
+            "transport": inspect_result.transport_counts,            # capture-wide
         },
-        "anomalies": inspect_result.anomalies,
-        "anomaly_counts_by_layer": _classify_anomalies(inspect_result.anomalies),
+        "anomalies": inspect_result.anomalies,                       # capture-wide
+        "anomaly_counts_by_layer": _classify_anomalies(inspect_result.anomalies),  # capture-wide
+        # --- Detail-derived fields (pass-2 selected packet window) ---
         "deterministic_findings": deterministic_findings,
         "probable_notable_findings": deterministic_findings,
+        # --- Configuration metadata ---
         "profile": profile.name,
         "privacy_modes": privacy_modes,
     }
     if timing:
-        summary["timing_stats"] = timing
+        summary["timing_stats"] = timing     # detail-derived
     if bursts:
-        summary["burst_periods"] = bursts
+        summary["burst_periods"] = bursts    # detail-derived
     return summary
 
 

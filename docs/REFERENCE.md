@@ -54,7 +54,19 @@ pip install -e .[dev,encrypt]
 
 ---
 
-## The Three Commands
+## Command Overview
+
+`pcap2llm` now has three layers of CLI surface:
+
+- core commands for one-shot use: `init-config`, `inspect`, `analyze`
+- discovery helpers for orchestrators: `discover`, `recommend-profiles`
+- session helpers for multi-run workflows: `session start`, `session run-discovery`, `session run-profile`, `session finalize`
+
+For staged automation guidance, see [`docs/DISCOVERY.md`](DISCOVERY.md),
+[`docs/PROFILE_SELECTION.md`](PROFILE_SELECTION.md), and
+[`docs/SESSIONS.md`](SESSIONS.md).
+
+## Core Commands
 
 ### `init-config` — Create a configuration file
 
@@ -151,6 +163,98 @@ TShark:
   --tshark-path           Path to tshark executable
   --tshark-arg            Extra tshark argument (repeatable)
 ```
+
+### `discover` — Broad scout run for orchestrators
+
+```bash
+pcap2llm discover sample.pcapng --out ./discovery
+```
+
+Runs a low-cost broad inspection profile and writes:
+
+- `discovery.json` for machine-readable orchestration
+- `discovery.md` for a short human summary
+
+Use this when the interface is still unclear and you want deterministic input
+for a follow-up profile choice.
+
+**Options:**
+```
+--out                   Output directory for discovery artifacts
+-Y / --display-filter   Optional TShark display filter
+--dry-run               Show planned TShark command only
+--two-pass              Override two-pass mode for discovery
+--tshark-path           Path to tshark executable
+--tshark-arg            Extra tshark argument (repeatable)
+```
+
+### `recommend-profiles` — Deterministic profile recommendation
+
+```bash
+pcap2llm recommend-profiles ./discovery/discovery.json
+pcap2llm recommend-profiles sample.pcapng
+```
+
+Returns machine-readable candidate profiles, suppressed profiles, and suspected
+domains. The logic is rule-based and explainable; it does not run an embedded
+LLM.
+
+If the input is a discovery JSON file, the existing recommendation block is
+returned directly. If the input is a capture, `pcap2llm` runs an internal
+discovery pass first.
+
+**Options:**
+```
+-Y / --display-filter   Optional TShark display filter when source is a capture
+--tshark-path           Path to tshark executable
+--tshark-arg            Extra tshark argument (repeatable)
+```
+
+## Session Commands
+
+### `session start` — Initialize a structured session directory
+
+```bash
+pcap2llm session start sample.pcapng --out ./artifacts
+```
+
+Creates a timestamped session directory with `session_manifest.json` and stores
+capture metadata such as the input path and SHA-256 hash.
+
+### `session run-discovery` — Register a discovery run inside a session
+
+```bash
+pcap2llm session run-discovery --session ./artifacts/20260410_173000_session
+```
+
+Creates a `00_discovery`-style run directory, writes `discovery.json` and
+`discovery.md`, and appends the run state to `session_manifest.json`.
+
+### `session run-profile` — Run one profile as part of a session
+
+```bash
+pcap2llm session run-profile \
+  --session ./artifacts/20260410_173000_session \
+  --profile lte-s11 \
+  --triggered-by 00_discovery \
+  --reason "gtpv2 detected"
+```
+
+Useful orchestration fields:
+
+- `--triggered-by` links the run to a previous run id
+- `--reason` records explicit reasons for the follow-up
+- `--tag` and `--notes` let an external orchestrator keep lightweight context
+- `--verbatim-protocol` and `--no-verbatim-protocol` work here as one-run overrides too
+
+### `session finalize` — Close the session and write a report
+
+```bash
+pcap2llm session finalize --session ./artifacts/20260410_173000_session
+```
+
+Marks the manifest with the chosen final status and writes
+`session_report.md`.
 
 ---
 

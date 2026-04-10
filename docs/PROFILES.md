@@ -156,6 +156,20 @@ tshark:
   two_pass: false      # true = two-pass dissection (better reassembly for HTTP/fragmented IP)
   extra_args: []       # e.g. ["-d", "tcp.port==8805,pfcp"]
 
+# Optional: machine-readable hints for deterministic profile recommendation
+selector_metadata:
+  family: lte
+  domain: eps
+  interface: s11
+  triggers:
+    protocols: [gtpv2, udp]
+  strong_indicators: [gtpv2]
+  weak_indicators: [dns]
+  use_when: [session management, bearer control]
+  avoid_when: [pure sip, pure ss7]
+  cost_hint: medium
+  output_focus: control_plane
+
 # Informational hints included in the summary (free text)
 summary_heuristics:
   - Flag retransmissions and transport analysis warnings.
@@ -233,6 +247,39 @@ Important:
 - This does not create fields that TShark did not dissect.
 - This does not replace `--two-pass`, which affects reassembly and dissection quality.
 - This does not replace decoder overrides such as `--tshark-arg "-d" --tshark-arg "tcp.port==8443,http2"`.
+
+### Selector Metadata
+
+`selector_metadata` is optional, but recommended for profiles that should be
+easy to discover from `pcap2llm recommend-profiles`.
+
+Use it to describe when the profile is a good fit in a deterministic,
+machine-readable way:
+
+```yaml
+selector_metadata:
+  family: 5g
+  domain: 5g-sa-core
+  interface: n11
+  triggers:
+    protocols: [http2, json]
+  strong_indicators: [pfcp]
+  weak_indicators: [dns]
+  use_when:
+    - session management
+    - smf troubleshooting
+  avoid_when:
+    - pure ngap
+    - pure sip
+  cost_hint: medium
+  output_focus: control_plane
+```
+
+Current behavior:
+
+- if `selector_metadata` is present, recommendation uses it directly
+- if it is missing, `pcap2llm` falls back to deterministic inference from the profile name, relevant protocols, and top-priority protocols
+- recommendation remains rule-based and explainable; there is no hidden AI scoring
 
 ### Two-Pass Mode
 

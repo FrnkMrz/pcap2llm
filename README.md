@@ -79,6 +79,33 @@ Detailed profile reference:
 - Voice / IMS: [`docs/PROFILES_VOICE.md`](docs/PROFILES_VOICE.md)
 - 2G/3G Core / GERAN: [`docs/PROFILES_2G3G.md`](docs/PROFILES_2G3G.md)
 
+## Agent-Ready Orchestration
+
+`pcap2llm` can now act as a deterministic building block for external agents or
+automation layers without hiding decisions inside the tool itself.
+
+Typical staged flow:
+
+```bash
+# 1. Broad scout run
+pcap2llm discover trace.pcapng --out ./session/discovery
+
+# 2. Deterministic profile recommendation
+pcap2llm recommend-profiles ./session/discovery/discovery.json
+
+# 3. Structured multi-run session
+pcap2llm session start trace.pcapng --out ./artifacts
+pcap2llm session run-discovery --session ./artifacts/20260410_173000_session
+pcap2llm session run-profile --session ./artifacts/20260410_173000_session --profile lte-s11
+pcap2llm session finalize --session ./artifacts/20260410_173000_session
+```
+
+More detail:
+
+- [`docs/DISCOVERY.md`](docs/DISCOVERY.md) for scout runs and discovery artifacts
+- [`docs/PROFILE_SELECTION.md`](docs/PROFILE_SELECTION.md) for recommendation logic and `selector_metadata`
+- [`docs/SESSIONS.md`](docs/SESSIONS.md) for session manifests and multi-run orchestration
+
 ## Important Limits
 
 By default `detail.json` contains the first **1,000 packets**. Use
@@ -158,6 +185,9 @@ traffic.
 | [`docs/ANLEITUNG_DE.md`](docs/ANLEITUNG_DE.md) | German guide |
 | [`docs/WORKFLOWS.md`](docs/WORKFLOWS.md) | Step-by-step workflows |
 | [`docs/LLM_MODE.md`](docs/LLM_MODE.md) | Machine-readable JSON mode for automation |
+| [`docs/DISCOVERY.md`](docs/DISCOVERY.md) | Discovery mode and scout artifacts |
+| [`docs/PROFILE_SELECTION.md`](docs/PROFILE_SELECTION.md) | Deterministic profile recommendation and selector metadata |
+| [`docs/SESSIONS.md`](docs/SESSIONS.md) | Multi-run session orchestration and manifests |
 | [`docs/schema/`](docs/schema/) | JSON schema reference |
 
 ## Development

@@ -107,6 +107,20 @@ class PackageMetadataExpectation(BaseModel):
     author_hint: str
 
 
+class SelectorMetadata(BaseModel):
+    family: str
+    domain: str
+    interface: str | None = None
+    function: str | None = None
+    triggers: dict[str, list[str]] = Field(default_factory=dict)
+    strong_indicators: list[str] = Field(default_factory=list)
+    weak_indicators: list[str] = Field(default_factory=list)
+    use_when: list[str] = Field(default_factory=list)
+    avoid_when: list[str] = Field(default_factory=list)
+    cost_hint: str | None = None
+    output_focus: str | None = None
+
+
 class ProfileDefinition(BaseModel):
     name: str
     description: str
@@ -141,6 +155,7 @@ class ProfileDefinition(BaseModel):
             "and use --privacy-profile / privacy_profile in the config file."
         ),
     )
+    selector_metadata: SelectorMetadata | None = None
     tshark: dict[str, Any] = Field(default_factory=dict)
     summary_heuristics: list[str] = Field(default_factory=list)
     max_conversations: int = Field(

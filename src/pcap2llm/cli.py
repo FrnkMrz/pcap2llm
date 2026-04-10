@@ -5,6 +5,7 @@ import logging
 import sys
 from collections.abc import Callable
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
 from typing import Generator
@@ -13,13 +14,24 @@ import typer
 
 from pcap2llm.cli_result import build_dry_run_payload, build_error_payload, build_success_payload, build_warning
 from pcap2llm.config import build_privacy_modes, load_config_file, normalize_mode, sample_config_text
+from pcap2llm.discovery import discover_capture, write_discovery_artifacts
 from pcap2llm.error_codes import map_error
 from pcap2llm.inspector import inspect_capture
 from pcap2llm.pipeline import analyze_capture, describe_output_paths, write_artifacts
 from pcap2llm.profiles import load_profile
+from pcap2llm.sessions import (
+    append_run,
+    build_session_report,
+    load_session_manifest,
+    next_run_id,
+    session_manifest_path,
+    start_session,
+    write_session_manifest,
+)
 from pcap2llm.tshark_runner import TSharkError, TSharkRunner
 
 app = typer.Typer(help="Convert PCAP/PCAPNG captures into LLM-friendly artifacts.")
+session_app = typer.Typer(help="Structured multi-run session helpers for external orchestrators.")
 logger = logging.getLogger("pcap2llm")
 
 # ---------------------------------------------------------------------------
@@ -229,6 +241,17 @@ def _merge_verbatim_protocols(
     }
 
 
+def _capture_sha256(capture: Path) -> str | None:
+    try:
+        return sha256(capture.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
 @app.command("init-config")
 def init_config(
     path: Path = typer.Argument(Path("pcap2llm.config.yaml")),
@@ -287,6 +310,104 @@ def inspect_command(
         typer.echo(f"Wrote inspect output to {out}")
         return
     typer.echo(payload)
+
+
+@app.command("discover")
+def discover_command(
+    capture: Path = typer.Argument(..., exists=True, readable=True, help="Input .pcap or .pcapng file."),
+    out_dir: Path = typer.Option(Path("discovery"), "--out", help="Discovery output directory."),
+    display_filter: str | None = typer.Option(None, "--display-filter", "-Y", help="Optional TShark display filter."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Validate options and print the discovery plan only."),
+    two_pass: bool = typer.Option(False, "--two-pass/--no-two-pass", help="Override TShark two-pass mode for discovery."),
+    tshark_path: str = typer.Option("tshark", "--tshark-path", help="TShark executable path."),
+    tshark_arg: list[str] = typer.Option(None, "--tshark-arg", help="Extra argument passed to tshark."),
+) -> None:
+    runner = TSharkRunner(binary=tshark_path)
+    extra_args = list(tshark_arg or [])
+    if dry_run:
+        typer.echo(
+            json.dumps(
+                {
+                    "capture": str(capture),
+                    "mode": "discovery",
+                    "out_dir": str(out_dir),
+                    "display_filter": display_filter,
+                    "two_pass": two_pass,
+                    "command": runner.build_export_command(
+                        capture,
+                        display_filter=display_filter,
+                        extra_args=extra_args,
+                        two_pass=two_pass,
+                    ),
+                },
+                indent=2,
+            )
+        )
+        return
+    with _progress(2) as on_stage:
+        discovery, markdown = discover_capture(
+            capture,
+            runner=runner,
+            display_filter=display_filter,
+            extra_args=extra_args,
+            two_pass=two_pass,
+            on_stage=on_stage,
+        )
+    outputs = write_discovery_artifacts(out_dir, discovery, markdown)
+    typer.echo(
+        json.dumps(
+            {
+                "status": "ok",
+                "mode": "discovery",
+                "discovery_json": str(outputs["discovery_json"]),
+                "discovery_md": str(outputs["discovery_md"]),
+            },
+            indent=2,
+        )
+    )
+
+
+@app.command("recommend-profiles")
+def recommend_profiles_command(
+    source: Path = typer.Argument(..., exists=True, readable=True, help="Discovery JSON file or input capture."),
+    display_filter: str | None = typer.Option(None, "--display-filter", "-Y", help="Optional TShark display filter when source is a capture."),
+    tshark_path: str = typer.Option("tshark", "--tshark-path", help="TShark executable path."),
+    tshark_arg: list[str] = typer.Option(None, "--tshark-arg", help="Extra argument passed to tshark."),
+) -> None:
+    if source.suffix == ".json":
+        payload = json.loads(source.read_text(encoding="utf-8"))
+        typer.echo(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "recommended_profiles": payload.get("candidate_profiles", []),
+                    "suppressed_profiles": payload.get("suppressed_profiles", []),
+                    "suspected_domains": payload.get("suspected_domains", []),
+                },
+                indent=2,
+            )
+        )
+        return
+
+    runner = TSharkRunner(binary=tshark_path)
+    discovery, _ = discover_capture(
+        source,
+        runner=runner,
+        display_filter=display_filter,
+        extra_args=list(tshark_arg or []),
+        two_pass=False,
+    )
+    typer.echo(
+        json.dumps(
+            {
+                "status": "ok",
+                "recommended_profiles": discovery["candidate_profiles"],
+                "suppressed_profiles": discovery["suppressed_profiles"],
+                "suspected_domains": discovery["suspected_domains"],
+            },
+            indent=2,
+        )
+    )
 
 
 @app.command("analyze")
@@ -599,3 +720,208 @@ def analyze_command(
         effective_profile_overrides=effective_profile_overrides,
     )
     typer.echo(json.dumps(payload, indent=2))
+
+
+@session_app.command("start")
+def session_start_command(
+    capture: Path = typer.Argument(..., exists=True, readable=True, help="Input .pcap or .pcapng file."),
+    out_dir: Path = typer.Option(Path("artifacts"), "--out", help="Parent directory for the session."),
+) -> None:
+    session_dir, manifest = start_session(out_dir, capture, _capture_sha256(capture))
+    typer.echo(
+        json.dumps(
+            {
+                "status": "ok",
+                "session": str(session_dir),
+                "manifest": str(session_manifest_path(session_dir)),
+                "session_id": manifest["session_id"],
+            },
+            indent=2,
+        )
+    )
+
+
+@session_app.command("run-discovery")
+def session_run_discovery_command(
+    session: Path = typer.Option(..., "--session", exists=True, file_okay=False, dir_okay=True, readable=True, help="Existing session directory."),
+    display_filter: str | None = typer.Option(None, "--display-filter", "-Y", help="Optional TShark display filter."),
+    tshark_path: str = typer.Option("tshark", "--tshark-path", help="TShark executable path."),
+    tshark_arg: list[str] = typer.Option(None, "--tshark-arg", help="Extra argument passed to tshark."),
+) -> None:
+    manifest = load_session_manifest(session)
+    capture = Path(manifest["input_capture"]["path"])
+    run_id = next_run_id(manifest, "discovery")
+    run_dir = session / run_id
+    runner = TSharkRunner(binary=tshark_path)
+    run = {
+        "run_id": run_id,
+        "mode": "discovery",
+        "status": "in_progress",
+        "started_at": _now_iso(),
+        "warnings": [],
+        "error": None,
+    }
+    try:
+        discovery, markdown = discover_capture(
+            capture,
+            runner=runner,
+            display_filter=display_filter,
+            extra_args=list(tshark_arg or []),
+            two_pass=False,
+        )
+        outputs = write_discovery_artifacts(run_dir, discovery, markdown)
+        run.update(
+            {
+                "status": "completed",
+                "finished_at": _now_iso(),
+                "outputs": {k: str(v) for k, v in outputs.items()},
+            }
+        )
+    except Exception as exc:  # noqa: BLE001
+        run.update(
+            {
+                "status": "failed",
+                "finished_at": _now_iso(),
+                "error": str(exc),
+            }
+        )
+        append_run(session, run)
+        raise
+    append_run(session, run)
+    typer.echo(json.dumps(run, indent=2))
+
+
+@session_app.command("run-profile")
+def session_run_profile_command(
+    session: Path = typer.Option(..., "--session", exists=True, file_okay=False, dir_okay=True, readable=True, help="Existing session directory."),
+    profile_name: str = typer.Option(..., "--profile", help="Profile to run inside the session."),
+    triggered_by: str | None = typer.Option(None, "--triggered-by", help="Optional parent run id."),
+    reason: list[str] = typer.Option(None, "--reason", help="Reason(s) for this run; repeat the flag for multiple reasons."),
+    tag: str | None = typer.Option(None, "--tag", help="Optional short tag for the run."),
+    notes: str | None = typer.Option(None, "--notes", help="Optional free-text notes."),
+    display_filter: str | None = typer.Option(None, "--display-filter", "-Y", help="Optional TShark display filter."),
+    two_pass: bool | None = typer.Option(None, "--two-pass/--no-two-pass", help="Override tshark two-pass mode."),
+    verbatim_protocol: list[str] = typer.Option(None, "--verbatim-protocol", help="Temporarily add a protocol to verbatim for this run."),
+    no_verbatim_protocol: list[str] = typer.Option(None, "--no-verbatim-protocol", help="Temporarily remove a protocol from verbatim for this run."),
+    tshark_path: str = typer.Option("tshark", "--tshark-path", help="TShark executable path."),
+    tshark_arg: list[str] = typer.Option(None, "--tshark-arg", help="Extra argument passed to tshark."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show the planned session run without executing it."),
+) -> None:
+    manifest = load_session_manifest(session)
+    capture = Path(manifest["input_capture"]["path"])
+    profile = load_profile(profile_name)
+    effective_verbatim_protocols, verbatim_overlay = _merge_verbatim_protocols(
+        profile.verbatim_protocols,
+        verbatim_protocol,
+        no_verbatim_protocol,
+    )
+    effective_profile = profile.model_copy(update={"verbatim_protocols": effective_verbatim_protocols})
+    run_id = next_run_id(manifest, profile.name)
+    run_dir = session / run_id
+    runner = TSharkRunner(binary=tshark_path)
+    effective_two_pass = profile.tshark.get("two_pass", False) if two_pass is None else two_pass
+    overrides = {
+        "two_pass": effective_two_pass,
+        "verbatim_protocols_added": verbatim_overlay["added"],
+        "verbatim_protocols_removed": verbatim_overlay["removed"],
+        "effective_verbatim_protocols": effective_verbatim_protocols,
+    }
+    if dry_run:
+        typer.echo(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "dry_run": True,
+                    "session": str(session),
+                    "run_id": run_id,
+                    "profile": profile.name,
+                    "triggered_by": triggered_by,
+                    "reason": list(reason or []),
+                    "tag": tag,
+                    "notes": notes,
+                    "overrides": overrides,
+                    "command": runner.build_export_command(
+                        capture,
+                        display_filter=display_filter,
+                        extra_args=list(tshark_arg or []),
+                        two_pass=effective_two_pass,
+                    ),
+                },
+                indent=2,
+            )
+        )
+        return
+
+    run = {
+        "run_id": run_id,
+        "mode": "profile_analysis",
+        "profile": profile.name,
+        "status": "in_progress",
+        "started_at": _now_iso(),
+        "triggered_by": triggered_by,
+        "reason": list(reason or []),
+        "tag": tag,
+        "notes": notes,
+        "overrides": overrides,
+        "warnings": [],
+        "error": None,
+    }
+    try:
+        artifacts = analyze_capture(
+            capture,
+            out_dir=run_dir,
+            runner=runner,
+            profile=effective_profile,
+            privacy_modes={},
+            display_filter=display_filter,
+            extra_args=list(tshark_arg or []),
+            two_pass=effective_two_pass,
+        )
+        outputs = write_artifacts(artifacts, run_dir)
+        run.update(
+            {
+                "status": "completed",
+                "finished_at": _now_iso(),
+                "outputs": {k: str(v) for k, v in outputs.items()},
+            }
+        )
+    except Exception as exc:  # noqa: BLE001
+        run.update(
+            {
+                "status": "failed",
+                "finished_at": _now_iso(),
+                "error": str(exc),
+            }
+        )
+        append_run(session, run)
+        raise
+    append_run(session, run)
+    typer.echo(json.dumps(run, indent=2))
+
+
+@session_app.command("finalize")
+def session_finalize_command(
+    session: Path = typer.Option(..., "--session", exists=True, file_okay=False, dir_okay=True, readable=True, help="Existing session directory."),
+    status: str = typer.Option("completed", "--status", help="Final session status, usually completed or failed."),
+) -> None:
+    manifest = load_session_manifest(session)
+    manifest["status"] = status
+    manifest["finished_at"] = _now_iso()
+    write_session_manifest(session, manifest)
+    report_path = session / "session_report.md"
+    report_path.write_text(build_session_report(manifest), encoding="utf-8")
+    typer.echo(
+        json.dumps(
+            {
+                "status": "ok",
+                "session": str(session),
+                "manifest": str(session_manifest_path(session)),
+                "report": str(report_path),
+                "final_status": status,
+            },
+            indent=2,
+        )
+    )
+
+
+app.add_typer(session_app, name="session")

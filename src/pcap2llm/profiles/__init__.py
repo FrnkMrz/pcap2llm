@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import warnings
 from importlib.resources import files
+from typing import Iterable
 
 import yaml
 
@@ -31,3 +32,22 @@ def load_profile(profile_name: str) -> ProfileDefinition:
             stacklevel=2,
         )
     return ProfileDefinition.model_validate(data)
+
+
+def list_profile_names() -> list[str]:
+    package = files("pcap2llm.profiles")
+    names: list[str] = []
+    for resource in package.iterdir():
+        if resource.name.startswith("_"):
+            continue
+        if not resource.name.endswith(".yaml"):
+            continue
+        if resource.name == "__init__.py":
+            continue
+        names.append(resource.name[: -len(".yaml")])
+    return sorted(names)
+
+
+def load_all_profiles(names: Iterable[str] | None = None) -> list[ProfileDefinition]:
+    selected = list(names) if names is not None else list_profile_names()
+    return [load_profile(name) for name in selected]

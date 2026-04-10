@@ -180,6 +180,55 @@ def _resolve_privacy_base(
     return {}
 
 
+def _normalize_protocol_name(name: str) -> str:
+    normalized = name.strip().lower()
+    if not normalized:
+        raise typer.BadParameter("Protocol name must not be empty.")
+    return normalized
+
+
+def _merge_verbatim_protocols(
+    base: list[str],
+    additions: list[str] | None,
+    removals: list[str] | None,
+) -> tuple[list[str], dict[str, list[str]]]:
+    base_norm: list[str] = []
+    seen: set[str] = set()
+    for item in base:
+        normalized = _normalize_protocol_name(item)
+        if normalized not in seen:
+            base_norm.append(normalized)
+            seen.add(normalized)
+
+    added_norm: list[str] = []
+    seen_added: set[str] = set()
+    for item in additions or []:
+        normalized = _normalize_protocol_name(item)
+        if normalized not in seen_added:
+            added_norm.append(normalized)
+            seen_added.add(normalized)
+
+    removed_norm: list[str] = []
+    seen_removed: set[str] = set()
+    for item in removals or []:
+        normalized = _normalize_protocol_name(item)
+        if normalized not in seen_removed:
+            removed_norm.append(normalized)
+            seen_removed.add(normalized)
+
+    effective = list(base_norm)
+    for item in added_norm:
+        if item not in effective:
+            effective.append(item)
+    effective = [item for item in effective if item not in seen_removed]
+
+    return effective, {
+        "profile_default": base_norm,
+        "added": added_norm,
+        "removed": removed_norm,
+    }
+
+
 @app.command("init-config")
 def init_config(
     path: Path = typer.Argument(Path("pcap2llm.config.yaml")),
@@ -256,6 +305,22 @@ def analyze_command(
     out_dir: Path = typer.Option(Path("artifacts"), "--out", help="Artifact output directory."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Validate options and print the plan only."),
     two_pass: bool | None = typer.Option(None, "--two-pass/--no-two-pass", help="Override tshark two-pass mode."),
+    verbatim_protocol: list[str] = typer.Option(
+        None,
+        "--verbatim-protocol",
+        help=(
+            "Temporarily add a protocol to verbatim_protocols for this run only. "
+            "Does not replace missing TShark dissection and does not change the profile file."
+        ),
+    ),
+    no_verbatim_protocol: list[str] = typer.Option(
+        None,
+        "--no-verbatim-protocol",
+        help=(
+            "Temporarily remove a protocol from the profile's verbatim_protocols for this run only. "
+            "If the same protocol is also passed via --verbatim-protocol, removal wins."
+        ),
+    ),
     tshark_path: str = typer.Option("tshark", "--tshark-path", help="TShark executable path."),
     tshark_arg: list[str] = typer.Option(None, "--tshark-arg", help="Extra argument passed to tshark."),
     max_packets: int = typer.Option(
@@ -315,9 +380,28 @@ def analyze_command(
 ) -> None:
     config_data = load_config_file(config_path)
     profile = load_profile(profile_name)
+    effective_verbatim_protocols, verbatim_overlay = _merge_verbatim_protocols(
+        profile.verbatim_protocols,
+        verbatim_protocol,
+        no_verbatim_protocol,
+    )
+    effective_profile = profile.model_copy(update={"verbatim_protocols": effective_verbatim_protocols})
     runner = TSharkRunner(binary=tshark_path)
     extra_args = list(config_data.get("tshark_extra_args", [])) + list(tshark_arg or [])
     effective_two_pass = profile.tshark.get("two_pass", False) if two_pass is None else two_pass
+    effective_profile_overrides = {
+        "verbatim_protocols": {
+            **verbatim_overlay,
+            "effective": effective_verbatim_protocols,
+        }
+    }
+    if verbatim_overlay["added"] or verbatim_overlay["removed"]:
+        typer.echo(
+            "verbatim override active: "
+            f"added={verbatim_overlay['added']}, removed={verbatim_overlay['removed']}, "
+            f"effective={effective_verbatim_protocols}",
+            err=True,
+        )
     overrides = _privacy_overrides(
         ip_mode,
         hostname_mode,
@@ -362,17 +446,22 @@ def analyze_command(
                     two_pass=effective_two_pass,
                 ),
                 llm_mode=llm_mode,
+                effective_verbatim_protocols=effective_verbatim_protocols,
+                effective_profile_overrides=effective_profile_overrides,
             )
         else:
             payload = {
                 "capture": str(capture),
                 "profile": profile.name,
+                "profile_default_verbatim_protocols": profile.verbatim_protocols,
                 "privacy_profile": privacy_profile_name or config_data.get("privacy_profile") or "(none — using defaults)",
                 "display_filter": effective_filter,
                 "max_packets": effective_max_packets if effective_max_packets > 0 else "unlimited",
                 "fail_on_truncation": fail_on_truncation,
                 "max_capture_size_mb": max_capture_size_mb,
                 "privacy_modes": privacy_modes,
+                "effective_verbatim_protocols": effective_verbatim_protocols,
+                "effective_profile_overrides": effective_profile_overrides,
                 "hosts_file": str(effective_hosts) if effective_hosts else None,
                 "mapping_file": str(effective_mapping) if effective_mapping else None,
                 "command": runner.build_export_command(
@@ -392,7 +481,7 @@ def analyze_command(
                 capture,
                 out_dir=out_dir,
                 runner=runner,
-                profile=profile,
+                profile=effective_profile,
                 privacy_modes=privacy_modes,
                 display_filter=effective_filter,
                 hosts_file=effective_hosts,
@@ -506,5 +595,7 @@ def analyze_command(
             "summary": artifacts.summary.get("schema_version"),
             "detail": artifacts.detail.get("schema_version"),
         },
+        effective_verbatim_protocols=effective_verbatim_protocols,
+        effective_profile_overrides=effective_profile_overrides,
     )
     typer.echo(json.dumps(payload, indent=2))

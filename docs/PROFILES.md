@@ -202,6 +202,38 @@ Use this when:
 - TShark uses nested dicts that `_flatten` would modify
 - You are building a custom downstream analysis on the raw output
 
+### Runtime CLI Override
+
+You can adjust `verbatim_protocols` for a single run without editing the
+profile YAML:
+
+```bash
+# Add one protocol to verbatim for this run
+pcap2llm analyze trace.pcap --profile lte-s11 --verbatim-protocol gtpv2
+
+# Temporarily disable a profile default
+pcap2llm analyze trace.pcap --profile lte-s6a --no-verbatim-protocol diameter
+
+# Combine add/remove overlays; removal wins if both mention the same protocol
+pcap2llm analyze trace.pcap --profile lte-s6a \
+  --verbatim-protocol gtpv2 \
+  --no-verbatim-protocol diameter
+```
+
+Effective behavior:
+
+1. Load `verbatim_protocols` from the profile
+2. Add every `--verbatim-protocol`
+3. Remove every `--no-verbatim-protocol`
+4. Use the resulting set only for that run
+
+Important:
+
+- This does not mutate the profile YAML.
+- This does not create fields that TShark did not dissect.
+- This does not replace `--two-pass`, which affects reassembly and dissection quality.
+- This does not replace decoder overrides such as `--tshark-arg "-d" --tshark-arg "tcp.port==8443,http2"`.
+
 ### Two-Pass Mode
 
 Enable for captures with IP fragmentation or TCP reassembly:

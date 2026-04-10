@@ -363,6 +363,34 @@ def test_llm_mode_dry_run_includes_profile_limits_and_command(tmp_path: Path) ->
     assert isinstance(payload["command"], list)
 
 
+def test_llm_mode_dry_run_includes_effective_verbatim_configuration(tmp_path: Path) -> None:
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+
+    result = runner.invoke(
+        app,
+        [
+            "analyze",
+            str(capture),
+            "--llm-mode",
+            "--dry-run",
+            "--profile",
+            "lte-s6a",
+            "--verbatim-protocol",
+            "gtpv2",
+            "--no-verbatim-protocol",
+            "diameter",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["effective_verbatim_protocols"] == ["gtpv2"]
+    assert payload["effective_profile_overrides"]["verbatim_protocols"]["profile_default"] == ["diameter"]
+    assert payload["effective_profile_overrides"]["verbatim_protocols"]["added"] == ["gtpv2"]
+    assert payload["effective_profile_overrides"]["verbatim_protocols"]["removed"] == ["diameter"]
+
+
 def test_llm_mode_dry_run_includes_privacy_profile_when_set(tmp_path: Path) -> None:
     """--llm-mode --dry-run must echo back the --privacy-profile argument."""
     capture = tmp_path / "sample.pcapng"
@@ -420,6 +448,42 @@ def test_llm_mode_success_coverage_block_has_required_keys(tmp_path: Path) -> No
     assert "detail_truncated" in cov
     assert cov["detail_truncated"] is False
     assert cov["detail_packets_included"] == 10
+
+
+def test_llm_mode_success_includes_effective_verbatim_configuration(tmp_path: Path) -> None:
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+    out_dir = tmp_path / "artifacts"
+    outputs = {
+        "summary": out_dir / "20240406_075320_summary_V_01.json",
+        "detail": out_dir / "20240406_075320_detail_V_01.json",
+        "markdown": out_dir / "20240406_075320_summary_V_01.md",
+    }
+
+    with (
+        patch("pcap2llm.cli.analyze_capture", return_value=_artifacts(out_dir)),
+        patch("pcap2llm.cli.write_artifacts", return_value=outputs),
+    ):
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                str(capture),
+                "--llm-mode",
+                "--profile",
+                "lte-s6a",
+                "--no-verbatim-protocol",
+                "diameter",
+                "--out",
+                str(out_dir),
+            ],
+        )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["effective_verbatim_protocols"] == []
+    assert payload["effective_profile_overrides"]["verbatim_protocols"]["profile_default"] == ["diameter"]
+    assert payload["effective_profile_overrides"]["verbatim_protocols"]["removed"] == ["diameter"]
 
 
 def test_llm_mode_oversize_guard_disabled_reports_warning(tmp_path: Path) -> None:

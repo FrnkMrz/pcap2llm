@@ -213,6 +213,23 @@ Top-level protocol fields are retained, repeated nested protocol fields can be s
 
 For protocols such as Diameter, raw decoder-dump structures like `diameter.avp`, `diameter.avp_tree`, and related `*_tree` blocks can be suppressed with `keep_raw_avps: false` to reduce LLM noise.
 
+Runtime override for one run:
+
+```bash
+pcap2llm analyze trace.pcap --profile lte-s11 --verbatim-protocol gtpv2
+pcap2llm analyze trace.pcap --profile lte-s6a --no-verbatim-protocol diameter
+```
+
+Semantics:
+
+- start with the profile default
+- add `--verbatim-protocol`
+- remove `--no-verbatim-protocol`
+- if both mention the same protocol, removal wins
+
+`--verbatim-protocol` changes how already-dissected fields are preserved. It is
+not a substitute for `--two-pass` or for decoder overrides via `--tshark-arg`.
+
 For custom profile creation: [`docs/PROFILES.md`](PROFILES.md)
 
 ---

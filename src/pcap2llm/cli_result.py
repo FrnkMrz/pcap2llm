@@ -24,6 +24,8 @@ def build_dry_run_payload(
     mapping_file: Path | None,
     command: list[str],
     llm_mode: bool,
+    effective_verbatim_protocols: list[str],
+    effective_profile_overrides: dict[str, Any],
 ) -> dict[str, Any]:
     return {
         "status": "ok",
@@ -41,6 +43,8 @@ def build_dry_run_payload(
             "oversize_factor": oversize_factor,
         },
         "privacy_modes": privacy_modes,
+        "effective_verbatim_protocols": effective_verbatim_protocols,
+        "effective_profile_overrides": effective_profile_overrides,
         "files_would_be_written": True,
         "hosts_file": str(hosts_file) if hosts_file else None,
         "mapping_file": str(mapping_file) if mapping_file else None,
@@ -60,6 +64,8 @@ def build_success_payload(
     limits: dict[str, Any],
     warnings: list[dict[str, str]],
     schema_versions: dict[str, str],
+    effective_verbatim_protocols: list[str],
+    effective_profile_overrides: dict[str, Any],
 ) -> dict[str, Any]:
     return {
         "status": "ok",
@@ -82,6 +88,8 @@ def build_success_payload(
         "coverage": coverage,
         "warnings": warnings,
         "limits": limits,
+        "effective_verbatim_protocols": effective_verbatim_protocols,
+        "effective_profile_overrides": effective_profile_overrides,
         "schema_versions": schema_versions,
     }
 

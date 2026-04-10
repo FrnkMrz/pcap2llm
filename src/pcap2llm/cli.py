@@ -43,6 +43,7 @@ def _progress(total_steps: int) -> Generator[Callable[[str, int, int], None], No
         return
 
     from rich.console import Console
+    from rich.logging import RichHandler
     from rich.progress import (
         BarColumn,
         MofNCompleteColumn,
@@ -53,23 +54,46 @@ def _progress(total_steps: int) -> Generator[Callable[[str, int, int], None], No
     )
 
     console = Console(stderr=True)
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[bold cyan]{task.description:<45}"),
-        BarColumn(bar_width=20),
-        MofNCompleteColumn(),
-        TimeElapsedColumn(),
-        console=console,
-        transient=False,
-    ) as progress:
-        task_id = progress.add_task("Starting…", total=total_steps, completed=0)
 
-        def _on_stage(description: str, step: int, total: int) -> None:
-            progress.update(task_id, description=description, completed=step)
+    # Route all log records through the same rich Console so WARNING messages
+    # are printed cleanly above the progress bar instead of tearing through it.
+    # Temporarily remove existing StreamHandlers that write to stderr so they
+    # don't produce a duplicate plain-text line alongside the rich-formatted one.
+    rich_handler = RichHandler(console=console, show_path=False, markup=False)
+    rich_handler.setLevel(logging.WARNING)
+    root_logger = logging.getLogger()
+    displaced: list[logging.Handler] = [
+        h for h in root_logger.handlers
+        if isinstance(h, logging.StreamHandler)
+        and not isinstance(h, RichHandler)
+        and getattr(h, "stream", None) is sys.stderr
+    ]
+    for h in displaced:
+        root_logger.removeHandler(h)
+    root_logger.addHandler(rich_handler)
 
-        yield _on_stage
-        # Mark as fully complete when the caller's block exits normally.
-        progress.update(task_id, description="[green]Done ✓", completed=total_steps)
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[bold cyan]{task.description:<45}"),
+            BarColumn(bar_width=20),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=console,
+            transient=False,
+        ) as progress:
+            task_id = progress.add_task("Starting…", total=total_steps, completed=0)
+
+            def _on_stage(description: str, step: int, total: int) -> None:
+                progress.update(task_id, description=description, completed=step)
+
+            yield _on_stage
+            # Mark as fully complete when the caller's block exits normally.
+            progress.update(task_id, description="[green]Done ✓", completed=total_steps)
+    finally:
+        root_logger.removeHandler(rich_handler)
+        for h in displaced:
+            root_logger.addHandler(h)
 
 
 def _configure_logging(verbose: bool, debug: bool) -> None:

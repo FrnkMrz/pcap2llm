@@ -6,6 +6,27 @@ The format is intentionally simple and optimized for humans reading repo history
 
 ## Unreleased
 
+### Added — 2026-04-10 (orchestration + local hosts)
+
+- **Orchestration layer** — three new CLI commands for staged, agent-driven workflows:
+  - `pcap2llm discover` — broad scout pass that builds a combined profile from all installed profiles, runs an inspect pass, and writes `discovery.json` + `discovery.md` with protocol summary, domain detection, and ranked profile recommendations.
+  - `pcap2llm recommend-profiles` — standalone recommender; accepts a discovery JSON or a raw capture; returns ranked profile suggestions with confidence score and rationale.
+  - `pcap2llm session` — multi-run session manager for external orchestrators: `start`, `run-discovery`, `run-profile`, `finalize` subcommands; writes a `session_manifest.json` and a final Markdown report.
+  - New `SelectorMetadata` model (family / domain / interface / trigger / confidence metadata) for profile recommendation.
+  - New helpers `list_profile_names()` and `load_all_profiles()` in `profiles/__init__.py`.
+  - New docs: `docs/DISCOVERY.md`, `docs/PROFILE_SELECTION.md`, `docs/SESSIONS.md`.
+  - New tests: `tests/test_orchestration.py`.
+
+- **Local-only hosts file** — automatic discovery of `.local/hosts` without requiring a CLI argument:
+  - The tool checks `.local/hosts` on every `analyze` run. If the file exists it is loaded automatically (logged at INFO). If absent the run continues without mapping (logged at DEBUG).
+  - Lookup order: `--hosts-file` CLI arg → `hosts_file` in config → `.local/hosts` → none.
+  - `.local/` is a reserved local-only directory, never committed. `.gitignore` ignores all real contents; only `.local/.gitkeep` and `.local/README.md` are tracked.
+  - `scripts/git-hooks/pre-commit` blocks accidental staging of `.local/` files. Install with `bash scripts/install-git-hooks.sh`.
+  - CI `local-files-guard` job fails if disallowed files under `.local/` are tracked, even after a `git add -f`.
+  - `docs/REFERENCE.md`: new "Local-only sensitive files" section; Endpoint Mapping updated with default path.
+  - `docs/ANLEITUNG_DE.md` and `docs/WORKFLOWS.md` updated accordingly.
+  - `tests/test_local_hosts.py`: 7 tests covering all lookup-precedence cases.
+
 ### Added — 2026-04-10
 
 - Focused LTE / EPC interface profile family: `lte-s1`, `lte-s1-nas`, `lte-s6a`, `lte-s11`, `lte-s10`, `lte-sgs`, `lte-s5`, `lte-s8`, `lte-dns`, `lte-sbc-cbc`.

@@ -211,15 +211,27 @@ Zwei Mechanismen, die kombiniert werden koennen:
 
 ### A. Wireshark-Hosts-Datei
 
+Einfachste Variante: Datei im lokalen Standard-Pfad ablegen — das Tool laedt sie automatisch:
+
+```text
+.local/hosts
+```
+
+Kein CLI-Argument noetig. Format wie gewohnt:
+
 ```text
 10.10.1.11 mme-fra-a
 10.20.8.44 hss-core-1
 ```
 
+Fuer einen einzelnen Lauf kann der Pfad auch explizit angegeben werden:
+
 ```bash
 pcap2llm analyze sample.pcapng --profile lte-core \
   --hosts-file ./examples/wireshark_hosts.sample
 ```
+
+Das `.local/`-Verzeichnis ist lokal reserviert und wird nicht in Git versioniert. Naehere Infos im englischen Reference-Dokument unter "Local-only sensitive files".
 
 ### B. Eigene Mapping-Datei (mit CIDR-Unterstuetzung)
 

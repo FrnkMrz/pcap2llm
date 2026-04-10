@@ -413,6 +413,8 @@ pcap2llm init-config
 ```
 Edit `pcap2llm.config.yaml` to persist profile, mapping, hosts file, and privacy settings.
 
+For the hosts file, the simplest approach is to place it at `.local/hosts` — the tool loads it automatically without any config entry or CLI flag. See `docs/REFERENCE.md` → "Local-only sensitive files".
+
 ---
 
 ## Operator Triage — Start Here

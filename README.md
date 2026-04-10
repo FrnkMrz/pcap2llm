@@ -83,6 +83,24 @@ Choose the profile that matches your capture:
 | `lte-dns` | LTE/EPC/IMS-adjacent DNS troubleshooting |
 | `lte-sbc-cbc` | SBc — MME ↔ CBC for Cell Broadcast / ETWS / CMAS |
 | `5g-core` | 5G Core — PFCP, NGAP, NAS-5GS, HTTP/2 SBI |
+| `5g-n1-n2` | Broad 5G registration/service view across NGAP and NAS-5GS |
+| `5g-n2` | N2-only NGAP signaling between gNB and AMF |
+| `5g-nas-5gs` | NAS-5GS-centric registration, mobility, and SM signaling |
+| `5g-sbi` | Generic HTTP/2 SBI troubleshooting across 5GC network functions |
+| `5g-sbi-auth` | Authorization-heavy SBI capture with token/header focus |
+| `5g-n8` | UDM-facing SBI on N8 |
+| `5g-n10` | UDM ↔ AUSF authentication exchanges on N10 |
+| `5g-n11` | SMF-facing SBI control on N11 |
+| `5g-n12` | AUSF ↔ UDM identity/auth data on N12 |
+| `5g-n13` | UDM ↔ UDR subscriber data access on N13 |
+| `5g-n14` | AMF ↔ AMF mobility and context coordination on N14 |
+| `5g-n15` | PCF-facing SBI policy control on N15 |
+| `5g-n16` | SMF ↔ PCF policy and session influence on N16 |
+| `5g-n22` | 5GC ↔ NSSF / roaming-oriented SBI selection context on N22 |
+| `5g-n26` | Hybrid 4G/5G interworking around EPC handover and mobility context |
+| `5g-n40` | SMF ↔ CHF charging-related SBI exchanges on N40 |
+| `5g-dns` | 5GC-adjacent DNS troubleshooting |
+| `5g-cbc-cbs` | Cell Broadcast Center / CBS signaling in a 5G context |
 | `2g3g-ss7-geran` | Legacy 2G/3G — SS7, MAP, CAP, ISUP, BSSAP, GERAN |
 | `2g3g-gn` | Gn — SGSN ↔ GGSN, intra-PLMN GTPv1 control plane |
 | `2g3g-gp` | Gp — roaming/inter-PLMN GTPv1 control plane |
@@ -199,6 +217,28 @@ everything through one generic EPC view:
 Use `lte-core` when you need a quick mixed-EPC overview. Use the interface
 profiles when you want cleaner protocol prioritization, better heuristics, and
 more focused `detail.json` output.
+
+## 5G SA Core Family
+
+The 5G family now also includes focused SA core interface profiles instead of
+forcing every capture through one mixed `5g-core` lens:
+
+- `5g-n1-n2` for a broad AMF-facing registration and control-plane picture
+- `5g-n2` when NGAP itself is the subject
+- `5g-nas-5gs` when NAS-5GS sequencing and causes matter more than the radio-side wrapper
+- `5g-sbi` for generic HTTP/2 SBI troubleshooting
+- `5g-sbi-auth` for token-, identity-, and authorization-heavy SBI exchanges
+- `5g-n8`, `5g-n10`, `5g-n12`, `5g-n13` for UDM/AUSF/UDR-centered SBI paths
+- `5g-n11`, `5g-n15`, `5g-n16`, `5g-n40` for SMF/PCF/CHF-related control interfaces
+- `5g-n14` for inter-AMF mobility coordination
+- `5g-n22` for NSSF or roaming-oriented SBI selection context
+- `5g-n26` for hybrid EPC/5GC interworking
+- `5g-dns` for 5GC-adjacent name-resolution faults
+- `5g-cbc-cbs` for public-warning / cell-broadcast signaling in a 5G context
+
+Use `5g-core` when you want a quick mixed overview across NGAP, NAS-5GS, PFCP,
+and SBI. Use the focused profiles when you want cleaner protocol ranking,
+better heuristics, and smaller interface-specific artifacts.
 
 ## 2G/3G Core Family
 

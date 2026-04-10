@@ -1,0 +1,62 @@
+name: 5g-n22
+description: >
+  N22 profile for roaming-related inter-PLMN 5GC control-plane exchanges over
+  SBI. Focused on partner-facing context exchange, abnormal HTTP outcomes, and
+  response patterns that are meaningful in roaming scenarios.
+
+# ---------------------------------------------------------------------------
+# N22 / roaming SBI focus
+#
+# Useful display filters:
+#   N22-like SBI:                  http2 || json
+#   Partner-facing failures:       http2.headers.status
+#   Roaming context ops:           http2.headers.path
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - http
+  - json
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - http
+  - json
+  - tcp
+  - ip
+
+protocol_aliases:
+  http: [http2, http]
+  json: [json]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  http:
+    - http2.headers.method
+    - http2.headers.path
+    - http2.headers.authority
+    - http2.headers.status
+    - http2.headers.content_type
+  json:
+    - json.member
+    - json.value.string
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight roaming-context exchanges that fail, retry, or return abnormal partner-facing status codes.
+  - Flag repeated failures against one remote authority as likely inter-PLMN or partner integration issues on N22.
+  - Keep the profile distinct from generic SBI by prioritizing roaming interpretation and partner-facing anomalies.

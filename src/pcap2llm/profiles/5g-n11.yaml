@@ -1,0 +1,62 @@
+name: 5g-n11
+description: >
+  N11 profile for AMF to SMF PDU-session control over SBI. Focused on SM
+  context creation, update, release, and response matching in session-control
+  workflows rather than generic HTTP/2 traffic.
+
+# ---------------------------------------------------------------------------
+# N11 / PDU session control focus
+#
+# Useful display filters:
+#   N11-like SBI:                  http2 || json
+#   PDU session operations:        http2.headers.path
+#   SM context errors:             http2.headers.status
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - http
+  - json
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - http
+  - json
+  - tcp
+  - ip
+
+protocol_aliases:
+  http: [http2, http]
+  json: [json]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  http:
+    - http2.headers.method
+    - http2.headers.path
+    - http2.headers.authority
+    - http2.headers.status
+    - http2.headers.content_type
+  json:
+    - json.member
+    - json.value.string
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight PDU-session create, update, and release exchanges that do not complete between AMF and SMF.
+  - Flag repeated status-code failures and missing responses on SM-context operations as likely session-control faults on N11.
+  - Keep the profile clearly narrower than generic SBI by prioritizing PDU-session control semantics.

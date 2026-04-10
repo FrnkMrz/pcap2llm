@@ -1,0 +1,58 @@
+name: 5g-cbc-cbs
+description: >
+  Cell Broadcast and public-warning profile for 5G-core-adjacent warning
+  signaling over SBc-AP or equivalent CBC-facing SCTP interfaces. Focused on
+  warning delivery control, rejection causes, and transport correlation.
+
+# ---------------------------------------------------------------------------
+# CBC / CBS focus
+#
+# Useful display filters:
+#   CBC warning signaling:         sbcap && sctp
+#   Warning failures:              sbcap
+#   SCTP issues:                   sctp.analysis || tcp.analysis
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - sbcap
+  - sctp
+  - ip
+
+top_protocol_priority:
+  - sbcap
+  - sctp
+  - ip
+
+protocol_aliases:
+  sbcap: [sbcap]
+  sctp: [sctp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  sbcap:
+    - sbcap.procedureCode
+    - sbcap.Cause
+    - sbcap.Warning-Message-Identifier
+    - sbcap.Serial-Number
+    - sbcap.Repetition-Period
+    - sbcap.Number-of-Broadcasts-Requested
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - sctp_stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight Write-Replace Warning and Stop Warning exchanges that reject, retry, or do not receive expected responses.
+  - Flag warning-cause patterns and repeated failed delivery-control attempts as likely CBC-facing control issues.
+  - Note SCTP anomalies only when they plausibly explain broken warning delivery procedures.

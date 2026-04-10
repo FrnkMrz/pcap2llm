@@ -1,0 +1,62 @@
+name: 5g-n14
+description: >
+  N14 profile for AMF to AMF mobility and context transfer over SBI. Focused on
+  handover-adjacent context relocation, transfer failures, and missing or
+  rejected responses in AMF-to-AMF exchanges.
+
+# ---------------------------------------------------------------------------
+# N14 / AMF-to-AMF mobility focus
+#
+# Useful display filters:
+#   N14-like SBI:                  http2 || json
+#   Mobility/context transfer:     http2.headers.path
+#   Handover-related failures:     http2.headers.status
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - http
+  - json
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - http
+  - json
+  - tcp
+  - ip
+
+protocol_aliases:
+  http: [http2, http]
+  json: [json]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  http:
+    - http2.headers.method
+    - http2.headers.path
+    - http2.headers.authority
+    - http2.headers.status
+    - http2.headers.content_type
+  json:
+    - json.member
+    - json.value.string
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight AMF-to-AMF context transfer or relocation exchanges that reject, timeout, or do not complete.
+  - Flag repeated failures on mobility-related SBI operations as likely handover or context-transfer faults.
+  - Keep this profile mobility-centric instead of broadening into generic inter-NF HTTP traffic.

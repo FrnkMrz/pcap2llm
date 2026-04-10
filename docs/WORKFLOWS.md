@@ -83,20 +83,44 @@ Use `--privacy-profile share` for internal tickets. Use `--privacy-profile prod-
 
 ---
 
-## 5G Core
+## 5G SA Core
 
-**Relevant protocols:** PFCP, NGAP, NAS-5GS, HTTP/2 SBI
+**Recommended profiles:** `5g-core`, `5g-n1-n2`, `5g-n2`, `5g-nas-5gs`, `5g-sbi`, `5g-sbi-auth`, `5g-n8`, `5g-n10`, `5g-n11`, `5g-n12`, `5g-n13`, `5g-n14`, `5g-n15`, `5g-n16`, `5g-n22`, `5g-n26`, `5g-n40`, `5g-dns`, `5g-cbc-cbs`
+
+### Pick the right 5G SA profile
+
+| Situation | Best profile |
+|---|---|
+| Unknown mixed 5GC signaling, first pass | `5g-core` |
+| Combined AMF-facing registration picture | `5g-n1-n2` |
+| gNB ↔ AMF NGAP procedures only | `5g-n2` |
+| NAS-5GS registration, mobility, and SM sequencing | `5g-nas-5gs` |
+| Broad HTTP/2 SBI troubleshooting | `5g-sbi` |
+| Token/header/identity-heavy SBI captures | `5g-sbi-auth` |
+| UDM-facing SBI on N8 | `5g-n8` |
+| UDM ↔ AUSF authentication on N10 | `5g-n10` |
+| SMF-facing control on N11 | `5g-n11` |
+| AUSF ↔ UDM identity/auth data on N12 | `5g-n12` |
+| UDM ↔ UDR subscriber data access on N13 | `5g-n13` |
+| AMF ↔ AMF mobility/context coordination | `5g-n14` |
+| PCF policy interactions on N15 | `5g-n15` |
+| SMF ↔ PCF policy/session control on N16 | `5g-n16` |
+| NSSF / selection / roaming-oriented SBI context | `5g-n22` |
+| Hybrid EPC ↔ 5GC interworking | `5g-n26` |
+| Charging-related SMF ↔ CHF signaling | `5g-n40` |
+| 5GC-adjacent DNS issues | `5g-dns` |
+| Public-warning / cell-broadcast signaling | `5g-cbc-cbs` |
 
 ### Typical workflow
 
 ```bash
 # Step 1 — understand what is in the capture
-pcap2llm inspect trace-5g.pcapng --profile 5g-core
+pcap2llm inspect trace-5g.pcapng --profile 5g-n11
 
 # Step 2 — full analysis
 pcap2llm analyze trace-5g.pcapng \
-  --profile 5g-core \
-  -Y "ngap || pfcp || http2" \
+  --profile 5g-n11 \
+  -Y "http2" \
   --privacy-profile share \
   --two-pass \
   --out ./artifacts
@@ -108,14 +132,17 @@ pcap2llm analyze trace-5g.pcapng \
 # NGAP only (gNB ↔ AMF)
 -Y "ngap"
 
+# NAS-5GS inside AMF-facing signaling
+-Y "nas-5gs || nas_5gs"
+
 # PFCP session management (SMF ↔ UPF)
 -Y "pfcp"
 
 # HTTP/2 SBI (NF-to-NF interfaces)
 -Y "http2"
 
-# Full control plane
--Y "ngap || pfcp || http2 || diameter"
+# N26-style interworking / mixed EPC-5GC context
+-Y "gtpv2 || http2 || ngap || nas-5gs || nas_5gs"
 ```
 
 ### HTTP/2 SBI notes
@@ -124,7 +151,7 @@ SBI traffic (Nudm, Namf, Nsmf, etc.) runs over HTTP/2. Use `--two-pass` for reli
 
 ```bash
 pcap2llm analyze trace-5g.pcapng \
-  --profile 5g-core \
+  --profile 5g-sbi-auth \
   -Y "http2" \
   --privacy-profile prod-safe \
   --two-pass \
@@ -141,21 +168,28 @@ name: my-5g-verbose
 description: 5G core with verbatim PFCP
 verbatim_protocols:
   - pfcp
-# ... rest copied from 5g-core.yaml
+# ... rest copied from 5g-core.yaml or a narrower 5G interface profile
 ```
 
 ### Privacy recommendation
 
 Use `--privacy-profile prod-safe` for SBI captures — they often contain tokens, SUPIs, and GPSIs in HTTP headers.
 
+### 5G-specific notes
+
+- `5g-core` is still useful as a broad first-pass overview, but the focused 5G SA profiles usually produce cleaner protocol ranking and smaller artifacts once the interface is known.
+- `5g-n26` is intentionally hybrid because EPC/5GC interworking evidence often spans HTTP/2, NGAP, NAS-5GS, and EPC-era control traffic in the same capture.
+- Use `5g-sbi-auth` rather than generic `5g-sbi` when the troubleshooting question is about identity, tokens, or authorization failures.
+
 ### If something goes wrong — 5G
 
 | Symptom | Next step |
 |---|---|
-| HTTP/2 SBI data looks incomplete or fragmented | Add `--two-pass`. HTTP/2 over TLS requires reassembly to decode correctly. |
-| NGAP / PFCP mix too large | Split by interface: analyze NGAP and PFCP in separate runs with `-Y "ngap"` and `-Y "pfcp"`. |
+| HTTP/2 SBI data looks incomplete or fragmented | Add `--two-pass` and switch from `5g-core` to a narrower SBI profile such as `5g-sbi`, `5g-sbi-auth`, or `5g-n11`. |
+| NGAP / NAS evidence is mixed and too large | Split by intent: use `5g-n2` for NGAP or `5g-nas-5gs` for NAS-centric work, then narrow with `-Y "ngap"` or `-Y "nas-5gs || nas_5gs"`. |
+| Hybrid 4G/5G mobility is confusing | Use `5g-n26` rather than pure 5G or pure EPC profiles; it is intentionally framed for mixed interworking context. |
 | Tokens or subscriber IDs appear in headers | Switch to `--privacy-profile prod-safe`. HTTP/2 SBI headers routinely carry Authorization and SUPI. |
-| No relevant protocols detected | Verify `--profile 5g-core` is set. Run inspect without filter to check what TShark sees. |
+| No relevant protocols detected | Verify that the chosen 5G profile matches the interface. Run inspect without filter to check what TShark sees, then fall back to `5g-core` for a broad first pass. |
 
 ---
 

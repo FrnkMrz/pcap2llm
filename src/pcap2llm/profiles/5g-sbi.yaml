@@ -1,0 +1,64 @@
+name: 5g-sbi
+description: >
+  Generic Service-Based Interface profile for HTTP/2 and JSON traffic between
+  5GC network functions. Focused on NF-to-NF request-response behavior, status
+  codes, and missing or delayed responses rather than dumping raw payloads.
+
+# ---------------------------------------------------------------------------
+# Generic SBI focus
+#
+# Useful display filters:
+#   HTTP/2 SBI only:               http2
+#   HTTP errors:                   http2.headers.status
+#   JSON-heavy SBI:                http2 || json
+#   Reassembly-sensitive runs:     use --two-pass when HTTP/2 looks incomplete
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - http
+  - json
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - http
+  - json
+  - tcp
+  - ip
+
+protocol_aliases:
+  http: [http2, http]
+  json: [json]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  http:
+    - http2.headers.method
+    - http2.headers.path
+    - http2.headers.authority
+    - http2.headers.status
+    - http2.headers.content_type
+    - http.response.code
+  json:
+    - json.member
+    - json.value.string
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight repeated 4xx or 5xx status patterns, unanswered requests, and retry bursts against the same NF peer on SBI.
+  - Flag operation-level anomalies such as one authority or path repeatedly failing while neighboring SBI traffic succeeds.
+  - Note HTTP/2 stream instability or transport anomalies only when they plausibly explain missing or partial SBI responses.

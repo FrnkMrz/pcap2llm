@@ -1,0 +1,62 @@
+name: 5g-n12
+description: >
+  N12 profile for AMF to AUSF authentication-control signaling over SBI.
+  Focused on auth context requests, timeout or retry patterns, and response
+  anomalies that align with registration or access failures.
+
+# ---------------------------------------------------------------------------
+# N12 / AMF-AUSF auth focus
+#
+# Useful display filters:
+#   N12-like auth SBI:             http2 || json
+#   Auth context failures:         http2.headers.status
+#   Repeated auth attempts:        http2.headers.path
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - http
+  - json
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - http
+  - json
+  - tcp
+  - ip
+
+protocol_aliases:
+  http: [http2, http]
+  json: [json]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  http:
+    - http2.headers.method
+    - http2.headers.path
+    - http2.headers.authority
+    - http2.headers.status
+    - http2.headers.content_type
+  json:
+    - json.member
+    - json.value.string
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight auth-context requests from AMF to AUSF that fail, retry, or do not receive matching responses.
+  - Flag repeated failures on one AUSF authority as likely authentication-control bottlenecks that align with registration trouble.
+  - Keep the profile auth-centered rather than collapsing into broad AMF SBI traffic.

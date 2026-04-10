@@ -1,0 +1,68 @@
+name: 5g-n1-n2
+description: >
+  Combined N1 and N2 profile for AMF-facing UE control-plane troubleshooting.
+  Correlates NAS-5GS and NGAP over SCTP so registration, service request, PDU
+  session setup, paging, and UE context procedures can be followed end to end.
+
+# ---------------------------------------------------------------------------
+# N1 + N2 focus
+#
+# Useful display filters:
+#   Combined N1/N2 signaling:      ngap || nas-5gs
+#   Registration-oriented flow:    ngap || nas_5gs.mm.message_type
+#   PDU session setup context:     ngap || nas_5gs.sm.message_type
+#   UE context release:            ngap
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - ngap
+  - nas-5gs
+  - sctp
+
+top_protocol_priority:
+  - ngap
+  - nas-5gs
+  - sctp
+  - ip
+
+protocol_aliases:
+  ngap: [ngap]
+  nas-5gs: [nas-5gs, nas_5gs]
+  sctp: [sctp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  ngap:
+    - ngap.procedureCode
+    - ngap.AMF_UE_NGAP_ID
+    - ngap.RAN_UE_NGAP_ID
+    - ngap.nas_pdu
+    - ngap.cause
+    - ngap.causeGroup
+  nas-5gs:
+    - nas_5gs.mm.message_type
+    - nas_5gs.sm.message_type
+    - nas_5gs.suci
+    - nas_5gs.5g_tmsi
+    - nas_5gs.mm.5gmm_cause
+    - nas_5gs.sm.5gsm_cause
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - sctp_stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight registration, service request, and PDU session sequences that break between NAS and NGAP instead of completing as one AMF-facing flow.
+  - Flag Initial Context Setup, PDU Session Resource Setup, and UE Context Release failures when they coincide with NAS reject or timeout patterns.
+  - Note SCTP retransmissions or association instability only when they plausibly explain broken N1/N2 procedure completion.

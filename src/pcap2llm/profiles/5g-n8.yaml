@@ -1,0 +1,62 @@
+name: 5g-n8
+description: >
+  N8 profile for UDM-facing subscriber-data and registration-support traffic on
+  SBI. Focused on subscription retrieval, registration-related lookups, and
+  inconsistent or failed UDM responses.
+
+# ---------------------------------------------------------------------------
+# N8 / UDM focus
+#
+# Useful display filters:
+#   N8-like SBI:                   http2 || json
+#   Subscriber data issues:        http2.headers.status
+#   Registration support calls:    http2.headers.path
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - http
+  - json
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - http
+  - json
+  - tcp
+  - ip
+
+protocol_aliases:
+  http: [http2, http]
+  json: [json]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  http:
+    - http2.headers.method
+    - http2.headers.path
+    - http2.headers.authority
+    - http2.headers.status
+    - http2.headers.content_type
+  json:
+    - json.member
+    - json.value.string
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight subscriber-data retrieval and registration-support requests that return failures, mismatched content, or no response from UDM-facing peers.
+  - Flag repeated status-code failures against one UDM authority as likely subscription-data availability or correctness issues.
+  - Keep the profile centered on UDM-facing data lookups rather than generic auth or policy SBI traffic.

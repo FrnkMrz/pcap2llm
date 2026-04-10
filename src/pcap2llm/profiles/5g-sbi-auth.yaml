@@ -1,0 +1,62 @@
+name: 5g-sbi-auth
+description: >
+  Authentication-oriented SBI profile for AUSF, UDM, and AMF-adjacent HTTP/2
+  control flows. Focused on auth request chains, incomplete exchanges, and
+  status-code or timeout patterns specific to authentication workflows.
+
+# ---------------------------------------------------------------------------
+# SBI auth focus
+#
+# Useful display filters:
+#   Auth-related SBI:              http2
+#   Authentication failures:       http2.headers.status
+#   AUSF/UDM-focused runs:         http2 || json
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - http
+  - json
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - http
+  - json
+  - tcp
+  - ip
+
+protocol_aliases:
+  http: [http2, http]
+  json: [json]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  http:
+    - http2.headers.method
+    - http2.headers.path
+    - http2.headers.authority
+    - http2.headers.status
+    - http2.headers.content_type
+  json:
+    - json.member
+    - json.value.string
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight authentication request chains that do not complete across AUSF and UDM-facing SBI exchanges.
+  - Flag repeated auth-related 4xx or 5xx responses, timeout-like gaps, and retried operations as likely authentication-service faults.
+  - Keep this profile narrower than generic SBI by prioritizing auth-flow completion over broad NF traffic mix.

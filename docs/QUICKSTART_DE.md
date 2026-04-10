@@ -60,6 +60,10 @@ pcap2llm analyze sample.pcapng --profile lte-core --out ./artifacts
 |---|---|
 | `lte-core` | LTE / EPC — Diameter, GTPv2-C, S1AP, NAS-EPS |
 | `5g-core` | 5G Core — PFCP, NGAP, NAS-5GS, HTTP/2 SBI |
+| `5g-n2` | Reines N2 / NGAP zwischen gNB und AMF |
+| `5g-nas-5gs` | NAS-5GS-zentrierte Registration, Mobility und SM-Signalisierung |
+| `5g-sbi` | Generische HTTP/2-SBI-Fehlersuche im 5GC |
+| `5g-sbi-auth` | SBI mit Fokus auf Tokens, Header und Authentisierung |
 | `2g3g-ss7-geran` | Legacy 2G/3G — SS7, MAP, CAP, ISUP, BSSAP |
 | `2g3g-gn` | Gn — SGSN ↔ GGSN, GTPv1 im eigenen PLMN |
 | `2g3g-gp` | Gp — GPRS-Roaming / Inter-PLMN GTPv1 |
@@ -74,6 +78,12 @@ pcap2llm analyze sample.pcapng --profile lte-core -Y "diameter || gtpv2"
 
 # Subscriber-Daten schuetzen (IMSI pseudonymisieren, Tokens entfernen)
 pcap2llm analyze sample.pcapng --profile lte-core --privacy-profile share
+
+# 5G N2 gezielt untersuchen
+pcap2llm analyze sample.pcapng --profile 5g-n2 -Y "ngap"
+
+# 5G SBI mit strengerem Datenschutz
+pcap2llm analyze sample.pcapng --profile 5g-sbi-auth -Y "http2" --privacy-profile prod-safe --two-pass
 
 # Alle Pakete (kein Limit)
 pcap2llm analyze sample.pcapng --profile lte-core --all-packets

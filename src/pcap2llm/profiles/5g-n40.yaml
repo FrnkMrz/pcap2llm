@@ -1,0 +1,62 @@
+name: 5g-n40
+description: >
+  N40 profile for SMSF-related signaling in SA core operations where HTTP/2 and
+  JSON-based messaging control is relevant. Focused on messaging-control
+  requests, failures, and timeout patterns in SMSF-adjacent workflows.
+
+# ---------------------------------------------------------------------------
+# N40 / SMSF focus
+#
+# Useful display filters:
+#   N40-like SBI:                  http2 || json
+#   Messaging-control failures:    http2.headers.status
+#   SMSF operations:               http2.headers.path
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - http
+  - json
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - http
+  - json
+  - tcp
+  - ip
+
+protocol_aliases:
+  http: [http2, http]
+  json: [json]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  http:
+    - http2.headers.method
+    - http2.headers.path
+    - http2.headers.authority
+    - http2.headers.status
+    - http2.headers.content_type
+  json:
+    - json.member
+    - json.value.string
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight SMSF-related control requests that fail, timeout, or retry abnormally in 5GC messaging workflows.
+  - Flag repeated status-code failures against one messaging-control peer as likely N40 service issues.
+  - Keep the profile only as a focused SMSF-control view, not a generic HTTP or messaging dump.

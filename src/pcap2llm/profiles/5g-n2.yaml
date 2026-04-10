@@ -1,0 +1,59 @@
+name: 5g-n2
+description: >
+  N2 profile for NGAP-centric troubleshooting between gNB and AMF over SCTP.
+  Focused on NG setup, UE-associated signaling procedures, cause analysis, and
+  transport behavior on the NGAP path rather than NAS sequencing.
+
+# ---------------------------------------------------------------------------
+# N2 / NGAP focus
+#
+# Useful display filters:
+#   NGAP only:                     ngap
+#   NG Setup:                      ngap
+#   UE context procedures:         ngap
+#   Cause analysis:                ngap.cause || ngap.causeGroup
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - ngap
+  - sctp
+  - ip
+
+top_protocol_priority:
+  - ngap
+  - sctp
+  - ip
+
+protocol_aliases:
+  ngap: [ngap]
+  sctp: [sctp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  ngap:
+    - ngap.procedureCode
+    - ngap.AMF_UE_NGAP_ID
+    - ngap.RAN_UE_NGAP_ID
+    - ngap.nas_pdu
+    - ngap.cause
+    - ngap.causeGroup
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - sctp_stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight NG Setup, Initial UE Message, NAS Transport, and UE Context Release procedures that fail or stop without the expected follow-up signaling.
+  - Flag NGAP cause values and repeated unsuccessful setup or resource procedures as likely N2 control-plane issues.
+  - Note SCTP retransmissions, association churn, or stream-level instability when they correlate with broken NGAP procedure flow.

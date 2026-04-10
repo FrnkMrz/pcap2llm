@@ -1,0 +1,62 @@
+name: 5g-n10
+description: >
+  N10 profile for AMF to UDM interactions around registration and mobility
+  context. Focused on context retrieval, subscription support, and failures in
+  AMF-facing UDM exchanges rather than the broader N8 perspective.
+
+# ---------------------------------------------------------------------------
+# N10 / AMF-UDM focus
+#
+# Useful display filters:
+#   N10-like SBI:                  http2 || json
+#   Registration context issues:   http2.headers.path
+#   HTTP failures:                 http2.headers.status
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - http
+  - json
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - http
+  - json
+  - tcp
+  - ip
+
+protocol_aliases:
+  http: [http2, http]
+  json: [json]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  http:
+    - http2.headers.method
+    - http2.headers.path
+    - http2.headers.authority
+    - http2.headers.status
+    - http2.headers.content_type
+  json:
+    - json.member
+    - json.value.string
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight registration-context and subscriber-support requests from AMF-facing flows that fail or are retried against UDM.
+  - Flag repeated status-code failures or missing responses on one authority as likely AMF↔UDM context issues rather than generic UDM instability.
+  - Keep the profile distinct from N8 by emphasizing AMF-driven registration and mobility context handling.

@@ -1,0 +1,62 @@
+name: 5g-n13
+description: >
+  N13 profile for AUSF to UDM authentication-data retrieval on SBI. Focused on
+  incomplete auth chains, UDM response anomalies, and missing or delayed
+  subscriber-auth data retrieval.
+
+# ---------------------------------------------------------------------------
+# N13 / AUSF-UDM auth-data focus
+#
+# Useful display filters:
+#   N13-like SBI:                  http2 || json
+#   Auth-data retrieval failures:  http2.headers.status
+#   UDM anomalies:                 http2.headers.authority
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - http
+  - json
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - http
+  - json
+  - tcp
+  - ip
+
+protocol_aliases:
+  http: [http2, http]
+  json: [json]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  http:
+    - http2.headers.method
+    - http2.headers.path
+    - http2.headers.authority
+    - http2.headers.status
+    - http2.headers.content_type
+  json:
+    - json.member
+    - json.value.string
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight auth-data retrieval exchanges between AUSF and UDM that fail, timeout, or return inconsistent results.
+  - Flag repeated N13 status-code failures or missing responses as likely subscriber-auth data issues rather than generic SBI noise.
+  - Keep the profile distinct from N12 by emphasizing AUSF↔UDM backend auth retrieval.

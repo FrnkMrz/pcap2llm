@@ -1,0 +1,64 @@
+name: 5g-dns
+description: >
+  DNS profile for 5G SA core and NF-discovery-adjacent environments. Focused on
+  resolver failures, NXDOMAIN or SERVFAIL, missing answers, retries, and
+  unusual resolver behavior that breaks NF discovery or service reachability.
+
+# ---------------------------------------------------------------------------
+# 5GC DNS focus
+#
+# Useful display filters:
+#   DNS only:                      dns
+#   NF-discovery support issues:   dns.flags.rcode > 0
+#   NXDOMAIN only:                 dns.flags.rcode == 3
+#   SERVFAIL only:                 dns.flags.rcode == 2
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - dns
+  - tcp
+  - udp
+  - ip
+
+top_protocol_priority:
+  - dns
+  - tcp
+  - udp
+  - ip
+
+protocol_aliases:
+  dns: [dns]
+  tcp: [tcp]
+  udp: [udp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  dns:
+    - dns.id
+    - dns.qry.name
+    - dns.qry.type
+    - dns.resp.name
+    - dns.a
+    - dns.aaaa
+    - dns.cname
+    - dns.flags.response
+    - dns.flags.rcode
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight DNS failures that can break NF discovery, including NXDOMAIN, SERVFAIL, missing responses, and repeated identical queries.
+  - Flag unusual resolver choices, retry storms, and TCP fallback as likely 5GC name-resolution instability.
+  - Keep the profile focused on 5GC service-discovery and core-support impact rather than generic DNS traffic.

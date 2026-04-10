@@ -132,6 +132,24 @@ Profile steuern, welche Protokolle extrahiert werden, welche Felder erhalten ble
 | `lte-dns` | LTE/EPC/IMS-nahe DNS-Fehlersuche |
 | `lte-sbc-cbc` | SBc — MME ↔ CBC fuer Cell Broadcast / ETWS / CMAS |
 | `5g-core` | 5G Core — PFCP, NGAP, NAS-5GS, HTTP/2 SBI |
+| `5g-n1-n2` | Breite 5G-Registration-/Service-Sicht ueber NGAP und NAS-5GS |
+| `5g-n2` | Reines N2 / NGAP zwischen gNB und AMF |
+| `5g-nas-5gs` | NAS-5GS-zentrierte Registration, Mobility und Session-Signalisierung |
+| `5g-sbi` | Generische HTTP/2-SBI-Fehlersuche zwischen 5GC-NFs |
+| `5g-sbi-auth` | SBI mit Fokus auf Tokens, Header und Authentisierung |
+| `5g-n8` | UDM-zentrierte SBI-Sicht auf N8 |
+| `5g-n10` | UDM ↔ AUSF Authentisierung auf N10 |
+| `5g-n11` | SMF-zentrierte SBI-Steuerung auf N11 |
+| `5g-n12` | AUSF ↔ UDM Identitaets-/Auth-Daten auf N12 |
+| `5g-n13` | UDM ↔ UDR Subscriber-Datenzugriff auf N13 |
+| `5g-n14` | AMF ↔ AMF Mobility-/Kontext-Koordination auf N14 |
+| `5g-n15` | PCF-Policy-Interaktionen auf N15 |
+| `5g-n16` | SMF ↔ PCF Session-/Policy-Steuerung auf N16 |
+| `5g-n22` | NSSF-/roaming-orientierter Selektionskontext auf N22 |
+| `5g-n26` | Hybrides EPC/5GC-Interworking fuer Mobility-/Handover-Kontext |
+| `5g-n40` | SMF ↔ CHF Charging-bezogene SBI-Signalisierung |
+| `5g-dns` | 5GC-nahe DNS-Fehlersuche |
+| `5g-cbc-cbs` | Cell-Broadcast-/Public-Warning-Signalisierung im 5G-Kontext |
 | `2g3g-ss7-geran` | Breites Legacy-2G/3G-Buendel ueber SS7, MAP, CAP, ISUP und GERAN |
 | `2g3g-gn` | Gn — SGSN ↔ GGSN, GTPv1 im eigenen PLMN |
 | `2g3g-gp` | Gp — GPRS-Roaming / Inter-PLMN GTPv1 |
@@ -145,8 +163,11 @@ Profile steuern, welche Protokolle extrahiert werden, welche Felder erhalten ble
 | `2g3g-isup` | Legacy Voice-/Circuit-Signalisierung mit ISUP |
 | `2g3g-sccp-mtp` | Niedrigere SCCP-/MTP-Routing- und Transportprobleme |
 
+`5g-core` bleibt das breite Ueberblicksprofil. Wenn das Interface bekannt ist,
+liefern die fokussierten 5G-SA-Profile meist kleinere und sauberere Artefakte.
+
 ```bash
-pcap2llm analyze trace-5g.pcapng --profile 5g-core --out ./artifacts
+pcap2llm analyze trace-5g.pcapng --profile 5g-n11 --out ./artifacts
 ```
 
 ### Protokoll vollstaendig durchreichen (verbatim)
@@ -206,8 +227,11 @@ pcap2llm analyze sample.pcapng --profile lte-core -Y "diameter"
 # Diameter oder GTPv2
 pcap2llm analyze sample.pcapng --profile lte-core -Y "diameter || gtpv2"
 
-# 5G Core
-pcap2llm analyze sample-5g.pcapng --profile 5g-core -Y "pfcp || ngap || http2"
+# 5G N2 / NGAP
+pcap2llm analyze sample-5g.pcapng --profile 5g-n2 -Y "ngap"
+
+# 5G SBI / HTTP2
+pcap2llm analyze sample-5g.pcapng --profile 5g-sbi -Y "http2"
 
 # SS7
 pcap2llm analyze sample-ss7.pcapng --profile 2g3g-ss7-geran -Y "gsm_map || cap || isup"

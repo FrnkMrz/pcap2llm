@@ -1,0 +1,62 @@
+name: 5g-n16
+description: >
+  N16 profile for SMF to PCF session-policy interaction on SBI. Focused on
+  policy decision retrieval, update handling, and missing or failed responses
+  that affect PDU-session policy behavior.
+
+# ---------------------------------------------------------------------------
+# N16 / SMF-PCF policy focus
+#
+# Useful display filters:
+#   N16-like SBI:                  http2 || json
+#   Session policy failures:       http2.headers.status
+#   Policy update issues:          http2.headers.path
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - http
+  - json
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - http
+  - json
+  - tcp
+  - ip
+
+protocol_aliases:
+  http: [http2, http]
+  json: [json]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  http:
+    - http2.headers.method
+    - http2.headers.path
+    - http2.headers.authority
+    - http2.headers.status
+    - http2.headers.content_type
+  json:
+    - json.member
+    - json.value.string
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight SMF-to-PCF session-policy requests that fail, retry, or stop before completion.
+  - Flag repeated N16 policy decision failures or missing responses as likely policy-control issues affecting session lifecycle.
+  - Keep this profile distinct from N15 by emphasizing SMF-driven session-policy behavior.

@@ -1,0 +1,62 @@
+name: 5g-n15
+description: >
+  N15 profile for AMF to PCF policy interaction over SBI. Focused on policy
+  association handling, policy retrieval failures, and inconsistent control
+  outcomes that affect AMF decisions.
+
+# ---------------------------------------------------------------------------
+# N15 / AMF-PCF policy focus
+#
+# Useful display filters:
+#   N15-like SBI:                  http2 || json
+#   Policy failures:               http2.headers.status
+#   Policy association ops:        http2.headers.path
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - http
+  - json
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - http
+  - json
+  - tcp
+  - ip
+
+protocol_aliases:
+  http: [http2, http]
+  json: [json]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  http:
+    - http2.headers.method
+    - http2.headers.path
+    - http2.headers.authority
+    - http2.headers.status
+    - http2.headers.content_type
+  json:
+    - json.member
+    - json.value.string
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight AMF-to-PCF policy association requests that fail, retry, or do not receive matching responses.
+  - Flag repeated policy-related 4xx or 5xx outcomes as likely AMF policy-control faults on N15.
+  - Keep the profile policy-association specific rather than merging with generic SBI or SMF policy flows.

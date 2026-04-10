@@ -1,0 +1,75 @@
+name: 5g-n26
+description: >
+  N26 interworking profile for EPC and 5GC mobility bridging. Intentionally
+  hybrid: combines GTPv2-C, HTTP/2/JSON SBI, and mixed transport context to
+  troubleshoot mobility and context-transfer issues across EPC and 5GC domains.
+
+# ---------------------------------------------------------------------------
+# N26 / EPC-5GC interworking focus
+#
+# Useful display filters:
+#   Hybrid N26 view:               gtpv2 || http2 || json
+#   GTPv2 interworking context:    gtpv2
+#   SBI interworking context:      http2 || json
+#   Mixed mobility anomalies:      gtpv2.cause || http2.headers.status
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - gtpv2
+  - http
+  - json
+  - udp
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - gtpv2
+  - http
+  - json
+  - udp
+  - tcp
+  - ip
+
+protocol_aliases:
+  gtpv2: [gtpv2, gtpv2-c]
+  http: [http2, http]
+  json: [json]
+  udp: [udp]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  gtpv2:
+    - gtpv2.message_type
+    - gtpv2.teid
+    - gtpv2.cause
+    - gtpv2.seq
+    - gtpv2.sequence_number
+  http:
+    - http2.headers.method
+    - http2.headers.path
+    - http2.headers.authority
+    - http2.headers.status
+    - http2.headers.content_type
+  json:
+    - json.member
+    - json.value.string
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight EPC↔5GC mobility-bridging sequences that fail across the mixed GTPv2 and SBI control-plane boundary.
+  - Flag GTPv2 cause failures and SBI status failures that appear in the same interworking flow as likely context-conversion or transfer issues.
+  - Keep the profile explicitly hybrid and explanatory rather than pretending N26 is just another pure SBI or pure GTP profile.

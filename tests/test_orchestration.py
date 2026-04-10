@@ -40,7 +40,7 @@ def _discovery_payload(capture: Path) -> dict:
 def test_discover_command_writes_discovery_artifacts(tmp_path: Path) -> None:
     capture = tmp_path / "sample.pcapng"
     capture.write_bytes(b"fake")
-    out_dir = tmp_path / "discovery"
+    out_dir = tmp_path / "artifacts"
 
     with patch(
         "pcap2llm.cli.discover_capture",
@@ -48,17 +48,22 @@ def test_discover_command_writes_discovery_artifacts(tmp_path: Path) -> None:
     ):
         result = runner.invoke(app, ["discover", str(capture), "--out", str(out_dir)])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
     assert payload["mode"] == "discovery"
-    assert "run_dir" in payload
-    # discover now writes into a timestamped run subdirectory
-    run_dirs = list(out_dir.iterdir()) if out_dir.exists() else []
-    assert len(run_dirs) == 1, f"expected one run dir, got {run_dirs}"
-    run_dir = run_dirs[0]
-    assert run_dir.name.endswith("_discovery")
-    assert (run_dir / "discovery.json").exists()
-    assert (run_dir / "discovery.md").exists()
+    # artifacts written flat into out_dir — no discovery subdirectory
+    assert "run_dir" not in payload
+    json_path = Path(payload["discovery_json"])
+    md_path = Path(payload["discovery_md"])
+    assert json_path.parent == out_dir
+    assert md_path.parent == out_dir
+    assert json_path.name.endswith("_discovery.json")
+    assert md_path.name.endswith("_discovery.md")
+    assert json_path.exists()
+    assert md_path.exists()
+    # no subdirectory created
+    subdirs = [p for p in out_dir.iterdir() if p.is_dir()]
+    assert subdirs == [], f"unexpected subdirectories: {subdirs}"
 
 
 def test_recommend_profiles_reads_discovery_json(tmp_path: Path) -> None:
@@ -101,8 +106,18 @@ def test_session_run_discovery_registers_run(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     manifest = json.loads((session_dir / "session_manifest.json").read_text(encoding="utf-8"))
-    assert manifest["runs"][0]["mode"] == "discovery"
-    assert manifest["runs"][0]["status"] == "completed"
+    run = manifest["runs"][0]
+    assert run["mode"] == "discovery"
+    assert run["status"] == "completed"
+    # outputs reference files directly in the run_dir (no nested discovery folder)
+    run_dir = session_dir / run["run_id"]
+    assert run_dir.is_dir()
+    output_paths = list(run["outputs"].values())
+    for p in output_paths:
+        assert Path(p).parent == run_dir, f"{p} is not directly in run_dir {run_dir}"
+    # no extra subdirectory inside the run_dir
+    subdirs = [p for p in run_dir.iterdir() if p.is_dir()]
+    assert subdirs == [], f"unexpected subdirectories in run_dir: {subdirs}"
 
 
 def test_session_run_profile_registers_overrides_and_reason(tmp_path: Path) -> None:

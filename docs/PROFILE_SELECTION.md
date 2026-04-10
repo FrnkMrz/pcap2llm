@@ -17,7 +17,7 @@ It is not an embedded AI feature.
 From a prior discovery run:
 
 ```bash
-pcap2llm recommend-profiles ./discovery/discovery.json
+pcap2llm recommend-profiles ./artifacts/20260410_173000_discovery.json
 ```
 
 Directly from a capture:

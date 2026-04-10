@@ -1,6 +1,6 @@
 # Discovery Mode
 
-`pcap2llm discover` is the broad, cheap scout pass for unknown captures.
+`pcap2llm discover` is the broad, cheap first run for unknown captures.
 
 It exists for staged troubleshooting and external orchestration:
 
@@ -16,15 +16,22 @@ This command does not try to replace focused profile analysis. It answers:
 ## Basic Usage
 
 ```bash
-pcap2llm discover trace.pcapng --out ./discovery
+pcap2llm discover trace.pcapng
 ```
+
+Outputs land in `artifacts/` by default — the same directory used by `analyze`.
 
 Optional narrowing:
 
 ```bash
 pcap2llm discover trace.pcapng \
-  -Y "ngap || nas-5gs || http2" \
-  --out ./discovery
+  -Y "ngap || nas-5gs || http2"
+```
+
+Custom output directory:
+
+```bash
+pcap2llm discover trace.pcapng --out ./my-artifacts
 ```
 
 Preview only:
@@ -35,12 +42,22 @@ pcap2llm discover trace.pcapng --dry-run
 
 ## Output Files
 
-Discovery writes two files:
+Discovery writes two files directly into the output directory — no subdirectory:
+
+```text
+artifacts/
+  20260410_173000_discovery.json
+  20260410_173000_discovery.md
+```
+
+The timestamp prefix comes from the first packet in the capture, using the same
+logic as `analyze` artifacts. This keeps all run outputs in one flat, browsable
+place.
 
 | File | Purpose |
 |---|---|
-| `discovery.json` | Machine-readable scout result for agents and scripts |
-| `discovery.md` | Short human summary |
+| `YYYYMMDD_HHMMSS_discovery.json` | Machine-readable scout result for agents and scripts |
+| `YYYYMMDD_HHMMSS_discovery.md` | Short human summary |
 
 ## Discovery JSON Shape
 
@@ -155,9 +172,17 @@ score ranks first.
 ## Recommended Flow
 
 ```bash
-pcap2llm discover trace.pcapng --out ./session/discovery
-pcap2llm recommend-profiles ./session/discovery/discovery.json
-pcap2llm analyze trace.pcapng --profile 5g-n11 --out ./artifacts
+# Step 1: discover what is in the capture
+pcap2llm discover trace.pcapng
+
+# Step 2: run focused analysis based on discovery result
+pcap2llm analyze trace.pcapng --profile 5g-n2 --out ./artifacts
+```
+
+The discovery JSON is also accepted directly by `recommend-profiles`:
+
+```bash
+pcap2llm recommend-profiles artifacts/20260410_173000_discovery.json
 ```
 
 For structured multi-run execution, continue with

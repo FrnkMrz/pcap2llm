@@ -38,6 +38,19 @@ class SelectedPackets:
     truncated: bool
 
 
+def artifact_timestamp_prefix(first_seen_epoch: str | None) -> str | None:
+    """Return a ``YYYYMMDD_HHMMSS`` prefix from a first-seen epoch string.
+
+    Handles both Unix-epoch decimal strings (TShark < 4.6) and ISO 8601 with
+    nanoseconds (TShark ≥ 4.6).  Returns ``None`` when the string cannot be
+    parsed so callers can fall back to a wall-clock timestamp.
+
+    This is the single shared source of truth for artifact timestamp prefixes
+    across ``analyze`` and ``discover`` runs.
+    """
+    return _artifact_timestamp_prefix(first_seen_epoch)
+
+
 def _artifact_timestamp_prefix(first_seen_epoch: str | None) -> str | None:
     if not first_seen_epoch:
         return None

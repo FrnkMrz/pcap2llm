@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from pcap2llm.inspector import inspect_capture
 from pcap2llm.models import InspectResult, ProfileDefinition
+from pcap2llm.pipeline import artifact_timestamp_prefix
 from pcap2llm.profiles import load_all_profiles
 from pcap2llm.recommendation import recommend_profiles_from_inspect
 from pcap2llm.tshark_runner import TSharkRunner
@@ -152,9 +154,24 @@ def discover_capture(
 
 
 def write_discovery_artifacts(out_dir: Path, discovery: dict[str, Any], markdown: str) -> dict[str, Path]:
+    """Write discovery artifacts directly into *out_dir* with a shared timestamp prefix.
+
+    Output layout (flat, no subdirectory)::
+
+        {out_dir}/
+          YYYYMMDD_HHMMSS_discovery.json
+          YYYYMMDD_HHMMSS_discovery.md
+
+    The timestamp prefix is derived from ``capture.first_seen`` in the discovery
+    payload using the same :func:`~pcap2llm.pipeline.artifact_timestamp_prefix`
+    helper used by ``analyze`` runs.  Falls back to the current wall-clock time
+    when the epoch cannot be parsed.
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
-    discovery_json = out_dir / "discovery.json"
-    discovery_md = out_dir / "discovery.md"
+    first_seen = discovery.get("capture", {}).get("first_seen") or ""
+    ts = artifact_timestamp_prefix(first_seen) or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    discovery_json = out_dir / f"{ts}_discovery.json"
+    discovery_md = out_dir / f"{ts}_discovery.md"
     discovery_json.write_text(json.dumps(discovery, indent=2), encoding="utf-8")
     discovery_md.write_text(markdown, encoding="utf-8")
     return {

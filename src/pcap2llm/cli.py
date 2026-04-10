@@ -278,16 +278,6 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _artifact_timestamp_from_epoch(first_seen: str) -> str:
-    """Return YYYYMMDD_HHMMSS from a first_seen epoch string, or current time as fallback."""
-    if first_seen:
-        try:
-            dt = datetime.fromtimestamp(float(first_seen), tz=timezone.utc)
-            return dt.strftime("%Y%m%d_%H%M%S")
-        except (ValueError, OSError):
-            pass
-    return datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-
 
 @app.command("init-config")
 def init_config(
@@ -352,7 +342,7 @@ def inspect_command(
 @app.command("discover")
 def discover_command(
     capture: Path = typer.Argument(..., exists=True, readable=True, help="Input .pcap or .pcapng file."),
-    out_dir: Path = typer.Option(Path("discovery"), "--out", help="Discovery output directory."),
+    out_dir: Path = typer.Option(Path("artifacts"), "--out", help="Output directory for discovery artifacts."),
     display_filter: str | None = typer.Option(None, "--display-filter", "-Y", help="Optional TShark display filter."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Validate options and print the discovery plan only."),
     two_pass: bool = typer.Option(False, "--two-pass/--no-two-pass", help="Override TShark two-pass mode for discovery."),
@@ -390,17 +380,13 @@ def discover_command(
             two_pass=two_pass,
             on_stage=on_stage,
         )
-    # Write into a timestamped run directory (same pattern as analyze)
-    first_seen = discovery.get("capture", {}).get("first_seen") or ""
-    ts = _artifact_timestamp_from_epoch(first_seen)
-    run_dir = out_dir / f"{ts}_discovery"
-    outputs = write_discovery_artifacts(run_dir, discovery, markdown)
+    # write_discovery_artifacts handles timestamp prefix and flat file layout
+    outputs = write_discovery_artifacts(out_dir, discovery, markdown)
     typer.echo(
         json.dumps(
             {
                 "status": "ok",
                 "mode": "discovery",
-                "run_dir": str(run_dir),
                 "discovery_json": str(outputs["discovery_json"]),
                 "discovery_md": str(outputs["discovery_md"]),
             },

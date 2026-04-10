@@ -87,11 +87,11 @@ automation layers without hiding decisions inside the tool itself.
 Typical staged flow:
 
 ```bash
-# 1. Broad scout run
-pcap2llm discover trace.pcapng --out ./session/discovery
+# 1. Broad scout run — artifacts land in artifacts/ like any other run
+pcap2llm discover trace.pcapng
 
-# 2. Deterministic profile recommendation
-pcap2llm recommend-profiles ./session/discovery/discovery.json
+# 2. Deterministic profile recommendation from the discovery result
+pcap2llm recommend-profiles artifacts/20260410_173000_discovery.json
 
 # 3. Structured multi-run session
 pcap2llm session start trace.pcapng --out ./artifacts

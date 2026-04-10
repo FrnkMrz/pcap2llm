@@ -241,6 +241,32 @@ def _merge_verbatim_protocols(
     }
 
 
+_LOCAL_HOSTS_DEFAULT = Path(".local/hosts/wireshark_hosts.txt")
+
+
+def _resolve_hosts_file(
+    cli_arg: Path | None,
+    config_data: dict,
+) -> Path | None:
+    """Return the effective hosts file path.
+
+    Lookup order (first match wins):
+    1. Explicit CLI ``--hosts-file`` argument
+    2. ``hosts_file`` key in config file
+    3. Auto-discovered default at ``.local/hosts/wireshark_hosts.txt``
+    4. None — no hosts file, continue without mapping
+    """
+    if cli_arg is not None:
+        return cli_arg
+    if config_data.get("hosts_file"):
+        return Path(config_data["hosts_file"])
+    if _LOCAL_HOSTS_DEFAULT.exists():
+        logger.info("Using local hosts file from %s", _LOCAL_HOSTS_DEFAULT)
+        return _LOCAL_HOSTS_DEFAULT
+    logger.debug("No local hosts file found at default path %s; continuing without hosts mapping", _LOCAL_HOSTS_DEFAULT)
+    return None
+
+
 def _capture_sha256(capture: Path) -> str | None:
     try:
         return sha256(capture.read_bytes()).hexdigest()
@@ -540,7 +566,7 @@ def analyze_command(
     )
     base_modes = _resolve_privacy_base(privacy_profile_name, config_data, profile)
     privacy_modes = _build_modes(base_modes, config_data.get("privacy_modes", {}), overrides)
-    effective_hosts = hosts_file or (Path(config_data["hosts_file"]) if config_data.get("hosts_file") else None)
+    effective_hosts = _resolve_hosts_file(hosts_file, config_data)
     effective_mapping = mapping_file or (Path(config_data["mapping_file"]) if config_data.get("mapping_file") else None)
     effective_filter = display_filter or config_data.get("display_filter")
     effective_max_packets = 0 if all_packets else max_packets

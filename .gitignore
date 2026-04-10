@@ -1,4 +1,8 @@
 .DS_Store
+# Local-only sensitive files — never commit real contents
+.local/*
+!.local/.gitkeep
+!.local/README.md
 .pytest_cache/
 .ruff_cache/
 .venv/

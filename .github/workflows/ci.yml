@@ -55,6 +55,20 @@ jobs:
             tests/fixtures/golden/**/expected_*.json
             artifacts/**
 
+  local-files-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Block tracked .local/ sensitive files
+        run: |
+          tracked="$(git ls-files '.local' | grep -Ev '^\.local/(\.gitkeep|README\.md)$' || true)"
+          if [ -n "$tracked" ]; then
+            echo "ERROR: forbidden tracked files found under .local/:" >&2
+            printf '%s\n' "$tracked" | sed 's/^/  /' >&2
+            exit 1
+          fi
+          echo "OK: no disallowed files tracked under .local/"
+
   packaging:
     runs-on: ubuntu-latest
     steps:

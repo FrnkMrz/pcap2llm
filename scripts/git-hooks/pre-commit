@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# pre-commit — block accidental commits of .local/ sensitive files
+#
+# Allowed tracked files inside .local/:
+#   .local/.gitkeep
+#   .local/README.md
+#
+# Everything else under .local/ must never be committed.
+#
+set -euo pipefail
+
+ALLOWED_REGEX='^\.local/(\.gitkeep|README\.md)$'
+
+blocked_files="$(git diff --cached --name-only | grep -E '^\.local/' || true)"
+
+if [ -n "$blocked_files" ]; then
+  disallowed="$(printf '%s\n' "$blocked_files" | grep -Ev "$ALLOWED_REGEX" || true)"
+
+  if [ -n "$disallowed" ]; then
+    echo ""
+    echo "ERROR: local-only files from .local/ must not be committed." >&2
+    echo "" >&2
+    echo "Blocked files:" >&2
+    printf '%s\n' "$disallowed" | sed 's/^/  /' >&2
+    echo "" >&2
+    echo "These files are reserved for local development and must stay out of Git history." >&2
+    echo "If you need them in .gitignore-ignored state, no action is required." >&2
+    echo "" >&2
+    exit 1
+  fi
+fi

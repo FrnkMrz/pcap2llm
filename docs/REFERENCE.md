@@ -414,15 +414,30 @@ Resolve raw IPs to readable names. Two mechanisms, combinable:
 
 ### A. Wireshark hosts file
 
+The simplest setup: place your file at the default local path and the tool finds it automatically.
+
+```text
+.local/hosts/wireshark_hosts.txt
+```
+
+No CLI argument needed — the tool checks that path on every run and loads it if present.
+If the file is absent, the tool continues without hosts mapping.
+
+File format (standard Wireshark hosts syntax):
+
 ```text
 10.10.1.11 mme-fra-a
 10.20.8.44 hss-core-1
 ```
 
+To override the default path for a single run:
+
 ```bash
 pcap2llm analyze sample.pcapng --profile lte-core \
   --hosts-file ./examples/wireshark_hosts.sample
 ```
+
+See [Local-only sensitive files](#local-only-sensitive-files) for the `.local/` directory policy.
 
 ### B. Custom mapping file (with CIDR support)
 
@@ -663,6 +678,73 @@ pcap2llm analyze trace-ss7.pcapng \
 ```
 
 For protocol-specific step-by-step workflows: [`docs/WORKFLOWS.md`](WORKFLOWS.md)
+
+---
+
+---
+
+## Local-only sensitive files
+
+The repository contains a reserved local-only directory at `.local/`.
+
+This directory holds local, sensitive, or developer-specific artifacts that must **not** be committed to version control.
+
+### Default hosts file path
+
+```text
+.local/hosts/wireshark_hosts.txt
+```
+
+If this file exists, the tool loads it automatically on every `analyze` run.
+No `--hosts-file` argument is required in the normal case.
+
+If the file is absent, the tool logs a debug message and continues without hosts mapping. It does not fail.
+
+### Creating the file
+
+After cloning, create the directory and place your hosts file:
+
+```bash
+mkdir -p .local/hosts
+# place your Wireshark hosts file at:
+# .local/hosts/wireshark_hosts.txt
+```
+
+### What belongs in .local/
+
+- `.local/hosts/wireshark_hosts.txt` — Wireshark hosts mapping
+- local mapping tables
+- anonymization dictionaries
+- raw trace files for local testing
+- temporary analysis outputs not meant for Git
+
+### Git protection
+
+`.gitignore` ignores all real files under `.local/` except:
+- `.local/.gitkeep` — keeps the directory present in fresh clones
+- `.local/README.md` — documents the directory purpose
+
+A normal `git add .` will **not** stage the hosts file.
+
+### Pre-commit hook
+
+Install the project's pre-commit hook to block accidental force-adds:
+
+```bash
+bash scripts/install-git-hooks.sh
+```
+
+The hook rejects any staged file under `.local/` that is not one of the two allowed placeholders.
+
+### CI protection
+
+The CI pipeline runs a `local-files-guard` job on every push and pull request.
+It fails if any disallowed file under `.local/` is tracked in the repository —
+even if someone bypassed the local hook with `git add -f`.
+
+### Safety note
+
+This design strongly reduces accidental publication risk, but it is not an absolute guarantee against intentional bypass. A file stored inside the repository tree is not as isolated as a file stored fully outside of it.
 
 ---
 

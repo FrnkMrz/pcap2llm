@@ -51,7 +51,12 @@ Typical success payload:
     "max_packets": 1000,
     "all_packets": false,
     "max_capture_size_mb": 250,
-    "fail_on_truncation": false
+    "fail_on_truncation": false,
+    "oversize_factor": 10.0
+  },
+  "schema_versions": {
+    "summary": "1.0",
+    "detail": "1.0"
   }
 }
 ```
@@ -172,9 +177,63 @@ Map `error.code` to an automated response:
 
 ---
 
+## Orchestrator Next Action
+
+Use this table to decide what to do after receiving any result.
+
+| Condition | Next action |
+|---|---|
+| `status == "ok"`, no warnings | Pass `files.detail` to downstream LLM |
+| `status == "ok"` + `detail_truncated` warning | Narrow with `-Y` and retry before forwarding — truncated detail is a slice of the call flow |
+| `status == "ok"` + `no_relevant_protocols_detected` | Re-check `--profile`; run `inspect` without `-Y` to see what TShark sees |
+| `status == "ok"` + `oversize_guard_disabled` | Verify the bypass was intentional; flag for human review in automated pipelines |
+| `error.code == "capture_too_large"` | Reject; ask operator for smaller capture or stricter `-Y` filter |
+| `error.code == "capture_oversize"` | Keep capture, re-filter with stricter `-Y`, retry |
+| `error.code == "tshark_missing"` | Abort pipeline; alert on missing dependency — no retry will help |
+| `error.code == "missing_vault_key"` or `"invalid_vault_key"` | Stop; request valid `PCAP2LLM_VAULT_KEY` from secret store |
+| `error.code == "artifact_write_failed"` | Retry only after storage/permissions issue is resolved |
+| `error.code == "detail_truncated_and_disallowed"` | Tighten `-Y` filter and retry — do **not** raise `--max-packets` |
+
+### When to run `inspect` before `analyze --llm-mode`
+
+Prefer `inspect` first when:
+- the capture source is unknown or unfamiliar
+- the protocol mix is not confirmed
+- the capture is large (more than a few hundred packets expected)
+- no display filter has been validated yet
+- it is the first run against a new capture source
+
+`inspect` is cheap and avoids a full `analyze` run on a capture that will fail the oversize guard or produce no relevant output.
+
+---
+
 ## Dry Run
 
 `--llm-mode --dry-run` returns a machine-readable plan JSON and does not write artifacts.
+
+```json
+{
+  "status": "ok",
+  "mode": "llm",
+  "dry_run": true,
+  "capture": { "path": "trace.pcapng" },
+  "profile": "lte-core",
+  "privacy_profile": "share",
+  "display_filter": "diameter",
+  "limits": {
+    "max_packets": 1000,
+    "all_packets": false,
+    "fail_on_truncation": false,
+    "max_capture_size_mb": 250,
+    "oversize_factor": 10.0
+  },
+  "privacy_modes": {},
+  "files_would_be_written": true,
+  "hosts_file": null,
+  "mapping_file": null,
+  "command": ["tshark", "-n", "-r", "trace.pcapng", "-T", "json", "-Y", "diameter"]
+}
+```
 
 ## Limits
 

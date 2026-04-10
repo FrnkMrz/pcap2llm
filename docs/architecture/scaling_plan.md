@@ -23,10 +23,14 @@ selection.
 - `--max-capture-size-mb`: prevents importing very large files before TShark even runs
 - `--oversize-factor`: prevents silently discarding 95%+ of an export (e.g. 50 000 packets exported, 1 000 written — a 50× ratio is now an explicit error, not a silent truncation)
 
-**What the current guards do NOT solve:**
+**What this round also improved:**
 
-- Memory usage is still proportional to total exported packet count, not to `max_packets`
-- A 50 000-packet export still costs the full TShark JSON materialization even if only 1 000 end up in `detail.json`
+- After packet selection, `raw_packets` (the full TShark export) is now explicitly released from memory before normalization and protection run. This means the peak memory held during the expensive processing stages is proportional to `max_packets`, not to `total_exported`. For a 10 000-packet export with `--max-packets 1000`, this eliminates 9 000 packet dicts from memory during stages 3–5.
+
+**What the current implementation does NOT solve:**
+
+- The full TShark JSON export still materializes in memory during inspection — memory cost at that stage is still proportional to `total_exported`
+- A 50 000-packet export still requires full TShark JSON materialization before inspection can run
 
 ---
 
@@ -87,10 +91,11 @@ wrong summary statistics.
 
 ## Current Status
 
-| Guard | Status |
+| Guard / Improvement | Status |
 |---|---|
 | `--max-capture-size-mb` | ✅ Implemented |
 | `--oversize-factor` (post-export ratio guard) | ✅ Implemented |
 | `capture_oversize` error code | ✅ Implemented |
+| Early release of `raw_packets` after selection | ✅ Implemented |
 | Two-pass extraction | ⬜ Future work |
 | Streaming ingestion | ⬜ Future work |

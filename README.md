@@ -246,7 +246,7 @@ pytest tests/test_pipeline.py -v   # single file
 ruff check .     # lint
 ```
 
-18 test modules. Key test files: `test_pipeline.py`, `test_normalizer.py`, `test_privacy_profiles.py`, `test_cli.py`.
+18 test modules. Key test files: `test_pipeline.py`, `test_normalizer.py`, `test_privacy_profiles.py`, `test_cli.py`, `test_cli_llm_mode.py` (machine-facing `--llm-mode` contract).
 
 ---
 

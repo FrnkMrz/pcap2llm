@@ -205,7 +205,7 @@ Always run `inspect` on an unknown capture first. It shows you protocol distribu
 
 ### Capture size matters
 
-The `--max-packets` default (1 000) is a safety rail. A tightly filtered capture with 200 signaling messages produces a much more useful `detail.json` than a 50 000-packet dump trimmed to 1 000.
+The `--max-packets` default (1 000) is a safety rail. **`--max-packets` controls the output artifact only — TShark still exports the full capture first.** A large rolling trace with a 500-packet limit is still a large, expensive export with a random slice as output. The remedy is a tighter `-Y` filter, not a bigger limit. A tightly filtered capture with 200 signaling messages produces a much more useful `detail.json` than a 50 000-packet dump trimmed to 1 000.
 
 ### Check coverage
 

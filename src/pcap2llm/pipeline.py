@@ -183,6 +183,11 @@ def analyze_capture(
             f"detail export would be truncated at {max_packets:,} of "
             f"{selected.total_exported:,} packets"
         )
+    # Release the full TShark export from memory now that packet selection is
+    # complete.  Normalization and protection only need the bounded detail slice
+    # (selected.detail_packets), so keeping raw_packets alive through those
+    # stages wastes memory proportional to total_exported, not max_packets.
+    del raw_packets
 
     detail_label = (
         f"{len(selected.detail_packets):,}"

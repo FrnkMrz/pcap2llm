@@ -120,6 +120,42 @@ def test_oversize_ratio_bypassed_in_pipeline(tmp_path: Path) -> None:
     assert artifacts.summary["coverage"]["detail_packets_available"] == 11
 
 
+def test_early_raw_packet_release_produces_correct_artifacts(tmp_path: Path) -> None:
+    """Pipeline must produce correct artifacts after raw_packets is released post-selection.
+
+    raw_packets is now explicitly deleted after _select_packets() so the full
+    TShark export does not stay in memory during normalization/protection.
+    This test confirms the pipeline produces correct coverage metadata and
+    detail content after that change — i.e. no data loss from early release.
+    """
+    from unittest.mock import patch
+    from pcap2llm.profiles import load_profile
+    from pcap2llm.tshark_runner import TSharkRunner
+
+    profile = load_profile("lte-core")
+    runner = TSharkRunner()
+    # 5-packet export, capped at 3 — raw_packets (5 items) is released after
+    # selection; normalization runs only on the 3-packet slice.
+    packets = [_make_raw_packet(number=str(i)) for i in range(1, 6)]
+
+    with patch.object(runner, "export_packets", return_value=packets):
+        artifacts = analyze_capture(
+            tmp_path / "sample.pcapng",
+            out_dir=tmp_path / "out",
+            runner=runner,
+            profile=profile,
+            privacy_modes={},
+            max_packets=3,
+            oversize_factor=0,  # disable guard — we want to test selection+release
+        )
+
+    coverage = artifacts.summary["coverage"]
+    assert coverage["detail_packets_included"] == 3
+    assert coverage["detail_packets_available"] == 5
+    assert coverage["detail_truncated"] is True
+    assert len(artifacts.detail["selected_packets"]) == 3
+
+
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------

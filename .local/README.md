@@ -11,14 +11,14 @@ This directory is ignored by Git except for this README and `.gitkeep`.
 Place your Wireshark-style hosts file at:
 
 ```
-.local/hosts/wireshark_hosts.txt
+.local/hosts
 ```
 
 The tool loads it automatically if it exists. No CLI argument is required.
 
 ## What belongs here
 
-- `.local/hosts/wireshark_hosts.txt` — Wireshark hosts mapping
+- `.local/hosts` — Wireshark hosts mapping
 - local mapping tables (YAML/JSON)
 - anonymization dictionaries
 - raw trace files used for local testing

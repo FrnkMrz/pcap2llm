@@ -241,7 +241,7 @@ def _merge_verbatim_protocols(
     }
 
 
-_LOCAL_HOSTS_DEFAULT = Path(".local/hosts/wireshark_hosts.txt")
+_LOCAL_HOSTS_DEFAULT = Path(".local/hosts")
 
 
 def _resolve_hosts_file(

@@ -44,7 +44,7 @@ def test_config_file_wins_over_default(tmp_path: Path) -> None:
 
 def test_default_path_used_when_present(tmp_path: Path) -> None:
     """Auto-discovers default path when the file exists there."""
-    fake_default = tmp_path / "wireshark_hosts.txt"
+    fake_default = tmp_path / "hosts"
     fake_default.write_text("10.0.0.1 mme\n")
     with patch(f"{_MODULE}._LOCAL_HOSTS_DEFAULT", fake_default):
         result = _resolve_hosts_file(None, {})
@@ -85,5 +85,5 @@ def test_cli_arg_overrides_config_and_default(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 def test_default_constant_path() -> None:
-    """The default path constant is exactly .local/hosts/wireshark_hosts.txt."""
-    assert str(_LOCAL_HOSTS_DEFAULT) == ".local/hosts/wireshark_hosts.txt"
+    """The default path constant is exactly .local/hosts."""
+    assert str(_LOCAL_HOSTS_DEFAULT) == ".local/hosts"

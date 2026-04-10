@@ -417,7 +417,7 @@ Resolve raw IPs to readable names. Two mechanisms, combinable:
 The simplest setup: place your file at the default local path and the tool finds it automatically.
 
 ```text
-.local/hosts/wireshark_hosts.txt
+.local/hosts
 ```
 
 No CLI argument needed — the tool checks that path on every run and loads it if present.
@@ -692,7 +692,7 @@ This directory holds local, sensitive, or developer-specific artifacts that must
 ### Default hosts file path
 
 ```text
-.local/hosts/wireshark_hosts.txt
+.local/hosts
 ```
 
 If this file exists, the tool loads it automatically on every `analyze` run.
@@ -705,14 +705,13 @@ If the file is absent, the tool logs a debug message and continues without hosts
 After cloning, create the directory and place your hosts file:
 
 ```bash
-mkdir -p .local/hosts
 # place your Wireshark hosts file at:
-# .local/hosts/wireshark_hosts.txt
+cp /path/to/your/hosts .local/hosts
 ```
 
 ### What belongs in .local/
 
-- `.local/hosts/wireshark_hosts.txt` — Wireshark hosts mapping
+- `.local/hosts` — Wireshark hosts mapping
 - local mapping tables
 - anonymization dictionaries
 - raw trace files for local testing

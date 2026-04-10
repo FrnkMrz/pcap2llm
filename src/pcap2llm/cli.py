@@ -261,6 +261,15 @@ def analyze_command(
             "Use 0 to disable the guard for intentionally large captures."
         ),
     ),
+    oversize_factor: float = typer.Option(
+        10.0,
+        "--oversize-factor",
+        help=(
+            "Fail if the exported packet count exceeds max-packets by this factor (default: 10×). "
+            "Fires after inspection so summary.json stays accurate. "
+            "Use 0 to disable."
+        ),
+    ),
     llm_mode: bool = typer.Option(
         False,
         "--llm-mode",
@@ -318,6 +327,7 @@ def analyze_command(
                 all_packets=all_packets,
                 fail_on_truncation=fail_on_truncation,
                 max_capture_size_mb=max_capture_size_mb,
+                oversize_factor=oversize_factor,
                 privacy_modes=privacy_modes,
                 hosts_file=effective_hosts,
                 mapping_file=effective_mapping,
@@ -368,6 +378,7 @@ def analyze_command(
                 max_packets=effective_max_packets,
                 fail_on_truncation=fail_on_truncation,
                 max_capture_size_mb=max_capture_size_mb,
+                oversize_factor=oversize_factor,
                 on_stage=on_stage,
             )
     except Exception as exc:  # noqa: BLE001
@@ -408,6 +419,13 @@ def analyze_command(
             build_warning(
                 "capture_size_guard_disabled",
                 "pre-export capture size guard was disabled explicitly.",
+            )
+        )
+    if oversize_factor <= 0:
+        warnings.append(
+            build_warning(
+                "oversize_guard_disabled",
+                "packet-count oversize guard was disabled explicitly (--oversize-factor 0).",
             )
         )
     if not artifacts.summary.get("relevant_protocols"):
@@ -457,6 +475,7 @@ def analyze_command(
             "all_packets": all_packets,
             "max_capture_size_mb": max_capture_size_mb,
             "fail_on_truncation": fail_on_truncation,
+            "oversize_factor": oversize_factor,
         },
         warnings=warnings,
         schema_versions={

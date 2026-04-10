@@ -27,6 +27,7 @@ OnStage = Callable[[str, int, int], None]
 
 _ANALYZE_STEPS = 7
 _DEFAULT_MAX_PACKETS = 1000
+_DEFAULT_OVERSIZE_FACTOR = 10.0
 
 
 @dataclass(frozen=True)
@@ -124,6 +125,7 @@ def analyze_capture(
     max_packets: int = _DEFAULT_MAX_PACKETS,
     fail_on_truncation: bool = False,
     max_capture_size_mb: int = 250,
+    oversize_factor: float = _DEFAULT_OVERSIZE_FACTOR,
     on_stage: OnStage | None = None,
 ) -> AnalyzeArtifacts:
     """Run the full analysis pipeline.
@@ -164,6 +166,15 @@ def analyze_capture(
     # the user gets a clear error rather than a crash mid-pipeline.
     protector = Protector(privacy_modes)
     protector.validate_vault_key()
+
+    # Oversize guard: fail fast if the export is far larger than the detail
+    # limit.  This fires after inspection (so summary.json stays accurate) but
+    # before the expensive normalization/protection stages.
+    _check_oversize_ratio(
+        len(raw_packets),
+        max_packets,
+        oversize_factor=oversize_factor,
+    )
 
     _step("Select stage: applying bounded detail export policy…", 2)
     selected = _select_packets(raw_packets, max_packets=max_packets)
@@ -282,6 +293,29 @@ def _check_capture_size(capture_path: Path, *, max_capture_size_mb: int) -> None
         raise RuntimeError(
             f"capture file is {actual_mib:.1f} MiB, which exceeds --max-capture-size-mb "
             f"{max_capture_size_mb}. Narrow the trace first or rerun with a larger limit."
+        )
+
+
+def _check_oversize_ratio(
+    total_exported: int,
+    max_packets: int,
+    *,
+    oversize_factor: float,
+) -> None:
+    """Raise if total_exported exceeds max_packets by more than oversize_factor.
+
+    Guards against accidentally expensive runs where the packet limit would
+    silently discard most of the exported data.  Setting *oversize_factor* to
+    0 (or any non-positive value) disables the guard entirely.
+    """
+    if oversize_factor <= 0 or max_packets <= 0:
+        return
+    if total_exported > max_packets * oversize_factor:
+        ratio = total_exported / max_packets
+        raise RuntimeError(
+            f"capture exported {total_exported:,} packets but detail limit is "
+            f"{max_packets:,} ({ratio:.0f}× oversize). "
+            f"Narrow with -Y before analyzing, or set --oversize-factor 0 to bypass."
         )
 
 

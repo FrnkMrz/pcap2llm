@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from pcap2llm.pipeline import _artifact_timestamp_prefix, analyze_capture, write_artifacts
+from pcap2llm.pipeline import _artifact_timestamp_prefix, _check_oversize_ratio, analyze_capture, write_artifacts
 from pcap2llm.profiles import load_profile
 from pcap2llm.protector import ProtectionError, Protector
 from pcap2llm.tshark_runner import TSharkError, TSharkRunner
@@ -37,6 +37,87 @@ def test_timestamp_prefix_none_on_invalid_input() -> None:
     assert _artifact_timestamp_prefix(None) is None
     assert _artifact_timestamp_prefix("") is None
     assert _artifact_timestamp_prefix("not-a-date") is None
+
+
+# ---------------------------------------------------------------------------
+# _check_oversize_ratio
+# ---------------------------------------------------------------------------
+
+def test_oversize_ratio_passes_within_factor() -> None:
+    """Should not raise when total is within the allowed factor."""
+    _check_oversize_ratio(9_999, 1_000, oversize_factor=10.0)  # 9.999× — just under
+
+
+def test_oversize_ratio_raises_at_threshold() -> None:
+    """Should raise when total exceeds max_packets × factor."""
+    with pytest.raises(RuntimeError, match="oversize"):
+        _check_oversize_ratio(10_001, 1_000, oversize_factor=10.0)  # 10.001× — over
+
+
+def test_oversize_ratio_raises_carries_packet_counts() -> None:
+    """Error message must include exported count, limit, and bypass hint."""
+    with pytest.raises(RuntimeError, match="47,312") as exc_info:
+        _check_oversize_ratio(47_312, 1_000, oversize_factor=10.0)
+    msg = str(exc_info.value)
+    assert "1,000" in msg
+    assert "--oversize-factor 0" in msg
+
+
+def test_oversize_ratio_disabled_at_zero() -> None:
+    """oversize_factor=0 must never raise, regardless of ratio."""
+    _check_oversize_ratio(1_000_000, 1_000, oversize_factor=0)
+
+
+def test_oversize_ratio_disabled_when_max_packets_zero() -> None:
+    """Unlimited mode (max_packets=0) must not trigger the guard."""
+    _check_oversize_ratio(1_000_000, 0, oversize_factor=10.0)
+
+
+def test_oversize_ratio_pipeline_integration(tmp_path: Path) -> None:
+    """Pipeline must raise RuntimeError before normalization when ratio is exceeded."""
+    from unittest.mock import patch
+    from pcap2llm.profiles import load_profile
+    from pcap2llm.tshark_runner import TSharkRunner
+
+    profile = load_profile("lte-core")
+    runner = TSharkRunner()
+    packets = [_make_raw_packet(number=str(i)) for i in range(1, 12)]  # 11 packets
+
+    with patch.object(runner, "export_packets", return_value=packets):
+        with pytest.raises(RuntimeError, match="oversize"):
+            analyze_capture(
+                tmp_path / "sample.pcapng",
+                out_dir=tmp_path / "out",
+                runner=runner,
+                profile=profile,
+                privacy_modes={},
+                max_packets=1,      # limit 1
+                oversize_factor=10.0,  # 11 > 1×10 → should fire
+            )
+
+
+def test_oversize_ratio_bypassed_in_pipeline(tmp_path: Path) -> None:
+    """Setting oversize_factor=0 must allow the pipeline to continue past the guard."""
+    from unittest.mock import patch
+    from pcap2llm.profiles import load_profile
+    from pcap2llm.tshark_runner import TSharkRunner
+
+    profile = load_profile("lte-core")
+    runner = TSharkRunner()
+    packets = [_make_raw_packet(number=str(i)) for i in range(1, 12)]  # 11 packets
+
+    with patch.object(runner, "export_packets", return_value=packets):
+        # Should not raise — oversize guard is disabled
+        artifacts = analyze_capture(
+            tmp_path / "sample.pcapng",
+            out_dir=tmp_path / "out",
+            runner=runner,
+            profile=profile,
+            privacy_modes={},
+            max_packets=1,
+            oversize_factor=0,  # guard disabled
+        )
+    assert artifacts.summary["coverage"]["detail_packets_available"] == 11
 
 
 # ---------------------------------------------------------------------------

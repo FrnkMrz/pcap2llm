@@ -73,14 +73,17 @@ Typical failure payload:
 
 ## Warning Model
 
-Warnings are structured objects such as:
+Warnings are structured objects in the `warnings` array. Each has a `code` and a `message`.
 
-- `detail_truncated`
-- `capture_size_guard_disabled`
-- `no_relevant_protocols_detected`
-- `pseudonym_mapping_created`
-- `encrypted_output_requires_key_handling`
-- `full_load_ingestion_applies`
+| Warning code | When it appears | Suggested next action |
+|---|---|---|
+| `full_load_ingestion_applies` | Always — every success run | Informational. Use focused captures and `-Y` filters. |
+| `detail_truncated` | `total_exported > max_packets` | Re-filter with `-Y` to narrow to the relevant call flow. Do **not** just raise `--max-packets`. |
+| `capture_size_guard_disabled` | `--max-capture-size-mb 0` was set | Verify the operator intended this. Flag for human review in automated pipelines. |
+| `oversize_guard_disabled` | `--oversize-factor 0` was set | Same as above — guard bypass should be intentional. |
+| `no_relevant_protocols_detected` | No profile-relevant protocols in the capture | Re-check `--profile` matches traffic type. Run `inspect` without `-Y` to see what TShark sees. |
+| `pseudonym_mapping_created` | Pseudonymization produced a mapping sidecar | Keep `pseudonym_mapping.json` separate. Do **not** forward it with the artifact set. |
+| `encrypted_output_requires_key_handling` | Encryption was active | `PCAP2LLM_VAULT_KEY` must be managed separately. Never pass it with the artifact. |
 
 ## Typical Automation Flow
 
@@ -156,11 +159,16 @@ Map `error.code` to an automated response:
 
 | Code | Automated response |
 |---|---|
-| `capture_too_large` | Reject; notify operator to filter or re-export capture |
+| `capture_too_large` | Reject; ask operator to narrow the capture or raise `--max-capture-size-mb` deliberately |
+| `capture_oversize` | Reject; export was far larger than the detail limit — re-filter with `-Y` before retrying |
 | `tshark_missing` | Abort pipeline; alert on missing dependency |
 | `missing_vault_key` | Abort; request `PCAP2LLM_VAULT_KEY` from secret store |
-| `detail_truncated_and_disallowed` | Reject; tighten filter and retry |
-| `runtime_error` | Unexpected; surface full `error.message` for investigation |
+| `invalid_vault_key` | Abort; key format is wrong — generate a new Fernet key |
+| `invalid_tshark_json` | Abort; TShark version may be too old (< 3.6) or capture is corrupt |
+| `tshark_failed` | Abort; surface `error.message` — likely a bad display filter or corrupt file |
+| `detail_truncated_and_disallowed` | Reject; `--fail-on-truncation` was set — tighten `-Y` filter and retry |
+| `artifact_write_failed` | Abort; surface `error.message` — disk full or permissions issue |
+| `runtime_error` | Unexpected; surface full `error.message` for human investigation |
 
 ---
 

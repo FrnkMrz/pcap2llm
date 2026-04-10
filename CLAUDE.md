@@ -134,6 +134,7 @@ pcap2llm init-config
 --all-packets           include all packets, overrides --max-packets
 --fail-on-truncation    raise error if detail would be truncated
 --max-capture-size-mb   reject capture files larger than N MiB (default: 250, 0=off)
+--oversize-factor       reject if exported packets exceed max-packets by this factor (default: 10, 0=off)
 --dry-run               print plan only, no tshark execution
 --llm-mode              stdout is strict JSON for agent/automation use
 --hosts-file            Wireshark-style hosts file

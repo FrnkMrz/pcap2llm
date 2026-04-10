@@ -197,6 +197,7 @@ def test_llm_mode_all_packets_with_guard_disabled_reports_limits(tmp_path: Path)
         (RuntimeError("detail export would be truncated at 100 of 500 packets"), "detail_truncated_and_disallowed"),
         (RuntimeError("tshark output is not valid JSON: Expecting value: line 1"), "invalid_tshark_json"),
         (RuntimeError("unknown tshark error"), "tshark_failed"),
+        (RuntimeError("capture exported 47,312 packets but detail limit is 1,000 (47× oversize). Narrow with -Y"), "capture_oversize"),
     ],
 )
 def test_llm_mode_maps_known_runtime_failures(tmp_path: Path, side_effect: Exception, code: str) -> None:
@@ -419,6 +420,57 @@ def test_llm_mode_success_coverage_block_has_required_keys(tmp_path: Path) -> No
     assert "detail_truncated" in cov
     assert cov["detail_truncated"] is False
     assert cov["detail_packets_included"] == 10
+
+
+def test_llm_mode_oversize_guard_disabled_reports_warning(tmp_path: Path) -> None:
+    """--oversize-factor 0 must appear as a warning in the success payload."""
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+    out_dir = tmp_path / "artifacts"
+    outputs = {
+        "summary": out_dir / "20240406_075320_summary_V_01.json",
+        "detail": out_dir / "20240406_075320_detail_V_01.json",
+        "markdown": out_dir / "20240406_075320_summary_V_01.md",
+    }
+
+    with (
+        patch("pcap2llm.cli.analyze_capture", return_value=_artifacts(out_dir)),
+        patch("pcap2llm.cli.write_artifacts", return_value=outputs),
+    ):
+        result = runner.invoke(
+            app,
+            ["analyze", str(capture), "--llm-mode",
+             "--oversize-factor", "0", "--profile", "lte-core", "--out", str(out_dir)],
+        )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    warning_codes = {w["code"] for w in payload["warnings"]}
+    assert "oversize_guard_disabled" in warning_codes
+    assert payload["limits"]["oversize_factor"] == 0.0
+
+
+def test_llm_mode_oversize_factor_present_in_limits(tmp_path: Path) -> None:
+    """limits block must include oversize_factor in every success response."""
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+    out_dir = tmp_path / "artifacts"
+    outputs = {
+        "summary": out_dir / "20240406_075320_summary_V_01.json",
+        "detail": out_dir / "20240406_075320_detail_V_01.json",
+        "markdown": out_dir / "20240406_075320_summary_V_01.md",
+    }
+
+    with (
+        patch("pcap2llm.cli.analyze_capture", return_value=_artifacts(out_dir)),
+        patch("pcap2llm.cli.write_artifacts", return_value=outputs),
+    ):
+        result = runner.invoke(app, ["analyze", str(capture), "--llm-mode", "--profile", "lte-core", "--out", str(out_dir)])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert "oversize_factor" in payload["limits"]
+    assert payload["limits"]["oversize_factor"] == 10.0  # default
 
 
 def test_llm_mode_stdout_is_pure_json_on_error(tmp_path: Path) -> None:

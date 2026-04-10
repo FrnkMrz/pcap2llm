@@ -8,6 +8,8 @@ def map_error(exc: Exception) -> tuple[str, dict[str, Any]]:
 
     if "exceeds --max-capture-size-mb" in message:
         return "capture_too_large", {}
+    if "oversize" in message and "detail limit is" in message:
+        return "capture_oversize", {}
     if "tshark was not found in PATH" in message:
         return "tshark_missing", {}
     if "tshark output is not valid JSON" in message:

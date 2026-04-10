@@ -6,6 +6,21 @@ The format is intentionally simple and optimized for humans reading repo history
 
 ## Unreleased
 
+### Added — 2026-04-10
+
+- **Oversize-ratio guard** (`--oversize-factor`, default 10×): after TShark export, if `total_exported > max_packets × factor` the pipeline fails fast with a clear error and a `-Y` hint. Fires after the inspection stage so `summary.json` statistics remain accurate; fires before the expensive normalization and protection stages. Set `--oversize-factor 0` to disable.
+- New error code `capture_oversize` in `error_codes.py` and in the LLM-mode error contract for machine consumers.
+- New warning code `oversize_guard_disabled` when `--oversize-factor 0` is used explicitly.
+- `oversize_factor` added to the `limits` block in the LLM-mode success payload and dry-run payload.
+- 10 new tests: unit tests for `_check_oversize_ratio` (passes within factor, raises at threshold, message content, disabled at 0, disabled when unlimited); two pipeline-integration tests (guard fires and stops normalization, guard bypass allows run); two CLI contract tests (warning appears, field present in limits).
+- **LLM_MODE.md** warning model expanded into a full table: each warning code mapped to a concrete suggested next action for orchestrators.
+- **LLM_MODE.md** error-code table expanded to cover all canonical codes: `capture_oversize`, `invalid_tshark_json`, `tshark_failed`, `invalid_vault_key`, `artifact_write_failed`.
+- **`docs/architecture/scaling_plan.md`** rewritten: current behavior documented as a table, all three scaling options compared, two-pass design specified concretely as the recommended next step with prerequisites, current implementation status table.
+
+### Changed — 2026-04-10
+
+- `REFERENCE.md` and `CLAUDE.md` updated with `--oversize-factor` option.
+
 ### Added — 2026-04-09
 
 - `verbatim_protocols` support in analysis profiles: protocols listed there bypass `full_detail_fields` field selection and `_flatten`; the complete raw TShark layer dict is kept as-is (only `_ws.*` keys stripped). Takes priority over `full_detail_fields` for the same protocol. Documented in `docs/PROFILES.md` and `docs/REFERENCE.md`.

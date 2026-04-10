@@ -113,6 +113,7 @@ Output control:
   --all-packets           Include all packets, overrides --max-packets
   --fail-on-truncation    Exit with error if detail.json would be truncated
   --max-capture-size-mb   Reject captures larger than N MiB (default: 250, 0=off)
+  --oversize-factor       Reject if exported packets exceed max-packets by this factor (default: 10, 0=off)
   --dry-run               Print plan only, do not run tshark
   --llm-mode              Output strict JSON for agent/automation use
 
@@ -212,6 +213,9 @@ pcap2llm analyze sample.pcapng --profile lte-core --fail-on-truncation
 
 # Reject very large captures before running tshark (default: 250 MiB, 0=off)
 pcap2llm analyze sample.pcapng --profile lte-core --max-capture-size-mb 100
+
+# Reject if exported count is more than 5× the detail limit (default factor: 10, 0=off)
+pcap2llm analyze sample.pcapng --profile lte-core --oversize-factor 5
 ```
 
 When truncated, `summary.json` contains a `detail_truncated` entry:

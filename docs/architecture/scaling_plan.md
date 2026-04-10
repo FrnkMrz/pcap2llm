@@ -1,49 +1,96 @@
 # Scaling Plan
 
-`pcap2llm` now bounds the public `detail.json` artifact, but the current TShark ingestion path still loads full JSON into memory before packet selection.
+`pcap2llm` bounds the public `detail.json` artifact, but the current TShark
+ingestion path still loads the full exported JSON into memory before packet
+selection.
 
-## Current Limitation
+---
 
-- `detail.json` is bounded
-- `summary.json` remains explicit about coverage and truncation
-- raw `tshark -T json` export is still full-load in memory
+## Current Behavior (as implemented)
 
-This means the tool is still best for focused captures.
+| Stage | What happens |
+|---|---|
+| Size guard | Rejects captures above `--max-capture-size-mb` (default 250 MiB) before TShark runs |
+| TShark export | Full capture → JSON in memory, no streaming |
+| Inspection | Runs on all exported packets — summary stats are always accurate |
+| Oversize guard | Rejects if `total_exported > max_packets × oversize_factor` (default 10×) |
+| Packet selection | Slices to `max_packets` |
+| Normalization / protection | Runs only on the selected slice |
+| Serialization | Writes bounded `detail.json` + full-coverage `summary.json` |
 
-## Options Considered
+**What the current guards protect against:**
 
-### 1. Full-load JSON only
+- `--max-capture-size-mb`: prevents importing very large files before TShark even runs
+- `--oversize-factor`: prevents silently discarding 95%+ of an export (e.g. 50 000 packets exported, 1 000 written — a 50× ratio is now an explicit error, not a silent truncation)
 
-Keep the current architecture and rely on documentation alone.
+**What the current guards do NOT solve:**
 
-- Simple
-- Not sufficient for accidental large captures
+- Memory usage is still proportional to total exported packet count, not to `max_packets`
+- A 50 000-packet export still costs the full TShark JSON materialization even if only 1 000 end up in `detail.json`
 
-### 2. Two-pass design
+---
 
-- Pass 1 for metadata/summary
-- Pass 2 for bounded detail export
+## Options for Future Improvement
 
-This is structurally promising, but still requires careful TShark extraction design and more implementation work than this round should absorb.
+### Option 1: Two-pass extraction
 
-### 3. Size guard plus staged policy
+- **Pass 1**: TShark export with `-T fields` or a lightweight filter to collect metadata, protocol counts, timestamps, and conversation tuples only — no full JSON materialization
+- **Pass 2**: Second TShark run with a narrower display filter or frame-number selection for the bounded detail extraction
 
-- detect oversized captures before TShark JSON export
-- fail fast unless the operator explicitly raises or disables the size guard
-- keep bounded detail export and honest docs
+**Pros**: memory usage becomes proportional to the detail artifact, not the full capture  
+**Cons**: two TShark invocations per run; frame-number selection across large captures requires careful filter construction; inspect and detail must stay consistent  
+**Verdict**: right long-term direction, not yet justified by the current tool scope
+
+### Option 2: TShark PDML/EK streaming
+
+- Use `tshark -T ek` (Elasticsearch JSON, line-delimited) instead of `-T json`
+- Parse line-by-line, maintain a sliding window
+
+**Pros**: true streaming ingestion  
+**Cons**: EK format diverges from JSON field names; significant normalizer rewrite  
+**Verdict**: too disruptive for current architecture; revisit when the tool usage patterns are clearer
+
+### Option 3: Stronger defensive policy (current round — implemented)
+
+- Pre-export size guard (already existed)
+- Post-export oversize-ratio guard (added in this round)
+- Explicit `capture_oversize` error code for machine consumers
+- Documentation of what limits mean and don't mean
+
+**Pros**: no architecture change; fails fast and clearly; machine-readable  
+**Cons**: does not reduce actual memory or processing cost on large captures  
+**Verdict**: right next step for the current maturity level; prevents the most common accidental misuse
+
+---
 
 ## Recommended Next Step
 
-The practical next step is **Option 3**.
+**Option 1 (two-pass)** is the correct long-term direction.
 
-It does not solve streaming ingestion yet, but it prevents the most common accidental misuse: sending very large captures into a full-load JSON pipeline without realizing the cost.
+The concrete design would be:
 
-## Implemented In This Round
+1. Run TShark pass 1 with `-T fields -e frame.number -e frame.time_epoch -e frame.protocols` — lightweight, produces one line per packet
+2. Use pass 1 output to build the inspection result (protocol counts, timestamps, conversations)
+3. Select the target frame numbers for the detail artifact (e.g. first N, or frames matching an additional filter)
+4. Run TShark pass 2 with `-T json -Y "frame.number in {1,2,3,...}"` for only the selected frames
+5. Normalize and protect only the pass 2 result
 
-- `--max-capture-size-mb` guard added to the CLI
-- default fail-fast threshold before TShark JSON export
-- docs updated to explain that bounded output does not yet mean bounded ingestion
+This would make memory use proportional to the detail artifact size and would
+make `--max-packets` a real processing bound, not just an output bound.
 
-## Future Direction
+**Prerequisite before starting**: validate that TShark frame-number filtering
+is reliable and consistent across TShark versions (4.0, 4.2, 4.6) on both
+macOS and Linux. A failing TShark filter at this stage would silently produce
+wrong summary statistics.
 
-The next structural upgrade should be a true summary/detail extraction split or two-pass architecture so that large captures can be handled more intentionally without full in-memory JSON materialization.
+---
+
+## Current Status
+
+| Guard | Status |
+|---|---|
+| `--max-capture-size-mb` | ✅ Implemented |
+| `--oversize-factor` (post-export ratio guard) | ✅ Implemented |
+| `capture_oversize` error code | ✅ Implemented |
+| Two-pass extraction | ⬜ Future work |
+| Streaming ingestion | ⬜ Future work |

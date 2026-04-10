@@ -1,0 +1,62 @@
+name: vonr-sbi-pdu
+description: >
+  Voice-relevant PDU and session-control SBI profile for VoNR over 5GS. Focused
+  on session setup, update, and continuity issues that impact IMS voice service
+  execution rather than generic data-session troubleshooting.
+
+# ---------------------------------------------------------------------------
+# VoNR PDU / session-SBI focus
+#
+# Useful display filters:
+#   Session-control SBI:          http2
+#   Update or failure focus:      http2.headers.status
+#   Payload support view:         http2 || json
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - http
+  - json
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - http
+  - json
+  - tcp
+  - ip
+
+protocol_aliases:
+  http: [http2, http]
+  json: [json]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  http:
+    - http2.headers.method
+    - http2.headers.path
+    - http2.headers.authority
+    - http2.headers.status
+    - http2.headers.content_type
+  json:
+    - json.member
+    - json.value.string
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight session creation, update, or continuity failures that plausibly break VoNR service even when basic registration succeeds.
+  - Flag missing or delayed SBI responses in PDU-related flows because session-control instability often appears before SIP call failure becomes obvious.
+  - Keep this profile voice-specific by prioritizing session continuity and service readiness over generic 5GS PDU troubleshooting.

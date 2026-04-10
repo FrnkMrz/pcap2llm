@@ -1,0 +1,68 @@
+name: volte-diameter-sh
+description: >
+  VoLTE Sh Diameter profile for IMS subscriber-profile retrieval and service
+  data access in LTE / EPS voice environments. Focused on user-data access
+  failures, profile lookup behavior, and realm or routing mismatches.
+
+# ---------------------------------------------------------------------------
+# Sh Diameter focus
+#
+# Useful display filters:
+#   Sh only:                      diameter
+#   Data access failures:         diameter.Result-Code >= 3000
+#   User-data retrieval focus:    diameter
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - diameter
+  - sctp
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - diameter
+  - sctp
+  - tcp
+  - ip
+
+protocol_aliases:
+  diameter: [diameter]
+  sctp: [sctp]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+verbatim_protocols:
+  - diameter
+keep_raw_avps: false
+
+full_detail_fields:
+  diameter:
+    - diameter.cmd.code
+    - diameter.applicationid
+    - diameter.session_id
+    - diameter.origin_host
+    - diameter.destination_host
+    - diameter.origin_realm
+    - diameter.destination_realm
+    - diameter.User-Identity
+    - diameter.Result-Code
+    - diameter.Data-Reference
+    - diameter.User-Data
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - sctp_stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight failed user-data retrieval or update transactions because they often explain broken IMS service readiness despite otherwise normal SIP signaling.
+  - Flag realm and origin or destination host mismatches on Sh to surface subscriber-profile routing errors early.
+  - Keep the profile distinct from Rx and Cx by emphasizing service-data access and profile availability rather than call authorization or registration challenge behavior.

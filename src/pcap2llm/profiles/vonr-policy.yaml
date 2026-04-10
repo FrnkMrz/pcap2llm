@@ -1,0 +1,62 @@
+name: vonr-policy
+description: >
+  Voice-relevant policy and QoS control profile for VoNR over 5GS. Focused on
+  PCF-, SMF-, and policy-oriented SBI exchanges that affect voice-session
+  establishment, continuity, or service treatment.
+
+# ---------------------------------------------------------------------------
+# VoNR policy focus
+#
+# Useful display filters:
+#   Policy SBI only:              http2
+#   Response failures:            http2.headers.status
+#   Session and policy context:   http2 || json
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - http
+  - json
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - http
+  - json
+  - tcp
+  - ip
+
+protocol_aliases:
+  http: [http2, http]
+  json: [json]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  http:
+    - http2.headers.method
+    - http2.headers.path
+    - http2.headers.authority
+    - http2.headers.status
+    - http2.headers.content_type
+  json:
+    - json.member
+    - json.value.string
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight policy and session-control exchanges that return repeated 4xx or 5xx responses before or during VoNR service establishment.
+  - Flag missing or delayed policy-response chains that could explain degraded voice readiness even when IMS SIP looks normal.
+  - Keep this profile voice-specific by emphasizing policy or QoS decisions tied to voice-session continuity rather than generic 5GC policy traffic.

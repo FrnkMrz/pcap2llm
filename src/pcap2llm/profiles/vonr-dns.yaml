@@ -1,0 +1,67 @@
+name: vonr-dns
+description: >
+  DNS troubleshooting profile for VoNR and IMS service discovery in 5GS
+  environments. Focused on NAPTR, SRV, A, AAAA, and discovery failures that
+  affect IMS reachability or voice-service setup over 5GS.
+
+# ---------------------------------------------------------------------------
+# 5GS voice DNS focus
+#
+# Useful display filters:
+#   DNS only:                     dns
+#   IMS discovery records:        dns.qry.type == 35 || dns.qry.type == 33
+#   Failures only:                dns.flags.rcode != 0
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - dns
+  - udp
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - dns
+  - udp
+  - tcp
+  - ip
+
+protocol_aliases:
+  dns: [dns]
+  udp: [udp]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  dns:
+    - dns.qry.name
+    - dns.qry.type
+    - dns.flags.response
+    - dns.flags.rcode
+    - dns.count.answers
+    - dns.naptr.service
+    - dns.naptr.replacement
+    - dns.srv.target
+    - dns.srv.port
+    - dns.a
+    - dns.aaaa
+    - dns.resp.type
+    - dns.resp.name
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight discovery failures that affect voice over 5GS readiness, especially missing NAPTR or SRV answers for IMS service targets.
+  - Flag NXDOMAIN, SERVFAIL, no-answer, and retry patterns separately so resolver problems are not confused with pure SIP or 5GS mobility issues.
+  - Note unstable target rotation or repeated lookup churn because intermittent discovery often explains hard-to-reproduce VoNR availability problems.

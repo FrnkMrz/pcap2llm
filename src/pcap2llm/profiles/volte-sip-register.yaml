@@ -1,0 +1,81 @@
+name: volte-sip-register
+description: >
+  IMS registration troubleshooting profile for VoLTE over LTE / EPS. Focused on
+  REGISTER challenge flows, registrar reachability, repeated registration
+  attempts, and failures that block IMS voice readiness before call setup.
+
+# ---------------------------------------------------------------------------
+# VoLTE REGISTER focus
+#
+# Useful display filters:
+#   REGISTER only:                sip.Method == "REGISTER" || sip.CSeq.method == "REGISTER"
+#   Auth challenges:              sip.Status-Code == 401 || sip.Status-Code == 407
+#   Registration rejects:         sip.Status-Code == 403 || sip.Status-Code == 423
+#   Registrar discovery issues:   (sip && dns) || dns
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - sip
+  - dns
+  - tcp
+  - udp
+  - ip
+
+top_protocol_priority:
+  - sip
+  - dns
+  - tcp
+  - udp
+  - ip
+
+protocol_aliases:
+  sip: [sip]
+  dns: [dns]
+  tcp: [tcp]
+  udp: [udp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  sip:
+    - sip.Method
+    - sip.Status-Code
+    - sip.CSeq.method
+    - sip.Call-ID
+    - sip.From
+    - sip.To
+    - sip.Contact
+    - sip.Expires
+    - sip.WWW-Authenticate
+    - sip.Authorization
+    - sip.P-Associated-URI
+    - sip.Path
+    - sip.Reason-Phrase
+  dns:
+    - dns.qry.name
+    - dns.qry.type
+    - dns.naptr.service
+    - dns.srv.target
+    - dns.srv.port
+    - dns.a
+    - dns.aaaa
+    - dns.resp.type
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight repeated REGISTER challenge loops that never reach 200 OK as likely auth or credential-state problems.
+  - Flag 401, 403, 423, and timeout-like registration patterns separately because they usually indicate different operator actions.
+  - Note missing registrar-related DNS NAPTR, SRV, A, or AAAA answers when SIP registration attempts restart or move between targets.
+  - Emphasize refresh and expiration behavior so stale registration state or failed renewal is visible before call-setup troubleshooting starts.

@@ -1,0 +1,82 @@
+name: volte-rtp-signaling
+description: >
+  VoLTE RTP-adjacent signaling profile for LTE / EPS IMS troubleshooting. Keeps
+  SIP, SDP, RTP, and RTCP visible only to the extent they support call-setup,
+  codec-negotiation, and one-way-media suspicion analysis.
+
+# ---------------------------------------------------------------------------
+# RTP-adjacent signaling focus
+#
+# Useful display filters:
+#   SIP + SDP only:               sip || sdp
+#   RTP support view:             sip || sdp || rtp || rtcp
+#   Suspected one-way media:      rtp || rtcp
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - sip
+  - sdp
+  - rtp
+  - rtcp
+  - udp
+  - ip
+
+top_protocol_priority:
+  - sip
+  - sdp
+  - rtp
+  - rtcp
+  - udp
+  - ip
+
+protocol_aliases:
+  sip: [sip]
+  sdp: [sdp]
+  rtp: [rtp]
+  rtcp: [rtcp]
+  udp: [udp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  sip:
+    - sip.Method
+    - sip.Status-Code
+    - sip.Call-ID
+    - sip.From
+    - sip.To
+    - sip.Content-Type
+  sdp:
+    - sdp.media
+    - sdp.connection_info
+    - sdp.owner.username
+    - sdp.session_name
+    - sdp.attribute
+  rtp:
+    - rtp.ssrc
+    - rtp.seq
+    - rtp.timestamp
+    - rtp.marker
+    - rtp.p_type
+  rtcp:
+    - rtcp.ssrc.sender
+    - rtcp.ssrc.source
+    - rtcp.xr.blocktype
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight SDP offer or answer mismatches and codec changes that correlate with failed or degraded VoLTE session setup.
+  - Note cases where SIP completes but RTP or RTCP presence is missing or asymmetric, as this is often the earliest sign of one-way media.
+  - Keep the profile signaling-oriented rather than turning it into a full QoE media tool; focus on media visibility as supporting evidence for IMS troubleshooting.

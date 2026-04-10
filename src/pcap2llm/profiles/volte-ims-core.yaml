@@ -1,0 +1,89 @@
+name: volte-ims-core
+description: >
+  Broad VoLTE IMS core troubleshooting profile for LTE / EPS voice incidents
+  that span SIP, Diameter, and DNS. Best used when registration, subscriber,
+  policy, and call-setup evidence all need to be visible in one operator-facing
+  artifact.
+
+# ---------------------------------------------------------------------------
+# Broad VoLTE IMS core focus
+#
+# Useful display filters:
+#   Broad IMS core view:          sip || diameter || dns
+#   Registration-heavy runs:      sip.Method == "REGISTER" || diameter
+#   Call setup + policy:          sip.Method == "INVITE" || diameter || dns
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - sip
+  - diameter
+  - dns
+  - tcp
+  - udp
+  - sctp
+  - ip
+
+top_protocol_priority:
+  - sip
+  - diameter
+  - dns
+  - sctp
+  - tcp
+  - udp
+  - ip
+
+protocol_aliases:
+  sip: [sip]
+  diameter: [diameter]
+  dns: [dns]
+  sctp: [sctp]
+  tcp: [tcp]
+  udp: [udp]
+  ip: [ip, ipv6]
+
+verbatim_protocols:
+  - diameter
+keep_raw_avps: false
+
+full_detail_fields:
+  sip:
+    - sip.Method
+    - sip.Status-Code
+    - sip.Call-ID
+    - sip.CSeq.method
+    - sip.From
+    - sip.To
+    - sip.Contact
+    - sip.P-Asserted-Identity
+    - sip.Reason-Phrase
+  diameter:
+    - diameter.cmd.code
+    - diameter.origin_host
+    - diameter.destination_host
+    - diameter.Result-Code
+  dns:
+    - dns.qry.name
+    - dns.qry.type
+    - dns.naptr.service
+    - dns.srv.target
+    - dns.a
+    - dns.aaaa
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - sctp_stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight cases where SIP failures and Diameter failures appear in the same time window, because IMS core incidents often span multiple control layers.
+  - Flag registration success without later call success separately from outright registration failure so readiness and service execution are not conflated.
+  - Keep DNS discovery visible whenever SIP or Diameter routing looks incomplete; IMS reachability problems often start there.
+  - "Keep this profile broad but controlled: it is for mixed IMS core incidents, not a raw dump of every possible LTE control-plane protocol."

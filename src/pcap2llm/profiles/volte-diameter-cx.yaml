@@ -1,0 +1,69 @@
+name: volte-diameter-cx
+description: >
+  VoLTE IMS Cx / Dx Diameter profile for subscriber registration and routing
+  context between CSCF roles and HSS-like subscriber databases in an LTE / EPS
+  voice environment.
+
+# ---------------------------------------------------------------------------
+# Cx / Dx Diameter focus
+#
+# Useful display filters:
+#   Cx / Dx Diameter:             diameter
+#   Registration auth failures:   diameter.Result-Code >= 3000
+#   UAR or MAR traffic:           diameter.cmd.code == 300 || diameter.cmd.code == 303
+#   Routing mismatches:           diameter.Result-Code >= 3000
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - diameter
+  - sctp
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - diameter
+  - sctp
+  - tcp
+  - ip
+
+protocol_aliases:
+  diameter: [diameter]
+  sctp: [sctp]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+verbatim_protocols:
+  - diameter
+keep_raw_avps: false
+
+full_detail_fields:
+  diameter:
+    - diameter.cmd.code
+    - diameter.applicationid
+    - diameter.session_id
+    - diameter.origin_host
+    - diameter.origin_realm
+    - diameter.destination_host
+    - diameter.destination_realm
+    - diameter.User-Name
+    - diameter.Public-Identity
+    - diameter.Server-Name
+    - diameter.Result-Code
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - sctp_stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight unanswered UAR, MAR, SAR, or LIR-style Diameter transactions as likely IMS registration blockers.
+  - Flag Result-Code clusters together with origin and destination realm context to expose routing or subscriber-database mismatches.
+  - Keep Cx / Dx narrower than generic LTE Diameter by emphasizing IMS subscriber and registration readiness rather than EPC mobility flows.

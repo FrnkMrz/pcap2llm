@@ -1,0 +1,74 @@
+name: volte-sbc
+description: >
+  VoLTE Session Border Controller profile for LTE / EPS IMS call flows. Focused
+  on SIP normalization, dialog consistency, route rewriting, and transport
+  behavior at the SBC boundary in an operator voice environment.
+
+# ---------------------------------------------------------------------------
+# SBC voice focus
+#
+# Useful display filters:
+#   SBC-side SIP:                 sip
+#   Rewrite / route issues:       sip && (sip.Record-Route || sip.Route)
+#   Failure responses:            sip.Status-Code >= 400
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - sip
+  - dns
+  - tcp
+  - udp
+  - ip
+
+top_protocol_priority:
+  - sip
+  - dns
+  - tcp
+  - udp
+  - ip
+
+protocol_aliases:
+  sip: [sip]
+  dns: [dns]
+  tcp: [tcp]
+  udp: [udp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  sip:
+    - sip.Method
+    - sip.Status-Code
+    - sip.Call-ID
+    - sip.From
+    - sip.To
+    - sip.Contact
+    - sip.Route
+    - sip.Record-Route
+    - sip.Via
+    - sip.P-Asserted-Identity
+    - sip.Reason-Phrase
+  dns:
+    - dns.qry.name
+    - dns.qry.type
+    - dns.srv.target
+    - dns.a
+    - dns.aaaa
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight dialog-state mismatches, route-set inconsistencies, and rewritten header surprises that appear only at the SBC boundary.
+  - Flag SIP response translation anomalies where ingress and egress behavior imply policy or normalization interference rather than endpoint failure.
+  - Note retransmissions and transport churn separately because SBC-edge packet loss often masquerades as higher-layer SIP instability.

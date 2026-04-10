@@ -101,6 +101,26 @@ Choose the profile that matches your capture:
 | `5g-n40` | SMF ↔ CHF charging-related SBI exchanges on N40 |
 | `5g-dns` | 5GC-adjacent DNS troubleshooting |
 | `5g-cbc-cbs` | Cell Broadcast Center / CBS signaling in a 5G context |
+| `volte-sip` | Broad VoLTE / IMS SIP troubleshooting on LTE / EPS |
+| `volte-sip-register` | VoLTE IMS registration and challenge-flow analysis |
+| `volte-sip-call` | VoLTE call setup and teardown troubleshooting |
+| `volte-diameter-cx` | VoLTE Cx / Dx subscriber and registration context |
+| `volte-diameter-rx` | VoLTE Rx policy and authorization signaling |
+| `volte-diameter-sh` | VoLTE Sh subscriber-profile and service-data access |
+| `volte-dns` | DNS for IMS discovery in LTE / EPS voice environments |
+| `volte-rtp-signaling` | RTP/RTCP as supporting evidence for VoLTE signaling |
+| `volte-sbc` | VoLTE Session Border Controller edge troubleshooting |
+| `volte-ims-core` | Broad SIP + Diameter + DNS IMS-core view for VoLTE |
+| `vonr-sip` | Broad VoNR / IMS SIP troubleshooting on 5GS |
+| `vonr-sip-register` | VoNR IMS registration and readiness analysis |
+| `vonr-sip-call` | VoNR call setup and teardown troubleshooting |
+| `vonr-ims-core` | Broad SIP + SBI + DNS + N1/N2 voice-core view for VoNR |
+| `vonr-policy` | Voice-relevant policy and QoS control on 5GS |
+| `vonr-dns` | DNS for IMS discovery in 5GS voice environments |
+| `vonr-n1-n2-voice` | Voice-relevant NGAP and NAS-5GS state on N1/N2 |
+| `vonr-sbi-auth` | Auth-related SBI flows that affect VoNR readiness |
+| `vonr-sbi-pdu` | Voice-relevant PDU and session-control SBI flows |
+| `vonr-sbc` | VoNR Session Border Controller edge troubleshooting |
 | `2g3g-ss7-geran` | Legacy 2G/3G — SS7, MAP, CAP, ISUP, BSSAP, GERAN |
 | `2g3g-gn` | Gn — SGSN ↔ GGSN, intra-PLMN GTPv1 control plane |
 | `2g3g-gp` | Gp — roaming/inter-PLMN GTPv1 control plane |
@@ -239,6 +259,24 @@ forcing every capture through one mixed `5g-core` lens:
 Use `5g-core` when you want a quick mixed overview across NGAP, NAS-5GS, PFCP,
 and SBI. Use the focused profiles when you want cleaner protocol ranking,
 better heuristics, and smaller interface-specific artifacts.
+
+## Voice Over IMS Family
+
+The repo now also includes a focused Voice-over-IMS profile family split
+between LTE/EPS VoLTE and 5GS VoNR instead of flattening everything into one
+generic SIP bundle:
+
+- `volte-sip`, `volte-sip-register`, and `volte-sip-call` for SIP-centric VoLTE work
+- `volte-diameter-cx`, `volte-diameter-rx`, and `volte-diameter-sh` for IMS subscriber, policy, and service-data Diameter paths
+- `volte-dns`, `volte-rtp-signaling`, and `volte-sbc` for IMS discovery, signaling-adjacent media evidence, and Session Border Controller boundaries
+- `volte-ims-core` for mixed SIP + Diameter + DNS VoLTE incidents
+- `vonr-sip`, `vonr-sip-register`, and `vonr-sip-call` for SIP-centric VoNR work
+- `vonr-ims-core`, `vonr-policy`, `vonr-dns`, `vonr-n1-n2-voice`, `vonr-sbi-auth`, and `vonr-sbi-pdu` for voice-over-5GS incidents that span IMS and 5GC state
+- `vonr-sbc` for Session Border Controller troubleshooting in the VoNR / 5GS context
+
+Use the `volte-*` profiles when the voice issue is anchored in LTE / EPS IMS
+service. Use the `vonr-*` profiles when the same voice problem must be read in
+the context of 5GS registration, N1/N2 state, or SBI policy and session flows.
 
 ## 2G/3G Core Family
 

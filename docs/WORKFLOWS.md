@@ -273,6 +273,117 @@ MAP traffic contains IMSI, MSISDN, and location data. Use `--privacy-profile sha
 
 ---
 
+## Voice Over IMS — VoLTE and VoNR
+
+**Recommended profiles:** `volte-sip`, `volte-sip-register`, `volte-sip-call`, `volte-diameter-cx`, `volte-diameter-rx`, `volte-diameter-sh`, `volte-dns`, `volte-rtp-signaling`, `volte-sbc`, `volte-ims-core`, `vonr-sip`, `vonr-sip-register`, `vonr-sip-call`, `vonr-ims-core`, `vonr-policy`, `vonr-dns`, `vonr-n1-n2-voice`, `vonr-sbi-auth`, `vonr-sbi-pdu`, `vonr-sbc`
+
+### Pick the right voice profile
+
+| Situation | Best profile |
+|---|---|
+| Broad VoLTE SIP troubleshooting | `volte-sip` |
+| VoLTE IMS registration issue | `volte-sip-register` |
+| VoLTE call setup or release issue | `volte-sip-call` |
+| VoLTE IMS subscriber / registration Diameter | `volte-diameter-cx` |
+| VoLTE policy or media authorization issue | `volte-diameter-rx` |
+| VoLTE service-data/profile access issue | `volte-diameter-sh` |
+| VoLTE IMS DNS discovery | `volte-dns` |
+| VoLTE signaling plus RTP or SDP support view | `volte-rtp-signaling` |
+| VoLTE Session Border Controller boundary | `volte-sbc` |
+| Broad mixed VoLTE IMS-core incident | `volte-ims-core` |
+| Broad VoNR SIP troubleshooting | `vonr-sip` |
+| VoNR IMS registration issue | `vonr-sip-register` |
+| VoNR call setup or release issue | `vonr-sip-call` |
+| Broad mixed VoNR IMS + 5GS incident | `vonr-ims-core` |
+| VoNR policy / QoS / session-control issue | `vonr-policy` |
+| VoNR discovery or IMS DNS issue | `vonr-dns` |
+| VoNR voice-relevant NGAP / NAS-5GS state | `vonr-n1-n2-voice` |
+| VoNR auth-related SBI issue | `vonr-sbi-auth` |
+| VoNR voice-relevant PDU / session SBI issue | `vonr-sbi-pdu` |
+| VoNR Session Border Controller boundary | `vonr-sbc` |
+
+### Typical REGISTER workflow
+
+```bash
+# VoLTE registration
+pcap2llm inspect trace-ims.pcapng --profile volte-sip-register
+pcap2llm analyze trace-ims.pcapng \
+  --profile volte-sip-register \
+  -Y "sip.Method == \"REGISTER\" || sip.CSeq.method == \"REGISTER\" || dns" \
+  --privacy-profile share \
+  --two-pass \
+  --out ./artifacts
+
+# VoNR registration with 5GS context nearby
+pcap2llm analyze trace-ims-5gs.pcapng \
+  --profile vonr-sip-register \
+  -Y "sip.Method == \"REGISTER\" || sip.CSeq.method == \"REGISTER\" || dns" \
+  --privacy-profile share \
+  --two-pass \
+  --out ./artifacts
+```
+
+### Typical call-setup workflow
+
+```bash
+# VoLTE call setup
+pcap2llm analyze trace-call.pcapng \
+  --profile volte-sip-call \
+  -Y "sip.Method == \"INVITE\" || sip.CSeq.method == \"INVITE\" || sip.Status-Code >= 180" \
+  --privacy-profile share \
+  --two-pass \
+  --out ./artifacts
+
+# VoNR call setup
+pcap2llm analyze trace-vonr-call.pcapng \
+  --profile vonr-sip-call \
+  -Y "sip.Method == \"INVITE\" || sip.CSeq.method == \"INVITE\" || sip.Status-Code >= 180" \
+  --privacy-profile share \
+  --two-pass \
+  --out ./artifacts
+```
+
+### Diameter, DNS, SBC, and 5GS support views
+
+```bash
+# VoLTE Cx / subscriber context
+-Y "diameter"
+
+# VoLTE Rx policy flows
+-Y "diameter"
+
+# IMS discovery support
+-Y "dns"
+
+# Session Border Controller edge issues
+-Y "sip"
+
+# Voice-relevant 5GS state
+-Y "ngap || nas-5gs || nas_5gs"
+
+# VoNR auth or policy SBI
+-Y "http2"
+```
+
+### Voice-specific notes
+
+- Use `volte-*` only when the operational context is LTE / EPS IMS voice service; do not use them as generic SIP profiles.
+- Use `vonr-*` when voice over 5GS depends on 5GS registration, N1/N2 state, or SBI policy and session control.
+- `volte-sbc` and `vonr-sbc` mean Session Border Controller, not Cell Broadcast `SBc`.
+- Keep `--two-pass` enabled for SIP-heavy traces whenever TCP segmentation or HTTP/2 reassembly could hide the real sequence.
+
+### If something goes wrong — Voice over IMS
+
+| Symptom | Next step |
+|---|---|
+| REGISTER loops without stable success | Use `volte-sip-register` or `vonr-sip-register` and include DNS in the filter so discovery and challenge flow stay visible together. |
+| INVITE fails but registration looked normal | Switch from the register profile to `volte-sip-call` or `vonr-sip-call`; do not mix readiness and call execution into one conclusion. |
+| SIP looks fine but policy or subscriber context seems wrong | Move to `volte-diameter-cx`, `volte-diameter-rx`, `volte-diameter-sh`, `vonr-policy`, `vonr-sbi-auth`, or `vonr-sbi-pdu` depending on the network context. |
+| RTP suspicion exists but this is still a signaling problem | Use `volte-rtp-signaling` to keep SDP, RTP, and RTCP as supporting evidence rather than switching to a full media-quality workflow. |
+| VoNR failure seems tied to paging, service request, or mobility | Use `vonr-n1-n2-voice` or broaden to `vonr-ims-core` so NGAP and NAS-5GS state is visible next to IMS symptoms. |
+
+---
+
 ## General Tips
 
 ### Inspect before analyze

@@ -1,0 +1,107 @@
+name: vonr-ims-core
+description: >
+  Broad VoNR IMS core profile for 5GS voice incidents that span SIP, SBI, DNS,
+  and voice-relevant N1 or N2 state. Best used when registration, policy,
+  session, and call symptoms must be correlated across IMS and 5GC layers.
+
+# ---------------------------------------------------------------------------
+# Broad VoNR IMS core focus
+#
+# Useful display filters:
+#   Broad 5GS voice view:         sip || http2 || dns || ngap || nas-5gs || nas_5gs
+#   Registration readiness:       sip.Method == "REGISTER" || ngap || nas-5gs || nas_5gs
+#   Policy + call setup:          sip.Method == "INVITE" || http2 || dns
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - sip
+  - http
+  - json
+  - dns
+  - ngap
+  - nas-5gs
+  - tcp
+  - udp
+  - sctp
+  - ip
+
+top_protocol_priority:
+  - sip
+  - http
+  - ngap
+  - nas-5gs
+  - json
+  - dns
+  - sctp
+  - tcp
+  - udp
+  - ip
+
+protocol_aliases:
+  sip: [sip]
+  http: [http2, http]
+  json: [json]
+  dns: [dns]
+  ngap: [ngap]
+  nas-5gs: [nas-5gs, nas_5gs]
+  sctp: [sctp]
+  tcp: [tcp]
+  udp: [udp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  sip:
+    - sip.Method
+    - sip.Status-Code
+    - sip.Call-ID
+    - sip.CSeq.method
+    - sip.From
+    - sip.To
+    - sip.Contact
+    - sip.Reason-Phrase
+  http:
+    - http2.headers.method
+    - http2.headers.path
+    - http2.headers.authority
+    - http2.headers.status
+    - http2.headers.content_type
+  json:
+    - json.member
+    - json.value.string
+  dns:
+    - dns.qry.name
+    - dns.qry.type
+    - dns.naptr.service
+    - dns.srv.target
+    - dns.a
+    - dns.aaaa
+  ngap:
+    - ngap.procedureCode
+    - ngap.AMF-UE-NGAP-ID
+    - ngap.RAN-UE-NGAP-ID
+    - ngap.Cause
+  nas-5gs:
+    - nas_5gs.mm.message_type
+    - nas_5gs.sm.message_type
+    - nas_5gs.mm.5gmmcause
+    - nas_5gs.sm.5gsmcause
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - sctp_stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight cases where IMS SIP failure aligns with SBI, DNS, or N1 or N2 control instability, because VoNR incidents often span multiple 5GS layers.
+  - Flag registration readiness that appears healthy at IMS but unhealthy in N1 or N2 state, or vice versa, so false isolation is less likely.
+  - "Keep this profile broad but voice-specific: it is for voice-over-5GS troubleshooting, not generic 5GC control-plane exploration."

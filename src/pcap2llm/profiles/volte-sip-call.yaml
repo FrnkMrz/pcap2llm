@@ -1,0 +1,78 @@
+name: volte-sip-call
+description: >
+  VoLTE call-setup and teardown profile for LTE / EPS IMS signaling. Focused on
+  INVITE dialogs, provisional and final responses, ACK completion, abnormal
+  release, and failed call establishment.
+
+# ---------------------------------------------------------------------------
+# VoLTE call flow focus
+#
+# Useful display filters:
+#   Call setup:                   sip.Method == "INVITE" || sip.CSeq.method == "INVITE"
+#   Early media / progress:       sip.Status-Code == 180 || sip.Status-Code == 183
+#   Failed calls:                 sip.Status-Code >= 400
+#   Release flows:                sip.Method == "BYE" || sip.Method == "CANCEL"
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - sip
+  - dns
+  - tcp
+  - udp
+  - ip
+
+top_protocol_priority:
+  - sip
+  - dns
+  - tcp
+  - udp
+  - ip
+
+protocol_aliases:
+  sip: [sip]
+  dns: [dns]
+  tcp: [tcp]
+  udp: [udp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  sip:
+    - sip.Method
+    - sip.Status-Code
+    - sip.Request-Line
+    - sip.CSeq.method
+    - sip.Call-ID
+    - sip.From
+    - sip.To
+    - sip.Contact
+    - sip.Allow
+    - sip.Session-Expires
+    - sip.Reason-Phrase
+    - sip.Warning
+  dns:
+    - dns.qry.name
+    - dns.qry.type
+    - dns.srv.target
+    - dns.srv.port
+    - dns.a
+    - dns.aaaa
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight INVITE dialogs that stop before 180, 183, or 200 OK because they often explain incomplete VoLTE call setup.
+  - Flag missing ACK after 200 OK and abnormal BYE or CANCEL patterns as likely dialog-state or routing failures.
+  - Group 4xx, 5xx, and 6xx failures to show whether call rejection is policy, destination, or service related.
+  - Keep DNS discovery visible when INVITE never reaches a stable downstream target or appears to fork unexpectedly.

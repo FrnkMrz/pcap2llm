@@ -210,6 +210,26 @@ Profiles control which protocols are extracted, which fields are kept, and how T
 | `5g-n40` | SMF ↔ CHF charging-related SBI exchanges on N40 |
 | `5g-dns` | 5GC-adjacent DNS troubleshooting |
 | `5g-cbc-cbs` | Cell Broadcast Center / CBS signaling in a 5G context |
+| `volte-sip` | Broad VoLTE / IMS SIP troubleshooting on LTE / EPS |
+| `volte-sip-register` | VoLTE IMS registration and challenge-flow analysis |
+| `volte-sip-call` | VoLTE call setup and teardown troubleshooting |
+| `volte-diameter-cx` | VoLTE Cx / Dx subscriber and registration context |
+| `volte-diameter-rx` | VoLTE Rx policy and authorization signaling |
+| `volte-diameter-sh` | VoLTE Sh subscriber-profile and service-data access |
+| `volte-dns` | DNS for IMS discovery in LTE / EPS voice environments |
+| `volte-rtp-signaling` | RTP/RTCP as supporting evidence for VoLTE signaling |
+| `volte-sbc` | VoLTE Session Border Controller edge troubleshooting |
+| `volte-ims-core` | Broad SIP + Diameter + DNS IMS-core view for VoLTE |
+| `vonr-sip` | Broad VoNR / IMS SIP troubleshooting on 5GS |
+| `vonr-sip-register` | VoNR IMS registration and readiness analysis |
+| `vonr-sip-call` | VoNR call setup and teardown troubleshooting |
+| `vonr-ims-core` | Broad SIP + SBI + DNS + N1/N2 voice-core view for VoNR |
+| `vonr-policy` | Voice-relevant policy and QoS control on 5GS |
+| `vonr-dns` | DNS for IMS discovery in 5GS voice environments |
+| `vonr-n1-n2-voice` | Voice-relevant NGAP and NAS-5GS state on N1/N2 |
+| `vonr-sbi-auth` | Auth-related SBI flows that affect VoNR readiness |
+| `vonr-sbi-pdu` | Voice-relevant PDU and session-control SBI flows |
+| `vonr-sbc` | VoNR Session Border Controller edge troubleshooting |
 | `2g3g-ss7-geran` | Broad legacy 2G/3G bundle across SS7, MAP, CAP, ISUP, and GERAN |
 | `2g3g-gn` | Gn — SGSN ↔ GGSN, intra-PLMN GTPv1 control plane |
 | `2g3g-gp` | Gp — roaming/inter-PLMN GTPv1 control plane |

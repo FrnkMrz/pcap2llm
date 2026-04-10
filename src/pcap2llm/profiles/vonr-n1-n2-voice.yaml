@@ -1,0 +1,67 @@
+name: vonr-n1-n2-voice
+description: >
+  Voice-relevant N1 and N2 profile for VoNR over 5GS. Focused on NGAP and
+  NAS-5GS procedures whose registration, paging, service-request, or mobility
+  behavior correlates with IMS voice availability and session stability.
+
+# ---------------------------------------------------------------------------
+# Voice-relevant N1 / N2 focus
+#
+# Useful display filters:
+#   N2 only:                      ngap
+#   Voice-related N1/N2 view:     ngap || nas-5gs || nas_5gs
+#   Paging or service request:    ngap || nas-5gs || nas_5gs
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - ngap
+  - nas-5gs
+  - sctp
+  - ip
+
+top_protocol_priority:
+  - ngap
+  - nas-5gs
+  - sctp
+  - ip
+
+protocol_aliases:
+  ngap: [ngap]
+  nas-5gs: [nas-5gs, nas_5gs]
+  sctp: [sctp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  ngap:
+    - ngap.procedureCode
+    - ngap.AMF-UE-NGAP-ID
+    - ngap.RAN-UE-NGAP-ID
+    - ngap.Cause
+    - ngap.PDU.Session.ID
+    - ngap.RANPagingPriority
+  nas-5gs:
+    - nas_5gs.mm.message_type
+    - nas_5gs.sm.message_type
+    - nas_5gs.mm.5gmmcause
+    - nas_5gs.sm.5gsmcause
+    - nas_5gs.mm.tai
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - sctp_stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight paging, service-request, mobility, and registration transitions that line up with VoNR call failures or loss of voice availability.
+  - Flag NGAP or NAS cause-value clusters that repeatedly precede SIP-level failure, because the real root issue may sit below IMS.
+  - Keep the profile narrower than generic 5G N1 or N2 views by emphasizing only voice-relevant state and session continuity context.

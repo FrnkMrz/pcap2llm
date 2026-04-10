@@ -1,0 +1,62 @@
+name: vonr-sbi-auth
+description: >
+  Authentication-related SBI profile for VoNR over 5GS. Focused on auth
+  context, identity, and readiness flows whose failure impacts IMS voice
+  registration or service availability.
+
+# ---------------------------------------------------------------------------
+# VoNR auth-SBI focus
+#
+# Useful display filters:
+#   Auth SBI only:                http2
+#   HTTP failures:                http2.headers.status
+#   Auth payload hints:           http2 || json
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - http
+  - json
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - http
+  - json
+  - tcp
+  - ip
+
+protocol_aliases:
+  http: [http2, http]
+  json: [json]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  http:
+    - http2.headers.method
+    - http2.headers.path
+    - http2.headers.authority
+    - http2.headers.status
+    - http2.headers.content_type
+  json:
+    - json.member
+    - json.value.string
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight authentication or identity-related SBI failures that leave VoNR registration half-ready or repeatedly retried.
+  - Flag repeated 4xx, 5xx, or timeout-like gaps on auth-oriented SBI paths as likely readiness blockers before IMS voice setup starts.
+  - Keep this profile distinct from generic 5G auth-SBI by framing all findings around voice availability and registration readiness.

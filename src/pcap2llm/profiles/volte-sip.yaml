@@ -1,0 +1,81 @@
+name: volte-sip
+description: >
+  Generic VoLTE / IMS SIP troubleshooting profile for LTE / EPS voice signaling.
+  Best used for broad IMS dialog analysis when REGISTER, call setup, and release
+  behavior all matter but the failing sub-procedure is not yet isolated.
+
+# ---------------------------------------------------------------------------
+# VoLTE SIP focus
+#
+# Useful display filters:
+#   SIP only:                     sip
+#   Registration + call setup:    sip.Method == "REGISTER" || sip.Method == "INVITE"
+#   SIP failures:                 sip.Status-Code >= 400
+#   Released dialogs:             sip.Method == "BYE" || sip.Method == "CANCEL"
+#   DNS support lookups:          sip || dns
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - sip
+  - dns
+  - tcp
+  - udp
+  - ip
+
+top_protocol_priority:
+  - sip
+  - dns
+  - tcp
+  - udp
+  - ip
+
+protocol_aliases:
+  sip: [sip]
+  dns: [dns]
+  tcp: [tcp]
+  udp: [udp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  sip:
+    - sip.Method
+    - sip.Status-Code
+    - sip.Request-Line
+    - sip.CSeq.method
+    - sip.Call-ID
+    - sip.From
+    - sip.To
+    - sip.Contact
+    - sip.P-Asserted-Identity
+    - sip.P-Preferred-Identity
+    - sip.User-Agent
+    - sip.Reason-Phrase
+    - sip.Via
+  dns:
+    - dns.qry.name
+    - dns.qry.type
+    - dns.flags.response
+    - dns.resp.name
+    - dns.resp.type
+    - dns.a
+    - dns.aaaa
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight INVITE, BYE, and CANCEL transactions that lack matching final responses inside the same VoLTE dialog.
+  - Flag clusters of SIP 4xx, 5xx, or 6xx responses as likely IMS service, routing, or policy failures.
+  - Note repeated retransmissions or transport anomalies at the SIP boundary because they often explain apparently random dialog breaks.
+  - Keep DNS lookups visible when SIP requests stall early; IMS reachability and registrar discovery often fail before clear SIP rejection appears.

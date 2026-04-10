@@ -1,0 +1,69 @@
+name: volte-diameter-rx
+description: >
+  VoLTE Rx Diameter profile for IMS policy and media authorization signaling in
+  the LTE / EPS voice context. Focused on AAR and STR lifecycle behavior,
+  policy failures, and incomplete authorization exchanges.
+
+# ---------------------------------------------------------------------------
+# Rx Diameter focus
+#
+# Useful display filters:
+#   Rx only:                      diameter
+#   Authorization failures:       diameter.Result-Code >= 3000
+#   AAR / AAA focus:              diameter
+#   Session teardown focus:       diameter
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - diameter
+  - sctp
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - diameter
+  - sctp
+  - tcp
+  - ip
+
+protocol_aliases:
+  diameter: [diameter]
+  sctp: [sctp]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+verbatim_protocols:
+  - diameter
+keep_raw_avps: false
+
+full_detail_fields:
+  diameter:
+    - diameter.cmd.code
+    - diameter.applicationid
+    - diameter.session_id
+    - diameter.origin_host
+    - diameter.destination_host
+    - diameter.origin_realm
+    - diameter.destination_realm
+    - diameter.Auth-Application-Id
+    - diameter.Result-Code
+    - diameter.Media-Component-Number
+    - diameter.Flow-Description
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - sctp_stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight unanswered authorization and session-termination exchanges because they often correlate with voice bearer reservation problems.
+  - Flag Result-Code failures on policy-related Diameter flows separately from routing issues so QoS or service-control faults stand out.
+  - Note repeated session setup and teardown churn as likely policy instability during VoLTE call establishment or release.

@@ -1,0 +1,80 @@
+name: vonr-sip-register
+description: >
+  IMS registration troubleshooting profile for VoNR over 5GS. Focused on
+  REGISTER challenge flows, registrar or CSCF discovery, repeated registration
+  attempts, and voice-readiness failures in a 5GS mobility context.
+
+# ---------------------------------------------------------------------------
+# VoNR REGISTER focus
+#
+# Useful display filters:
+#   REGISTER only:                sip.Method == "REGISTER" || sip.CSeq.method == "REGISTER"
+#   Auth challenges:              sip.Status-Code == 401 || sip.Status-Code == 407
+#   Registration rejects:         sip.Status-Code == 403 || sip.Status-Code == 423
+#   IMS discovery support:        sip || dns
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - sip
+  - dns
+  - tcp
+  - udp
+  - ip
+
+top_protocol_priority:
+  - sip
+  - dns
+  - tcp
+  - udp
+  - ip
+
+protocol_aliases:
+  sip: [sip]
+  dns: [dns]
+  tcp: [tcp]
+  udp: [udp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  sip:
+    - sip.Method
+    - sip.Status-Code
+    - sip.CSeq.method
+    - sip.Call-ID
+    - sip.From
+    - sip.To
+    - sip.Contact
+    - sip.Expires
+    - sip.WWW-Authenticate
+    - sip.Authorization
+    - sip.P-Associated-URI
+    - sip.Path
+    - sip.Reason-Phrase
+  dns:
+    - dns.qry.name
+    - dns.qry.type
+    - dns.naptr.service
+    - dns.srv.target
+    - dns.srv.port
+    - dns.a
+    - dns.aaaa
+    - dns.resp.type
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight repeated REGISTER challenge or refresh loops that never stabilize, especially when VoNR readiness breaks after 5GS mobility or re-registration.
+  - Flag registration rejects separately from timeout-like gaps because identity, policy, and discovery failures often need different operator actions.
+  - Keep registrar and CSCF discovery visible through DNS records so 5GS-specific mobility context is not blamed for plain IMS resolution failures.

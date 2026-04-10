@@ -1,0 +1,74 @@
+name: vonr-sbc
+description: >
+  VoNR Session Border Controller profile for IMS voice over 5GS. Focused on
+  SIP normalization, route rewriting, dialog consistency, and transport issues
+  at the SBC boundary in a 5GS voice environment.
+
+# ---------------------------------------------------------------------------
+# SBC voice focus for VoNR
+#
+# Useful display filters:
+#   SBC-side SIP:                 sip
+#   Rewrite / route issues:       sip && (sip.Record-Route || sip.Route)
+#   Failure responses:            sip.Status-Code >= 400
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - sip
+  - dns
+  - tcp
+  - udp
+  - ip
+
+top_protocol_priority:
+  - sip
+  - dns
+  - tcp
+  - udp
+  - ip
+
+protocol_aliases:
+  sip: [sip]
+  dns: [dns]
+  tcp: [tcp]
+  udp: [udp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  sip:
+    - sip.Method
+    - sip.Status-Code
+    - sip.Call-ID
+    - sip.From
+    - sip.To
+    - sip.Contact
+    - sip.Route
+    - sip.Record-Route
+    - sip.Via
+    - sip.P-Asserted-Identity
+    - sip.Reason-Phrase
+  dns:
+    - dns.qry.name
+    - dns.qry.type
+    - dns.srv.target
+    - dns.a
+    - dns.aaaa
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight route-set, header, or dialog normalization anomalies that appear specifically at the VoNR SBC boundary.
+  - Flag response translation surprises and transport churn separately so 5GS voice edge issues are not mistaken for core or endpoint failures.
+  - "Keep the 5GS voice context explicit: this is an IMS SBC profile for VoNR, not a generic SIP edge profile."

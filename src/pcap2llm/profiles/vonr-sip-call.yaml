@@ -1,0 +1,77 @@
+name: vonr-sip-call
+description: >
+  VoNR call-setup and teardown profile for IMS voice over 5G NR / 5GS. Focused
+  on INVITE dialog progression, missing ACK, abnormal release, reject patterns,
+  and incomplete call establishment in a 5GS voice scenario.
+
+# ---------------------------------------------------------------------------
+# VoNR call flow focus
+#
+# Useful display filters:
+#   Call setup:                   sip.Method == "INVITE" || sip.CSeq.method == "INVITE"
+#   Early media / progress:       sip.Status-Code == 180 || sip.Status-Code == 183
+#   Failed calls:                 sip.Status-Code >= 400
+#   Release flows:                sip.Method == "BYE" || sip.Method == "CANCEL"
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - sip
+  - dns
+  - tcp
+  - udp
+  - ip
+
+top_protocol_priority:
+  - sip
+  - dns
+  - tcp
+  - udp
+  - ip
+
+protocol_aliases:
+  sip: [sip]
+  dns: [dns]
+  tcp: [tcp]
+  udp: [udp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  sip:
+    - sip.Method
+    - sip.Status-Code
+    - sip.Request-Line
+    - sip.CSeq.method
+    - sip.Call-ID
+    - sip.From
+    - sip.To
+    - sip.Contact
+    - sip.Allow
+    - sip.Session-Expires
+    - sip.Reason-Phrase
+    - sip.Warning
+  dns:
+    - dns.qry.name
+    - dns.qry.type
+    - dns.srv.target
+    - dns.srv.port
+    - dns.a
+    - dns.aaaa
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: true
+  extra_args: []
+
+summary_heuristics:
+  - Highlight INVITE dialogs that never complete to 200 OK or fail to receive ACK after success, because these patterns are common VoNR service-establishment faults.
+  - Flag abnormal release and clustered reject codes so VoNR call failure patterns are visible separately from generic SIP background traffic.
+  - Keep the 5GS voice context explicit by treating apparently healthy registration as separate from later call execution failure.

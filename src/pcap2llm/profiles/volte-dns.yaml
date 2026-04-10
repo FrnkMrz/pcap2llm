@@ -1,0 +1,67 @@
+name: volte-dns
+description: >
+  DNS troubleshooting profile for VoLTE and IMS service discovery in LTE / EPS
+  environments. Focused on NAPTR, SRV, A, and AAAA lookup behavior that affects
+  registrar, CSCF, and IMS service reachability.
+
+# ---------------------------------------------------------------------------
+# IMS DNS focus
+#
+# Useful display filters:
+#   DNS only:                     dns
+#   IMS discovery records:        dns.qry.type == 35 || dns.qry.type == 33
+#   Failures only:                dns.flags.rcode != 0
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - dns
+  - udp
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - dns
+  - udp
+  - tcp
+  - ip
+
+protocol_aliases:
+  dns: [dns]
+  udp: [udp]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  dns:
+    - dns.qry.name
+    - dns.qry.type
+    - dns.flags.response
+    - dns.flags.rcode
+    - dns.count.answers
+    - dns.naptr.service
+    - dns.naptr.replacement
+    - dns.srv.target
+    - dns.srv.port
+    - dns.a
+    - dns.aaaa
+    - dns.resp.type
+    - dns.resp.name
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Highlight NAPTR and SRV lookup failures because IMS registration and call routing often fail before SIP shows a clear reject.
+  - Flag NXDOMAIN, SERVFAIL, no-answer, and retry patterns separately so resolver outages and bad provisioning are easier to distinguish.
+  - Note unusual target-server rotation or repeated lookup churn because unstable discovery often precedes intermittent VoLTE service failures.

@@ -114,61 +114,27 @@ Jeder Lauf erzeugt einen Dateinamen-Satz mit Zeitstempel des ersten Pakets und V
 
 ## Profile
 
-Profile steuern, welche Protokolle extrahiert werden, welche Felder erhalten bleiben und wie TShark konfiguriert wird.
+Profile steuern, welche Protokolle extrahiert werden, welche Felder erhalten
+bleiben und wie TShark konfiguriert wird.
 
-**Eingebaute Profile:**
+Fuer die Auswahl reicht im Alltag meist diese Gruppierung:
 
-| Profil | Fuer was |
-|---|---|
-| `lte-core` | LTE / EPC — Diameter, GTPv2-C, S1AP, NAS-EPS, DNS, TLS |
-| `lte-s1` | S1-MME — eNodeB ↔ MME, S1AP-zentrierte Kontrolle |
-| `lte-s1-nas` | NAS auf S1 — Attach, TAU, Authentication, ESM |
-| `lte-s6a` | S6a — MME ↔ HSS, Diameter ueber SCTP |
-| `lte-s11` | S11 — MME ↔ SGW, GTPv2-C Bearer-Control |
-| `lte-s10` | S10 — Inter-MME Relocation und Context Transfer |
-| `lte-sgs` | SGs — MME ↔ MSC/VLR Paging und CSFB-Kontext |
-| `lte-s5` | S5 — SGW ↔ PGW, EPC Control Plane mit begrenzter GTP-UP-Sicht |
-| `lte-s8` | S8 — roaming-orientierter SGW ↔ PGW / Inter-PLMN GTP-Kontext |
-| `lte-dns` | LTE/EPC/IMS-nahe DNS-Fehlersuche |
-| `lte-sbc-cbc` | SBc — MME ↔ CBC fuer Cell Broadcast / ETWS / CMAS |
-| `5g-core` | 5G Core — PFCP, NGAP, NAS-5GS, HTTP/2 SBI |
-| `5g-n1-n2` | Breite 5G-Registration-/Service-Sicht ueber NGAP und NAS-5GS |
-| `5g-n2` | Reines N2 / NGAP zwischen gNB und AMF |
-| `5g-nas-5gs` | NAS-5GS-zentrierte Registration, Mobility und Session-Signalisierung |
-| `5g-sbi` | Generische HTTP/2-SBI-Fehlersuche zwischen 5GC-NFs |
-| `5g-sbi-auth` | SBI mit Fokus auf Tokens, Header und Authentisierung |
-| `5g-n8` | UDM-zentrierte SBI-Sicht auf N8 |
-| `5g-n10` | UDM ↔ AUSF Authentisierung auf N10 |
-| `5g-n11` | SMF-zentrierte SBI-Steuerung auf N11 |
-| `5g-n12` | AUSF ↔ UDM Identitaets-/Auth-Daten auf N12 |
-| `5g-n13` | UDM ↔ UDR Subscriber-Datenzugriff auf N13 |
-| `5g-n14` | AMF ↔ AMF Mobility-/Kontext-Koordination auf N14 |
-| `5g-n15` | PCF-Policy-Interaktionen auf N15 |
-| `5g-n16` | SMF ↔ PCF Session-/Policy-Steuerung auf N16 |
-| `5g-n22` | NSSF-/roaming-orientierter Selektionskontext auf N22 |
-| `5g-n26` | Hybrides EPC/5GC-Interworking fuer Mobility-/Handover-Kontext |
-| `5g-n40` | SMF ↔ CHF Charging-bezogene SBI-Signalisierung |
-| `5g-dns` | 5GC-nahe DNS-Fehlersuche |
-| `5g-cbc-cbs` | Cell-Broadcast-/Public-Warning-Signalisierung im 5G-Kontext |
-| `2g3g-ss7-geran` | Breites Legacy-2G/3G-Buendel ueber SS7, MAP, CAP, ISUP und GERAN |
-| `2g3g-gn` | Gn — SGSN ↔ GGSN, GTPv1 im eigenen PLMN |
-| `2g3g-gp` | Gp — GPRS-Roaming / Inter-PLMN GTPv1 |
-| `2g3g-gr` | Gr — SGSN ↔ HLR ueber MAP |
-| `2g3g-gs` | Gs — SGSN ↔ MSC/VLR Paging und CS/PS-Koordination |
-| `2g3g-geran` | GERAN-/A-Interface-nahe Core-Sicht auf BSSAP und DTAP |
-| `2g3g-dns` | DNS im Legacy-/Core-Kontext |
-| `2g3g-map-core` | Generisches MAP-Core-Profil jenseits eines einzelnen Interfaces |
-| `2g3g-cap` | CAP / CAMEL Service-Control-Signalisierung |
-| `2g3g-bssap` | Fokusprofil fuer BSSAP/BSSMAP/DTAP |
-| `2g3g-isup` | Legacy Voice-/Circuit-Signalisierung mit ISUP |
-| `2g3g-sccp-mtp` | Niedrigere SCCP-/MTP-Routing- und Transportprobleme |
+- `lte-*` fuer LTE / EPC
+- `5g-*` fuer 5G SA Core
+- `volte-*` und `vonr-*` fuer Voice-over-IMS
+- `2g3g-*` fuer Legacy 2G/3G / GERAN
 
-`5g-core` bleibt das breite Ueberblicksprofil. Wenn das Interface bekannt ist,
-liefern die fokussierten 5G-SA-Profile meist kleinere und sauberere Artefakte.
+Wenn das genaue Interface noch unklar ist, starte mit dem breiteren
+Ueberblicksprofil der Familie, z. B. `lte-core`, `5g-core`, `volte-ims-core`,
+`vonr-ims-core` oder `2g3g-ss7-geran`.
 
-```bash
-pcap2llm analyze trace-5g.pcapng --profile 5g-n11 --out ./artifacts
-```
+Die vollstaendige Profilreferenz ist bewusst ausgelagert:
+
+- Uebersicht: [`docs/PROFILES.md`](PROFILES.md)
+- LTE / EPC: [`docs/PROFILES_LTE.md`](PROFILES_LTE.md)
+- 5G SA Core: [`docs/PROFILES_5G.md`](PROFILES_5G.md)
+- Voice / IMS: [`docs/PROFILES_VOICE.md`](PROFILES_VOICE.md)
+- 2G/3G / GERAN: [`docs/PROFILES_2G3G.md`](PROFILES_2G3G.md)
 
 ### Protokoll vollstaendig durchreichen (verbatim)
 

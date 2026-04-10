@@ -56,19 +56,24 @@ pcap2llm analyze sample.pcapng --profile lte-core --out ./artifacts
 
 ## Welches Profil?
 
-| Profil | Fuer was |
-|---|---|
-| `lte-core` | LTE / EPC — Diameter, GTPv2-C, S1AP, NAS-EPS |
-| `5g-core` | 5G Core — PFCP, NGAP, NAS-5GS, HTTP/2 SBI |
-| `5g-n2` | Reines N2 / NGAP zwischen gNB und AMF |
-| `5g-nas-5gs` | NAS-5GS-zentrierte Registration, Mobility und SM-Signalisierung |
-| `5g-sbi` | Generische HTTP/2-SBI-Fehlersuche im 5GC |
-| `5g-sbi-auth` | SBI mit Fokus auf Tokens, Header und Authentisierung |
-| `2g3g-ss7-geran` | Legacy 2G/3G — SS7, MAP, CAP, ISUP, BSSAP |
-| `2g3g-gn` | Gn — SGSN ↔ GGSN, GTPv1 im eigenen PLMN |
-| `2g3g-gp` | Gp — GPRS-Roaming / Inter-PLMN GTPv1 |
-| `2g3g-gr` | Gr — SGSN ↔ HLR ueber MAP |
-| `2g3g-gs` | Gs — SGSN ↔ MSC/VLR Paging und CS/PS-Koordination |
+Die Startregel ist einfach:
+
+- `lte-*` fuer LTE / EPC
+- `5g-*` fuer 5G SA Core
+- `volte-*` und `vonr-*` fuer Voice-over-IMS
+- `2g3g-*` fuer Legacy 2G/3G / GERAN
+
+Wenn das genaue Interface noch unklar ist, nimm zuerst das breitere
+Ueberblicksprofil der Familie, zum Beispiel `lte-core`, `5g-core`,
+`volte-ims-core`, `vonr-ims-core` oder `2g3g-ss7-geran`.
+
+Die vollstaendige Profilreferenz findest du hier:
+
+- Uebersicht: [`docs/PROFILES.md`](PROFILES.md)
+- LTE / EPC: [`docs/PROFILES_LTE.md`](PROFILES_LTE.md)
+- 5G SA Core: [`docs/PROFILES_5G.md`](PROFILES_5G.md)
+- Voice / IMS: [`docs/PROFILES_VOICE.md`](PROFILES_VOICE.md)
+- 2G/3G / GERAN: [`docs/PROFILES_2G3G.md`](PROFILES_2G3G.md)
 
 ## Haeufige Optionen
 
@@ -102,4 +107,5 @@ pcap2llm analyze sample.pcapng --profile lte-core \
 
 - Vollstaendige deutsche Anleitung: [`docs/ANLEITUNG_DE.md`](ANLEITUNG_DE.md)
 - Englische Referenz: [`README.md`](../README.md)
+- Profilreferenz: [`docs/PROFILES.md`](PROFILES.md)
 - Workflows fuer LTE / 5G / SS7: [`docs/WORKFLOWS.md`](WORKFLOWS.md)

@@ -178,76 +178,26 @@ Profiles control which protocols are extracted, which fields are kept, and how T
 
 **Built-in profiles:**
 
-| Profile | Use case |
-|---|---|
-| `lte-core` | LTE / EPC — Diameter, GTPv2-C, S1AP, NAS-EPS, DNS, TLS |
-| `lte-s1` | S1-MME — eNodeB ↔ MME, S1AP-focused control plane |
-| `lte-s1-nas` | NAS on S1 — Attach, TAU, authentication, and ESM flows |
-| `lte-s6a` | S6a — MME ↔ HSS, Diameter over SCTP |
-| `lte-s11` | S11 — MME ↔ SGW, GTPv2-C bearer control |
-| `lte-s10` | S10 — inter-MME relocation and context transfer |
-| `lte-sgs` | SGs — MME ↔ MSC/VLR CSFB and paging interworking |
-| `lte-s5` | S5 — SGW ↔ PGW, EPC control plane with bounded GTP-UP context |
-| `lte-s8` | S8 — roaming-oriented SGW ↔ PGW / inter-PLMN GTP context |
-| `lte-dns` | LTE/EPC/IMS-adjacent DNS troubleshooting |
-| `lte-sbc-cbc` | SBc — MME ↔ CBC for Cell Broadcast / ETWS / CMAS |
-| `5g-core` | 5G Core — PFCP, NGAP, NAS-5GS, HTTP/2 SBI |
-| `5g-n1-n2` | Broad 5G registration/service view across NGAP and NAS-5GS |
-| `5g-n2` | N2-only NGAP signaling between gNB and AMF |
-| `5g-nas-5gs` | NAS-5GS-centric registration, mobility, and SM signaling |
-| `5g-sbi` | Generic HTTP/2 SBI troubleshooting across 5GC network functions |
-| `5g-sbi-auth` | Authorization-heavy SBI capture with token/header focus |
-| `5g-n8` | UDM-facing SBI on N8 |
-| `5g-n10` | UDM ↔ AUSF authentication exchanges on N10 |
-| `5g-n11` | SMF-facing SBI control on N11 |
-| `5g-n12` | AUSF ↔ UDM identity/auth data on N12 |
-| `5g-n13` | UDM ↔ UDR subscriber data access on N13 |
-| `5g-n14` | AMF ↔ AMF mobility and context coordination on N14 |
-| `5g-n15` | PCF-facing SBI policy control on N15 |
-| `5g-n16` | SMF ↔ PCF policy and session influence on N16 |
-| `5g-n22` | 5GC ↔ NSSF / roaming-oriented SBI selection context on N22 |
-| `5g-n26` | Hybrid 4G/5G interworking around EPC handover and mobility context |
-| `5g-n40` | SMF ↔ CHF charging-related SBI exchanges on N40 |
-| `5g-dns` | 5GC-adjacent DNS troubleshooting |
-| `5g-cbc-cbs` | Cell Broadcast Center / CBS signaling in a 5G context |
-| `volte-sip` | Broad VoLTE / IMS SIP troubleshooting on LTE / EPS |
-| `volte-sip-register` | VoLTE IMS registration and challenge-flow analysis |
-| `volte-sip-call` | VoLTE call setup and teardown troubleshooting |
-| `volte-diameter-cx` | VoLTE Cx / Dx subscriber and registration context |
-| `volte-diameter-rx` | VoLTE Rx policy and authorization signaling |
-| `volte-diameter-sh` | VoLTE Sh subscriber-profile and service-data access |
-| `volte-dns` | DNS for IMS discovery in LTE / EPS voice environments |
-| `volte-rtp-signaling` | RTP/RTCP as supporting evidence for VoLTE signaling |
-| `volte-sbc` | VoLTE Session Border Controller edge troubleshooting |
-| `volte-ims-core` | Broad SIP + Diameter + DNS IMS-core view for VoLTE |
-| `vonr-sip` | Broad VoNR / IMS SIP troubleshooting on 5GS |
-| `vonr-sip-register` | VoNR IMS registration and readiness analysis |
-| `vonr-sip-call` | VoNR call setup and teardown troubleshooting |
-| `vonr-ims-core` | Broad SIP + SBI + DNS + N1/N2 voice-core view for VoNR |
-| `vonr-policy` | Voice-relevant policy and QoS control on 5GS |
-| `vonr-dns` | DNS for IMS discovery in 5GS voice environments |
-| `vonr-n1-n2-voice` | Voice-relevant NGAP and NAS-5GS state on N1/N2 |
-| `vonr-sbi-auth` | Auth-related SBI flows that affect VoNR readiness |
-| `vonr-sbi-pdu` | Voice-relevant PDU and session-control SBI flows |
-| `vonr-sbc` | VoNR Session Border Controller edge troubleshooting |
-| `2g3g-ss7-geran` | Broad legacy 2G/3G bundle across SS7, MAP, CAP, ISUP, and GERAN |
-| `2g3g-gn` | Gn — SGSN ↔ GGSN, intra-PLMN GTPv1 control plane |
-| `2g3g-gp` | Gp — roaming/inter-PLMN GTPv1 control plane |
-| `2g3g-gr` | Gr — SGSN ↔ HLR MAP signaling |
-| `2g3g-gs` | Gs — SGSN ↔ MSC/VLR paging and combined CS/PS procedures |
-| `2g3g-geran` | GERAN/A-interface-adjacent core-side BSSAP and DTAP view |
-| `2g3g-dns` | Legacy/core DNS troubleshooting |
-| `2g3g-map-core` | Generic MAP-core analysis beyond one interface |
-| `2g3g-cap` | CAP / CAMEL service-control signaling |
-| `2g3g-bssap` | Focused BSSAP/BSSMAP/DTAP technical view |
-| `2g3g-isup` | Legacy voice/circuit ISUP signaling |
-| `2g3g-sccp-mtp` | Lower-layer SCCP / MTP routing and transport issues |
+Profile families are documented separately so the command reference does not
+turn into a second profile catalog.
 
-Use `5g-core` for a broad first-pass mixed 5GC view. Use the narrower 5G SA
-profiles when the interface is known and you want smaller, cleaner artifacts.
+Use the family that matches the traffic:
+
+- `lte-*` for LTE / EPC
+- `5g-*` for 5G SA Core
+- `volte-*` and `vonr-*` for Voice-over-IMS
+- `2g3g-*` for legacy 2G/3G / GERAN
+
+Detailed profile reference:
+
+- Overview: [`docs/PROFILES.md`](PROFILES.md)
+- LTE / EPC: [`docs/PROFILES_LTE.md`](PROFILES_LTE.md)
+- 5G SA Core: [`docs/PROFILES_5G.md`](PROFILES_5G.md)
+- Voice / IMS: [`docs/PROFILES_VOICE.md`](PROFILES_VOICE.md)
+- 2G/3G / GERAN: [`docs/PROFILES_2G3G.md`](PROFILES_2G3G.md)
 
 ```bash
-pcap2llm analyze trace-5g.pcapng --profile 5g-n11 --out ./artifacts
+pcap2llm analyze trace-5g.pcapng --profile 5g-core --out ./artifacts
 ```
 
 ### Verbatim protocol passthrough

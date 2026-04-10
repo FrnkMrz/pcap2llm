@@ -74,7 +74,7 @@ pcap2llm init-config
 
 **App-layer anomaly detection** (`app_anomaly.py`) — stateful, runs during inspection; detects Diameter (unanswered requests, duplicate hop-by-hop IDs, error result codes ≥ 3000) and GTPv2-C (unanswered Create Session, non-success cause, Error Indications).
 
-**Analysis profiles** (`src/pcap2llm/profiles/*.yaml`) — define protocol priorities, field extraction rules, `verbatim_protocols`, and TShark options. Three built-in: `lte-core`, `5g-core`, `2g3g-ss7-geran`. Custom profiles: see `docs/PROFILES.md`.
+**Analysis profiles** (`src/pcap2llm/profiles/*.yaml`) — the authoritative built-in profile path. Profiles define protocol priorities, field extraction rules, `verbatim_protocols`, and TShark options. Built-in families include `lte-core`, the LTE interface profiles (`lte-s1`, `lte-s1-nas`, `lte-s6a`, `lte-s11`, `lte-s10`, `lte-sgs`, `lte-s5`, `lte-s8`, `lte-dns`, `lte-sbc-cbc`), plus `5g-core` and `2g3g-ss7-geran`. Custom profiles: see `docs/PROFILES.md`.
 
 **Privacy profiles** (`src/pcap2llm/privacy_profiles/*.yaml`) — standalone YAML files with per-class privacy modes, fully decoupled from analysis profiles. Built-in: `internal` (all keep), `share` (pseudonymize subscriber IDs), `lab`, `prod-safe` (maximum protection). Referenced via `--privacy-profile` or `privacy_profile:` in config.
 
@@ -94,7 +94,7 @@ pcap2llm init-config
 
 - **Profile YAML drives protocol selection** — extending protocols means editing profiles, not Python code
 - **Analysis profiles and privacy profiles are fully separated** — `--profile 5g-core` + `--privacy-profile prod-safe` are orthogonal; any combination is valid
-- **`verbatim_protocols` in analysis profile** — protocols listed there bypass `full_detail_fields` allowlist and `_flatten`; the complete raw TShark layer dict is kept as-is (only `_ws.*` stripped). Takes priority over `full_detail_fields` for the same protocol.
+- **`verbatim_protocols` in analysis profile** — protocols listed there bypass the normal `full_detail_fields` path and keep minimally transformed protocol detail. Top-level protocol fields remain, repeated nested fields can be surfaced into flat protocol-prefixed keys, and `_ws.*` is stripped. For Diameter, raw AVP dump structures can additionally be suppressed with `keep_raw_avps: false`.
 - **Privacy operates on 13 data classes**: ip, hostname, subscriber_id, msisdn, imsi, imei, email, distinguished_name, token, uri, apn_dnn, diameter_identity, payload_text — with per-class mode selection (keep/mask/pseudonymize/encrypt/remove)
 - **Privacy resolution order** (highest wins): CLI `--*-mode` flags → config `privacy_modes` overrides → `--privacy-profile` base → deprecated `default_privacy_modes` in analysis profile → `{}`
 - **Pseudonyms are hash-based** (BLAKE2s) — stable across runs, format: `IMSI_a3f2b1c4`

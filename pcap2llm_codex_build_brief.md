@@ -402,8 +402,6 @@ pcap2llm/
         __init__.py
       utils/
         __init__.py
-  profiles/
-    lte-core.yaml
   tests/
     test_cli.py
     test_profiles.py

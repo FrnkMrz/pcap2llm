@@ -39,6 +39,10 @@ _STRONG_LEGACY_COMBOS: tuple[frozenset[str], ...] = (
     frozenset({"gtpv1", "udp"}),
 )
 
+_VOICE_INDICATOR_PROTOCOLS: frozenset[str] = frozenset({"sip", "sdp", "dns", "rtp", "rtcp"})
+_HYBRID_VOICE_PROFILES: frozenset[str] = frozenset({"vonr-n1-n2-voice", "vonr-ims-core"})
+_LTE_ANCHOR_PROTOCOLS: frozenset[str] = frozenset({"s1ap", "diameter", "gtpv2"})
+
 # Domain combo rules: (required_protocol_set, domain, base_score, summary_reason)
 # Ordered: best match per domain wins. base_score assumes meaningful protocol
 # evidence, with raw_protocols able to contribute when top_protocols are too flat.
@@ -85,9 +89,11 @@ def _protocol_variants(protocol: str) -> tuple[str, ...]:
 def _protocol_count(inspect_result: InspectResult, protocol: str) -> int:
     total = 0
     for variant in _protocol_variants(protocol):
-        total += inspect_result.protocol_counts.get(variant, 0)
         if variant in _TRANSPORT_PROTOCOLS:
-            total += inspect_result.transport_counts.get(variant, 0)
+            count = inspect_result.protocol_counts.get(variant, 0) or inspect_result.transport_counts.get(variant, 0)
+            total += count
+        else:
+            total += inspect_result.protocol_counts.get(variant, 0)
     return total
 
 
@@ -158,6 +164,7 @@ def _has_strong_legacy_combo(present: frozenset[str]) -> bool:
 
 def _apply_profile_gates(
     inspect_result: InspectResult,
+    profile: ProfileDefinition,
     selector: SelectorMetadata,
     score: float,
     reasons: list[str],
@@ -165,25 +172,30 @@ def _apply_profile_gates(
     present: frozenset[str],
     total_packets: int,
 ) -> tuple[float, list[str]]:
-    if score <= 0 or selector.family != "2g3g":
+    if score <= 0:
         return score, reasons
 
-    dtap_present = "dtap" in matched_domain_protocols
-    partner_present = bool((present & _LEGACY_PARTNER_PROTOCOLS) - {"dtap"})
-    strong_legacy_combo = _has_strong_legacy_combo(present)
-    dtap_count = _protocol_count(inspect_result, "dtap")
-    rare_dtap_cutoff = max(5, int(total_packets * 0.01))
+    if selector.family == "2g3g":
+        dtap_present = "dtap" in matched_domain_protocols
+        partner_present = bool((present & _LEGACY_PARTNER_PROTOCOLS) - {"dtap"})
+        strong_legacy_combo = _has_strong_legacy_combo(present)
+        dtap_count = _protocol_count(inspect_result, "dtap")
+        rare_dtap_cutoff = max(5, int(total_packets * 0.01))
 
-    if dtap_present and not partner_present:
-        score *= 0.12
-        reasons.append("legacy dtap signal gated without bssap/sccp/mtp3-style partners")
-    elif not strong_legacy_combo:
-        score *= 0.45
-        reasons.append("legacy evidence remains partial without a strong partner combo")
+        if dtap_present and not partner_present:
+            score *= 0.12
+            reasons.append("legacy dtap signal gated without bssap/sccp/mtp3-style partners")
+        elif not strong_legacy_combo:
+            score *= 0.45
+            reasons.append("legacy evidence remains partial without a strong partner combo")
 
-    if dtap_present and 0 < dtap_count < rare_dtap_cutoff and not strong_legacy_combo:
-        score *= 0.5
-        reasons.append("rare dtap signal treated as a side signal")
+        if dtap_present and 0 < dtap_count < rare_dtap_cutoff and not strong_legacy_combo:
+            score *= 0.5
+            reasons.append("rare dtap signal treated as a side signal")
+
+    if profile.name in _HYBRID_VOICE_PROFILES and not any(proto in present for proto in _VOICE_INDICATOR_PROTOCOLS):
+        score *= 0.35
+        reasons.append("voice profile downranked because no SIP/IMS indicators were detected")
 
     return score, reasons
 
@@ -216,6 +228,7 @@ def _domain_alignment_bonus(
 
 
 def _domain_mismatch_penalty(
+    inspect_result: InspectResult,
     profile: ProfileDefinition,
     suspected_domains: list[dict[str, Any]],
 ) -> tuple[float, list[str]]:
@@ -227,9 +240,20 @@ def _domain_mismatch_penalty(
     top_family = _domain_family(top["domain"])
     top_score = float(top.get("score", 0.0))
     present_families = {_domain_family(item["domain"]) for item in suspected_domains}
+    total_packets = inspect_result.metadata.packet_count or sum(inspect_result.protocol_counts.values()) or 1
+    present = _protocol_presence(inspect_result)
 
     if top_family is None or top_score < 0.75:
         return 1.0, []
+
+    if selector.family == "lte" and top["domain"] in {"5g-sa-core", "5g-sa-core-sbi"}:
+        has_nas_eps = _protocol_evidence(inspect_result, "nas-eps", total_packets, present)[0] > 0
+        has_anchor = any(
+            _protocol_evidence(inspect_result, proto, total_packets, present)[0] > 0
+            for proto in _LTE_ANCHOR_PROTOCOLS
+        )
+        if has_nas_eps and not has_anchor:
+            return 0.35, [f"treated as cross-generation side signal; primary domain evidence points to {top['domain']}"]
 
     if selector.family == "2g3g" and top_family in {"5g", "lte"} and "2g3g" not in present_families:
         return 0.25, [f"strong {top['domain']} evidence outweighs weak legacy side signals"]
@@ -381,6 +405,7 @@ def _score_profile(
     score = domain_score + transport_bonus
     score, reasons = _apply_profile_gates(
         inspect_result,
+        profile,
         selector,
         score,
         reasons,
@@ -413,13 +438,13 @@ def infer_domains(inspect_result: InspectResult) -> list[dict[str, Any]]:
         else:
             score = base_score * 0.3  # transport-only combo: greatly dampened
 
-        reasons = [
+        evidence_reasons = [
             _format_protocol_reason(proto, count, source)
             for proto in required
             for factor, count, source in [_protocol_evidence(inspect_result, proto, total_packets, present)]
             if factor > 0
         ]
-        reasons.append(reason)
+        reasons = [reason, *evidence_reasons]
 
         existing = domain_best.get(domain, (0.0, []))[0]
         if score > existing:
@@ -446,7 +471,7 @@ def recommend_profiles_from_inspect(
         score, reasons = _score_profile(inspect_result, profile)
         if score > 0:
             domain_bonus, domain_reasons = _domain_alignment_bonus(profile, suspected_domains)
-            penalty, penalty_reasons = _domain_mismatch_penalty(profile, suspected_domains)
+            penalty, penalty_reasons = _domain_mismatch_penalty(inspect_result, profile, suspected_domains)
             score = (score + domain_bonus) * penalty
             reasons = list(dict.fromkeys([*reasons, *domain_reasons, *penalty_reasons]))
             scored.append((score, profile, reasons))

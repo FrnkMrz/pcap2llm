@@ -25,6 +25,7 @@ def _discovery_payload(capture: Path) -> dict:
         },
         "transport_summary": {"sctp": 4, "tcp": 3},
         "protocol_summary": {
+            "dominant_signaling_protocols": [{"name": "ngap", "count": 4, "strength": "strong"}],
             "top_protocols": [{"name": "ngap", "count": 4}],
             "relevant_protocols": ["ngap"],
             "raw_protocols": ["ngap", "sctp"],

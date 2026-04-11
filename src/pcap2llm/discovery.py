@@ -11,6 +11,7 @@ from pcap2llm.models import InspectResult, ProfileDefinition
 from pcap2llm.pipeline import artifact_timestamp_prefix
 from pcap2llm.profiles import load_all_profiles
 from pcap2llm.recommendation import recommend_profiles_from_inspect
+from pcap2llm.signaling import dominant_signaling_protocols
 from pcap2llm.tshark_runner import TSharkRunner
 
 
@@ -75,6 +76,7 @@ def build_discovery_payload(
             key=lambda item: (-item[1], item[0]),
         )[:10]
     ]
+    dominant = dominant_signaling_protocols(inspect_result)
     return {
         "status": "ok",
         "mode": "discovery",
@@ -88,6 +90,7 @@ def build_discovery_payload(
         "transport_summary": inspect_result.transport_counts,
         "protocol_summary": {
             "top_protocols": top_protocols,
+            "dominant_signaling_protocols": dominant,
             "relevant_protocols": inspect_result.metadata.relevant_protocols,
             "raw_protocols": inspect_result.metadata.raw_protocols,
         },
@@ -106,8 +109,22 @@ def build_discovery_markdown(discovery: dict[str, Any]) -> str:
         f"- Capture: `{discovery['capture']['path']}`",
         f"- Packet count: `{discovery['capture']['packet_count']}`",
         "",
-        "## Top Protocols",
+        "## Dominant Signaling Protocols",
     ]
+    dominant = discovery["protocol_summary"].get("dominant_signaling_protocols", [])
+    if dominant:
+        for item in dominant:
+            if item["count"] > 0:
+                lines.append(f"- `{item['name']}` [{item['strength']}]: {item['count']}")
+            else:
+                lines.append(f"- `{item['name']}` [{item['strength']}]")
+    else:
+        lines.append("- No dominant signaling protocols detected.")
+
+    lines.extend([
+        "",
+        "## Top Protocols",
+    ])
     for item in discovery["protocol_summary"]["top_protocols"]:
         lines.append(f"- `{item['name']}`: {item['count']}")
     lines.extend(["", "## Suspected Domains"])

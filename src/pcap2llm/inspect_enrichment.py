@@ -14,65 +14,8 @@ from typing import Any
 
 from pcap2llm.models import InspectResult, ProfileDefinition
 from pcap2llm.recommendation import infer_domains, recommend_profiles_from_inspect
-
-# Protocols that are purely transport/infrastructure — never domain-defining alone.
-_TRANSPORT_ONLY: frozenset[str] = frozenset({
-    "ip", "ipv6", "tcp", "udp", "sctp", "eth", "frame", "data",
-    "ip.options", "ipv6.hopopts", "arp",
-})
-
-# Known signaling protocol families — used for dominant-protocol extraction.
-_SIGNALING_FAMILIES: dict[str, str] = {
-    # 5G
-    "ngap": "5g-access",
-    "nas-5gs": "5g-nas",
-    "http": "5g-sbi",
-    "json": "5g-sbi",
-    "pfcp": "5g-userplane",
-    # LTE
-    "s1ap": "lte-access",
-    "nas-eps": "lte-nas",
-    "diameter": "lte-diameter",
-    "gtpv2": "lte-gtp",
-    "gtpv1": "legacy-gtp",
-    # Voice / IMS
-    "sip": "ims-sip",
-    "sdp": "ims-media-negotiation",
-    "rtp": "media",
-    "rtcp": "media-control",
-    # SS7 / 2G/3G
-    "map": "ss7-map",
-    "gsm_map": "ss7-map",
-    "tcap": "ss7-tcap",
-    "sccp": "ss7-sccp",
-    "mtp3": "ss7-mtp3",
-    "m3ua": "ss7-m3ua",
-    "bssap": "geran-bssap",
-    "dtap": "geran-dtap",
-    "gsm_a": "geran-gsm-a",
-    "isup": "ss7-isup",
-    "cap": "ss7-cap",
-    # Common
-    "dns": "dns",
-    "dhcp": "dhcp",
-    "radius": "aaa-radius",
-}
-
-
-def _dominant_signaling(protocol_counts: dict[str, int], total: int) -> list[str]:
-    """Return signaling protocols sorted by packet count, excluding transport-only."""
-    signaling = [
-        (proto, count)
-        for proto, count in protocol_counts.items()
-        if proto not in _TRANSPORT_ONLY and count > 0
-    ]
-    signaling.sort(key=lambda x: -x[1])
-    # Keep those that represent ≥1% of total packets, or the top 5 if all are rare
-    threshold = max(1, int(total * 0.01))
-    filtered = [p for p, c in signaling if c >= threshold]
-    if not filtered and signaling:
-        filtered = [p for p, _ in signaling[:5]]
-    return filtered[:10]
+from pcap2llm.signaling import TRANSPORT_ONLY as _TRANSPORT_ONLY
+from pcap2llm.signaling import dominant_signaling_names
 
 
 def _trace_shape(
@@ -246,15 +189,13 @@ def enrich_inspect_result(
     - ``next_step_hints``
     - additional ``anomalies`` from inspect-level heuristics (appended, not replaced)
     """
-    total = result.metadata.packet_count or 1
-
     # Domain detection and profile recommendation — reuse recommendation.py
     suspected = infer_domains(result)
     rec = recommend_profiles_from_inspect(result, profiles, limit=6)
     candidates = rec["recommended_profiles"]
 
     # Protocol classification
-    dominant = _dominant_signaling(result.protocol_counts, total)
+    dominant = dominant_signaling_names(result)
 
     # Trace shape
     shape, shape_reasons = _trace_shape(suspected, result.protocol_counts)

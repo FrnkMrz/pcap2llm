@@ -80,6 +80,11 @@ The exact payload can evolve, but the core blocks are:
     "sctp": 200
   },
   "protocol_summary": {
+    "dominant_signaling_protocols": [
+      {"name": "ngap", "count": 120, "strength": "strong"},
+      {"name": "nas-5gs", "count": 90, "strength": "strong"},
+      {"name": "sctp", "count": 200, "strength": "supporting"}
+    ],
     "top_protocols": [
       {"name": "ngap", "count": 120},
       {"name": "nas-5gs", "count": 90}
@@ -108,6 +113,7 @@ The exact payload can evolve, but the core blocks are:
 
 - capture path, packet count, first/last timestamps, SHA-256 when readable
 - transport mix such as TCP, UDP, SCTP
+- dominant signaling protocols derived from decoded counts plus strong raw-protocol hints
 - top protocols and raw protocol inventory
 - a small conversation and anomaly slice
 - rule-based domain hints
@@ -145,6 +151,10 @@ view is too flat, strong domain hints can still be recovered from
 `raw_protocols`, especially for combinations such as `ngap + nas-5gs + sctp`
 or `s1ap + nas-eps + sctp`.
 
+The discovery payload also exposes `dominant_signaling_protocols` so humans and
+agents can immediately see the primary signaling stack without confusing it with
+generic carrier protocols such as `ip`.
+
 ### Frequency weighting
 
 A protocol that appears in very few packets contributes much less to the score.
@@ -179,6 +189,12 @@ strong indicators, trigger protocols, and weak indicators — all excluding
 transport protocols. The profile with the highest domain-specific signal
 score ranks first, then receives an extra bonus when it aligns with the top
 `suspected_domains` hypothesis.
+
+Hybrid voice profiles such as VoNR candidates are intentionally downranked when
+no SIP-, SDP-, DNS-, or other IMS-specific indicators are present. LTE / EPS
+profiles also stay visible as side signals in a 5G-dominant trace, but are
+ranked below the primary 5G candidates unless they have their own LTE anchor
+protocols such as `s1ap`, `diameter`, or `gtpv2`.
 
 ## Recommended Flow
 

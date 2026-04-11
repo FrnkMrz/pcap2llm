@@ -2,13 +2,10 @@
 from __future__ import annotations
 
 
-from pcap2llm.inspect_enrichment import (
-    _dominant_signaling,
-    build_inspect_markdown,
-    enrich_inspect_result,
-)
+from pcap2llm.inspect_enrichment import build_inspect_markdown, enrich_inspect_result
 from pcap2llm.models import CaptureMetadata, InspectResult
 from pcap2llm.profiles import load_all_profiles
+from pcap2llm.signaling import dominant_signaling_names
 
 
 def _make_result(
@@ -39,8 +36,8 @@ def _make_result(
 # ---------------------------------------------------------------------------
 
 def test_dominant_signaling_excludes_transport() -> None:
-    counts = {"ngap": 400, "sctp": 500, "ip": 500, "nas-5gs": 80}
-    result = _dominant_signaling(counts, 980)
+    inspect = _make_result({"ngap": 400, "sctp": 500, "ip": 500, "nas-5gs": 80}, {"sctp": 500})
+    result = dominant_signaling_names(inspect)
     assert "sctp" not in result
     assert "ip" not in result
     assert "ngap" in result
@@ -48,8 +45,8 @@ def test_dominant_signaling_excludes_transport() -> None:
 
 
 def test_dominant_signaling_sorts_by_count() -> None:
-    counts = {"ngap": 400, "nas-5gs": 80, "diameter": 200}
-    result = _dominant_signaling(counts, 680)
+    inspect = _make_result({"ngap": 400, "nas-5gs": 80, "diameter": 200})
+    result = dominant_signaling_names(inspect)
     assert result[0] == "ngap"
     assert result[1] == "diameter"
 

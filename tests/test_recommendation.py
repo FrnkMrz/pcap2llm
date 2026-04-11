@@ -231,6 +231,23 @@ def test_raw_5g_signals_rank_above_legacy_profiles() -> None:
     )
 
 
+def test_domain_bonus_does_not_recommend_zero_evidence_profiles() -> None:
+    result = _mock_result(
+        {"ngap": 400, "nas-5gs": 80, "sctp": 500, "ip": 500},
+        {"sctp": 500},
+        ["ngap", "nas-5gs", "sctp", "ip"],
+    )
+    profiles = load_all_profiles()
+    rec = recommend_profiles_from_inspect(result, profiles, limit=20)
+    names = [r["profile"] for r in rec["recommended_profiles"]]
+    assert "5g-cbc-cbs" not in names
+    assert "5g-dns" not in names
+
+    suppressed_names = [r["profile"] for r in rec["suppressed_profiles"]]
+    assert "5g-cbc-cbs" in suppressed_names
+    assert "5g-dns" in suppressed_names
+
+
 def test_lte_s1_profiles_rank_above_5g_on_s1ap_trace() -> None:
     result = _mock_result(
         {"s1ap": 300, "nas-eps": 100, "sctp": 400, "ip": 400},

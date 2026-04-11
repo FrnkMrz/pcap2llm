@@ -444,11 +444,11 @@ def recommend_profiles_from_inspect(
     suppressed: list[tuple[float, ProfileDefinition, list[str]]] = []
     for profile in profiles:
         score, reasons = _score_profile(inspect_result, profile)
-        domain_bonus, domain_reasons = _domain_alignment_bonus(profile, suspected_domains)
-        penalty, penalty_reasons = _domain_mismatch_penalty(profile, suspected_domains)
-        score = (score + domain_bonus) * penalty
-        reasons = list(dict.fromkeys([*reasons, *domain_reasons, *penalty_reasons]))
         if score > 0:
+            domain_bonus, domain_reasons = _domain_alignment_bonus(profile, suspected_domains)
+            penalty, penalty_reasons = _domain_mismatch_penalty(profile, suspected_domains)
+            score = (score + domain_bonus) * penalty
+            reasons = list(dict.fromkeys([*reasons, *domain_reasons, *penalty_reasons]))
             scored.append((score, profile, reasons))
         else:
             suppressed.append((score, profile, reasons or ["no matching protocol evidence"]))

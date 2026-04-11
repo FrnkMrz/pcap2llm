@@ -57,8 +57,8 @@ def test_discover_command_writes_discovery_artifacts(tmp_path: Path) -> None:
     md_path = Path(payload["discovery_md"])
     assert json_path.parent == out_dir
     assert md_path.parent == out_dir
-    assert json_path.name.endswith("_discovery.json")
-    assert md_path.name.endswith("_discovery.md")
+    assert "_discovery_V_" in json_path.name and json_path.name.endswith(".json")
+    assert "_discovery_V_" in md_path.name and md_path.name.endswith(".md")
     assert json_path.exists()
     assert md_path.exists()
     # no subdirectory created

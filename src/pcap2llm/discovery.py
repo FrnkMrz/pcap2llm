@@ -160,8 +160,12 @@ def write_discovery_artifacts(out_dir: Path, discovery: dict[str, Any], markdown
     Output layout (flat, no subdirectory)::
 
         {out_dir}/
-          YYYYMMDD_HHMMSS_discovery.json
-          YYYYMMDD_HHMMSS_discovery.md
+          YYYYMMDD_HHMMSS_discovery_V_01.json
+          YYYYMMDD_HHMMSS_discovery_V_01.md
+
+    The ``_V_NN`` suffix matches the convention used by ``analyze`` artifacts and
+    auto-increments on filename collision (same run, different captures in the same
+    output directory).
 
     The timestamp prefix is derived from ``capture.first_seen`` in the discovery
     payload using the same :func:`~pcap2llm.pipeline.artifact_timestamp_prefix`
@@ -170,12 +174,20 @@ def write_discovery_artifacts(out_dir: Path, discovery: dict[str, Any], markdown
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     first_seen = discovery.get("capture", {}).get("first_seen") or ""
-    ts = artifact_timestamp_prefix(first_seen) or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    discovery_json = out_dir / f"{ts}_discovery.json"
-    discovery_md = out_dir / f"{ts}_discovery.md"
-    discovery_json.write_text(json.dumps(discovery, indent=2), encoding="utf-8")
-    discovery_md.write_text(markdown, encoding="utf-8")
+    prefix = artifact_timestamp_prefix(first_seen) or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+
+    version = 1
+    while True:
+        v = f"V_{version:02d}"
+        json_path = out_dir / f"{prefix}_discovery_{v}.json"
+        md_path = out_dir / f"{prefix}_discovery_{v}.md"
+        if not json_path.exists() and not md_path.exists():
+            break
+        version += 1
+
+    json_path.write_text(json.dumps(discovery, indent=2), encoding="utf-8")
+    md_path.write_text(markdown, encoding="utf-8")
     return {
-        "discovery_json": discovery_json,
-        "discovery_md": discovery_md,
+        "discovery_json": json_path,
+        "discovery_md": md_path,
     }

@@ -1,10 +1,12 @@
 """Tests for discovery fine-tuning: DNS family spread, classification_notes,
-mixed-domain roles, legacy profile gates, and reason deduplication."""
+mixed-domain roles, legacy profile gates, reason deduplication,
+and classification_state (final fine-tuning round)."""
 from __future__ import annotations
 
 from pcap2llm.inspect_enrichment import enrich_inspect_result
 from pcap2llm.models import CaptureMetadata, InspectResult
 from pcap2llm.profiles import load_all_profiles
+from pcap2llm.recommendation import infer_domains
 
 
 def _make_inspect_result(
@@ -119,3 +121,98 @@ class TestDiscoveryFinetuning:
             assert len(reasons) == len(set(reasons)), (
                 f"Duplicate reasons in {prof['profile']}: {reasons}"
             )
+
+
+class TestFinalFineTuning:
+    """Tests for the final fine-tuning round: classification_state, role cleanup,
+    DNS gate for lte-dns/5g-dns, and reason dedup in infer_domains."""
+
+    def test_a_dns_only_classification_state_ambiguous_support(self) -> None:
+        """DNS-only trace must produce classification_state='ambiguous_support'."""
+        result = _make_inspect_result({"dns": 900, "udp": 900, "ip": 1800})
+        enriched = enrich_inspect_result(result, load_all_profiles())
+        assert enriched.classification_state == "ambiguous_support", (
+            f"Expected ambiguous_support, got {enriched.classification_state}"
+        )
+        # No broad voice/SIP promotion — volte-sip/sbc should not be in top-4
+        top_4 = [p["profile"] for p in enriched.candidate_profiles[:4]]
+        assert "volte-sip" not in top_4, f"volte-sip should not appear in top-4 for DNS-only: {top_4}"
+        assert "volte-sbc" not in top_4, f"volte-sbc should not appear in top-4 for DNS-only: {top_4}"
+        # lte-dns and 5g-dns should be gated below their ungated score of 5.20
+        for cand in enriched.candidate_profiles:
+            if cand["profile"] in ("lte-dns", "5g-dns"):
+                assert cand["score"] < 5.0, (
+                    f"{cand['profile']} scored {cand['score']} for DNS-only, expected < 5.0 (gated)"
+                )
+
+    def test_b_single_domain_never_tagged_secondary(self) -> None:
+        """A trace with exactly one suspected domain must have role='primary', never 'secondary'."""
+        # Pure diameter → single lte-eps domain
+        result = _make_inspect_result({"diameter": 500, "sctp": 500})
+        domains = infer_domains(result)
+        assert len(domains) >= 1
+        for d in domains:
+            assert d.get("role") != "secondary", (
+                f"Single-domain trace must not have role=secondary: {domains}"
+            )
+        # DNS-only → single dns-support domain
+        result2 = _make_inspect_result({"dns": 400, "udp": 400})
+        domains2 = infer_domains(result2)
+        assert len(domains2) == 1
+        assert domains2[0].get("role") == "primary", (
+            f"Single dns-support domain should have role=primary: {domains2}"
+        )
+
+    def test_c_mixed_domain_roles_remain(self) -> None:
+        """Mixed modern+legacy trace must produce multiple domains, each with a role field.
+
+        Co-dominant domains (both scoring >= 0.7) may both receive 'primary'.
+        The important invariant is: every domain entry in a multi-domain result has a role.
+        """
+        # map+tcap+sccp fires the legacy-2g3g combo; ngap+nas-5gs fires 5g-sa-core
+        result = _make_inspect_result({"ngap": 200, "nas-5gs": 150, "map": 80, "tcap": 70, "sccp": 80})
+        domains = infer_domains(result)
+        assert len(domains) >= 2, f"Expected mixed domains, got: {domains}"
+        # Every domain must have a role when multiple domains are present
+        for d in domains:
+            assert "role" in d, f"Domain missing role field in multi-domain result: {d}"
+            assert d["role"] in ("primary", "secondary", "supporting"), (
+                f"Unexpected role value: {d['role']}"
+            )
+        # At least one primary must exist
+        assert any(d["role"] == "primary" for d in domains), (
+            f"No primary domain in mixed trace: {domains}"
+        )
+
+    def test_d_ims_diameter_no_duplicate_downrank_reasons(self) -> None:
+        """Diameter-only trace: IMS Diameter profiles must not stack near-duplicate downrank reasons."""
+        result = _make_inspect_result({"diameter": 300, "sctp": 300})
+        enriched = enrich_inspect_result(result, load_all_profiles())
+        for cand in enriched.candidate_profiles:
+            if "ims" in cand["profile"] or "volte-diameter" in cand["profile"]:
+                reasons = cand.get("reason", [])
+                # Count how many reasons contain "downranked"
+                downrank_reasons = [r for r in reasons if "downranked" in r]
+                assert len(downrank_reasons) <= 1, (
+                    f"{cand['profile']} has {len(downrank_reasons)} downranked reasons: {downrank_reasons}"
+                )
+
+    def test_e_gtp_host_hint_only_classification_state_partial(self) -> None:
+        """Weak GTP trace with S5/S8 peer names only → classification_state='partial'."""
+        result = _make_inspect_result(
+            {"gtp": 100, "udp": 100},
+            resolved_peers=[
+                {"name": "s5-pgw.roaming.example.com", "role": "pgw"},
+                {"name": "s8-sgw.example.com", "role": "sgw"},
+            ],
+        )
+        enriched = enrich_inspect_result(result, load_all_profiles())
+        assert enriched.classification_state in ("partial", "ambiguous_support"), (
+            f"Expected partial or ambiguous_support, got {enriched.classification_state}"
+        )
+        # Should carry a classification note about low confidence
+        has_note = any(
+            "host hint" in note.lower() or "partial" in note.lower()
+            for note in enriched.classification_notes
+        )
+        assert has_note, f"No low-confidence note found. Notes: {enriched.classification_notes}"

@@ -115,7 +115,8 @@ The exact payload can evolve, but the core blocks are:
   ],
   "classification_notes": [
     "family assignment remains ambiguous — DNS-only without domain-specific service markers"
-  ]
+  ],
+  "classification_state": "ambiguous_support"
 }
 ```
 
@@ -230,14 +231,12 @@ Pure DNS traffic without accompanying control-plane signaling (no `ngap`,
 `s1ap`, `diameter`, `sip`, `map`, etc.) is infrastructure or support traffic
 that cannot be reliably assigned to a single network generation.
 
-Discovery models this explicitly: family-specific DNS profiles (`volte-dns`,
-`vonr-dns`, `2g3g-dns`) are strongly downranked unless a domain-specific
-signal is also present — for example, an IMS peer hostname or a co-occurring
-SIP flow. Without such context, a `classification_notes` entry reads:
+Discovery models this explicitly:
+- `classification_state` is set to `"ambiguous_support"` — a structured signal for orchestrators
+- All family-specific DNS profiles (`lte-dns`, `5g-dns`, `volte-dns`, `vonr-dns`, `2g3g-dns`) are gated unless a domain-specific anchor is present; `lte-dns` requires LTE evidence (`s1ap`, `diameter`, `gtpv2`), `5g-dns` requires 5G evidence (`ngap`, `nas-5gs`)
+- A `classification_notes` entry reads: `"family assignment remains ambiguous — DNS-only without domain-specific service markers"`
 
-> `family assignment remains ambiguous — DNS-only without domain-specific service markers`
-
-A family-specific DNS profile is only promoted when the co-occurring evidence
+A family-specific DNS profile is only promoted when co-occurring evidence
 warrants it: IMS peer hints allow `volte-dns`; 5G NF hostnames allow `5g-dns`.
 
 ### Host hints: supporting evidence, not proof
@@ -262,12 +261,16 @@ and `suspected_domains` carries a `role` field on each entry:
 
 | Role | Meaning |
 |---|---|
-| `primary` | Highest-scoring domain (score ≥ 0.7) |
-| `secondary` | Additional domain with meaningful signal (score ≥ 0.4) |
-| `supporting` | Weak or side signal (score < 0.4) |
+| `primary` | Dominant domain — score ≥ 0.7, OR the only domain present |
+| `secondary` | Additional domain with meaningful signal — score ≥ 0.4 |
+| `supporting` | Weak or side signal — score < 0.4 |
 
-Example: a mixed SS7+Diameter trace might show `legacy-2g3g` as `primary` and
-`lte-eps` as `secondary`. Run `discover` to see the full candidate list.
+Role is only emitted when there is at least one domain entry. A single domain
+always receives `primary` regardless of its score — labeling the only domain
+`secondary` would be semantically broken.
+
+When two domains both score ≥ 0.7 (co-dominant, e.g. a trace mixing MAP/TCAP/SCCP
+with ngap), both receive `primary`. Run `discover` for the full candidate list.
 
 ### Legacy / SS7 profile calibration
 
@@ -281,6 +284,21 @@ Legacy profiles are gated against specific evidence:
 - `map + tcap + sccp` combinations boost `2g3g-map-core` and `2g3g-gr` as the
   primary SS7 core candidates
 
+### classification_state
+
+`classification_state` is a structured top-level field designed for orchestration decisions.
+
+| Value | Meaning |
+|---|---|
+| `"confident"` | Strong single-domain evidence (top domain score ≥ 0.7) |
+| `"ambiguous_support"` | DNS-only or generic support traffic without family context |
+| `"partial"` | Some protocol evidence but weak, gated, or host-hint-driven |
+| `"mixed"` | Multiple competing domains |
+| `"unknown"` | Transport-only or insufficient evidence |
+
+An orchestrator can branch on `classification_state` before deciding whether to
+call `analyze` directly, run `discover` first, or flag for human review.
+
 ### Classification notes vs. anomalies
 
 The output separates two kinds of diagnostic messages:
@@ -289,8 +307,7 @@ The output separates two kinds of diagnostic messages:
   traces, sparse Diameter, SCTP without upper-layer decode, legacy protocols
   alongside modern signaling
 - **`classification_notes`** — methodological discovery limits: coarse decoded
-  protocols, DNS-only ambiguity, host-hint-driven confidence, family
-  uncertainty
+  protocols, DNS-only ambiguity, host-hint-driven confidence, family uncertainty
 
 An orchestrator should act on anomalies; classification notes explain the
 discovery method's confidence level and are informational.

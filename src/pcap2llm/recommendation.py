@@ -285,9 +285,23 @@ def _apply_profile_gates(
         score *= 0.35
         reasons.append("voice profile downranked: no SIP/IMS indicators")
 
-    if profile.name in _IMS_DIAMETER_PROFILES and not (has_strong_ims_signal or has_ims_peer_hint):
+    # IMS/voice profile gates — applied at most once per profile to avoid stacking.
+    # Profiles in both _IMS_DIAMETER_PROFILES and _IMS_CORE_PROFILES (e.g. volte-ims-core)
+    # receive the combined penalty once with a single reason rather than two separate gates.
+    _ims_condition_fails = not (has_strong_ims_signal or has_ims_peer_hint)
+    _in_ims_diam = profile.name in _IMS_DIAMETER_PROFILES
+    _in_ims_core = profile.name in _IMS_CORE_PROFILES
+
+    if _in_ims_diam and _in_ims_core and _ims_condition_fails:
+        # Combined gate for profiles that are both Diameter-IMS and IMS-core
+        score *= 0.3
+        reasons.append("IMS Diameter/core profile downranked: no IMS peer or signaling hints")
+    elif _in_ims_diam and _ims_condition_fails:
         score *= 0.35
         reasons.append("IMS Diameter profile downranked: no IMS peer or signaling hints")
+    elif _in_ims_core and _ims_condition_fails:
+        score *= 0.3
+        reasons.append("IMS core profile downranked: no IMS peer or signaling hints")
 
     if profile.name in _VOICE_SIP_PROFILES and not ("sip" in present or has_ims_peer_hint):
         score *= 0.12
@@ -297,10 +311,6 @@ def _apply_profile_gates(
         score *= 0.55
         reasons.append("voice DNS profile downranked: no IMS hints")
 
-    if profile.name in _IMS_CORE_PROFILES and not (has_strong_ims_signal or has_ims_peer_hint):
-        score *= 0.3
-        reasons.append("IMS core profile downranked: no IMS peer or signaling hints")
-
     if profile.name == "5g-n26" and not (
         ("gtpv2" in present and any(proto in present for proto in {"http", "json", "ngap", "nas-5gs"}))
         or _has_peer_hint(peer_blob, _N26_HINT_TOKENS)
@@ -308,10 +318,32 @@ def _apply_profile_gates(
         score *= 0.3
         reasons.append("N26 profile downranked: no EPC↔5GC interworking hints")
 
-    # DNS family spread: downrank family-specific DNS profiles when no domain context is present
-    _DNS_FAMILY_SPECIFIC: frozenset[str] = frozenset({"volte-dns", "vonr-dns", "2g3g-dns"})
+    # DNS family spread: gate all family-specific DNS profiles when no anchor for that family exists.
+    #
+    # lte-dns / 5g-dns: exempted from the generic gate in the previous round, but they
+    # still need per-family anchors — otherwise both score equally on pure DNS-only traces.
+    #   5g-dns requires a 5G anchor: ngap, nas-5gs, or http+json (SBI)
+    #   lte-dns requires an LTE anchor: s1ap, nas-eps, diameter, or gtpv2
+    # voice/2g3g DNS profiles: require IMS/voice or CP anchor (as before, stricter)
+    _5G_DNS_ANCHORS: frozenset[str] = frozenset({"ngap", "nas-5gs"})
+    _LTE_DNS_ANCHORS: frozenset[str] = frozenset({"s1ap", "nas-eps", "diameter", "gtpv2"})
     _CP_PROTOCOLS: frozenset[str] = frozenset({"ngap", "nas-5gs", "s1ap", "nas-eps", "sip", "sdp"})
-    if (
+
+    if profile.name == "5g-dns" and not (
+        any(proto in present for proto in _5G_DNS_ANCHORS)
+        or (_has_peer_hint(peer_blob, frozenset({"amf", "smf", "pcf", "udm", "ausf", "nrf", "ngap", "n2", "5g"})))
+    ):
+        score *= 0.4
+        reasons.append("5G DNS profile downranked: no 5G anchor (ngap/nas-5gs) detected")
+
+    elif profile.name == "lte-dns" and not (
+        any(proto in present for proto in _LTE_DNS_ANCHORS)
+        or _has_peer_hint(peer_blob, frozenset({"mme", "sgw", "pgw", "hss", "enb", "lte", "s1", "s6", "s11"}))
+    ):
+        score *= 0.4
+        reasons.append("LTE DNS profile downranked: no LTE anchor (s1ap/diameter/gtpv2) detected")
+
+    elif (
         profile.name.endswith("-dns")
         and profile.name not in {"lte-dns", "5g-dns"}
         and not _has_peer_hint(peer_blob, _IMS_HINT_TOKENS)
@@ -725,11 +757,20 @@ def infer_domains(inspect_result: InspectResult) -> list[dict[str, Any]]:
             for factor, count, source in [_protocol_evidence(inspect_result, proto, total_packets, present)]
             if factor > 0
         ]
-        reasons = [reason, *evidence_reasons]
+        # Merge combo summary reason with per-protocol evidence reasons.
+        # Drop the combo summary if one of the evidence reasons already contains
+        # the same information (e.g. "dns detected" is redundant when
+        # "dns detected (400 pkts)" is already in the list).
+        all_reasons = [reason, *evidence_reasons]
+        merged: list[str] = []
+        for r in all_reasons:
+            if not any(r != other and other.startswith(r) for other in all_reasons):
+                merged.append(r)
+        deduped = list(dict.fromkeys(merged))
 
         existing = domain_best.get(domain, (0.0, []))[0]
         if score > existing:
-            domain_best[domain] = (score, list(dict.fromkeys(reasons)))
+            domain_best[domain] = (score, deduped)
 
     results = [
         {"domain": domain, "score": round(score, 2), "reason": reasons}
@@ -738,12 +779,15 @@ def infer_domains(inspect_result: InspectResult) -> list[dict[str, Any]]:
     ]
     results = sorted(results, key=lambda x: x["score"], reverse=True)
 
-    # Assign role field: primary / secondary / supporting
-    if results:
-        top_score = results[0]["score"]
+    # Assign role field only when it adds meaningful interpretation.
+    # Single domain: always "primary" — labeling the sole domain "secondary" is semantically broken.
+    # Multiple domains: threshold-based (primary ≥ 0.7, secondary ≥ 0.4, supporting < 0.4).
+    if len(results) == 1:
+        results[0]["role"] = "primary"
+    elif len(results) > 1:
         for entry in results:
             s = entry["score"]
-            if s >= 0.7 and s == top_score:
+            if s >= 0.7:
                 entry["role"] = "primary"
             elif s >= 0.4:
                 entry["role"] = "secondary"

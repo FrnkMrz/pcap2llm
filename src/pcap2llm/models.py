@@ -115,6 +115,9 @@ class InspectResult(BaseModel):
     # Methodological discovery notes — separate from network anomalies.
     # Covers decode limitations, host-hint-only evidence, family ambiguity, etc.
     classification_notes: list[str] = Field(default_factory=list)
+    # Structured top-level classification state.
+    # Values: "confident" | "ambiguous_support" | "partial" | "mixed" | "unknown"
+    classification_state: str = "unknown"
 
 
 class PrivacyProfileDefinition(BaseModel):

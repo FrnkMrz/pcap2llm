@@ -202,6 +202,63 @@ def _next_step_hints(
     return hints
 
 
+def _classification_state(
+    trace_shape: str,
+    suspected_domains: list[dict[Any, Any]],
+    classification_notes: list[str],
+    candidate_profiles: list[dict[Any, Any]],
+) -> str:
+    """Derive a structured top-level classification state.
+
+    Returns one of:
+    - ``"confident"``        — strong, single clear domain with high-confidence evidence
+    - ``"ambiguous_support"``— DNS-only or generic support traffic without family context
+    - ``"partial"``          — some evidence but weak or host-hint-driven
+    - ``"mixed"``            — multiple competing domains
+    - ``"unknown"``          — insufficient evidence to classify
+
+    This is a machine-readable summary designed for orchestration decisions.
+    It is derived from shape + suspected_domains + classification_notes.
+    """
+    if trace_shape == "transport_only":
+        return "unknown"
+    if trace_shape == "mixed_domain":
+        return "mixed"
+
+    # Ambiguous support: DNS-only or generic support without real domain signal
+    is_dns_ambiguous = any(
+        "DNS" in note or "dns" in note or "ambiguous" in note
+        for note in classification_notes
+    )
+    only_dns_support = (
+        len(suspected_domains) <= 1
+        and all(d.get("domain") == "dns-support" for d in suspected_domains)
+    )
+    if is_dns_ambiguous or only_dns_support:
+        return "ambiguous_support"
+
+    # Partial: host-hint-only or weak evidence
+    is_partial = any(
+        "host hint" in note.lower() or "partial" in note.lower()
+        for note in classification_notes
+    )
+    has_low_conf_only = candidate_profiles and all(
+        p.get("confidence") == "low" for p in candidate_profiles[:3]
+    )
+    if is_partial or has_low_conf_only:
+        return "partial"
+
+    # Confident: top domain has strong score and no major caveats
+    if suspected_domains and suspected_domains[0].get("score", 0) >= 0.7:
+        return "confident"
+
+    # Some signal but not strong enough for confident
+    if suspected_domains:
+        return "partial"
+
+    return "unknown"
+
+
 def enrich_inspect_result(
     result: InspectResult,
     profiles: list[ProfileDefinition],
@@ -241,6 +298,10 @@ def enrich_inspect_result(
     # Next-step hints
     hints = _next_step_hints(shape, suspected, candidates, result.metadata.packet_count)
 
+    # Structured classification state — maps the combination of shape and confidence
+    # to a machine-readable summary that is easier to act on than reading shape+notes.
+    state = _classification_state(shape, suspected, classification_notes, candidates)
+
     return result.model_copy(update={
         "suspected_domains": suspected,
         "candidate_profiles": candidates,
@@ -250,6 +311,7 @@ def enrich_inspect_result(
         "next_step_hints": hints,
         "anomalies": result.anomalies + network_anomalies,
         "classification_notes": classification_notes,
+        "classification_state": state,
     })
 
 
@@ -279,11 +341,13 @@ def build_inspect_markdown(result: InspectResult) -> str:
     if result.metadata.display_filter:
         lines.append(f"- Display filter: `{result.metadata.display_filter}`")
 
+    state_label = result.classification_state.replace("_", " ").title()
     lines += [
         "",
         "## Trace Shape",
         "",
-        f"**{result.trace_shape.replace('_', ' ').title()}**",
+        f"**{result.trace_shape.replace('_', ' ').title()}**  "
+        f"— classification state: `{result.classification_state}` ({state_label})",
     ]
     for reason in result.trace_shape_reasons:
         lines.append(f"- {reason}")

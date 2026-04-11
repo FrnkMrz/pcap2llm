@@ -53,7 +53,7 @@ def serialize_summary_artifact(
         generated_at=_generated_at(),
         capture_sha256=capture_sha256,
         profile=profile.name,
-        capture_metadata=inspect_result.metadata.model_dump(),
+        capture_metadata=inspect_result.metadata.summary_model_dump(),
         relevant_protocols=summary_payload.get("relevant_protocols", []),
         conversations=summary_payload.get("conversations", []),
         packet_message_counts=summary_payload.get("packet_message_counts", {}),

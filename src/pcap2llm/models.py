@@ -88,6 +88,16 @@ class CaptureMetadata(BaseModel):
     mapping_file_used: bool = False
     resolved_peers: list[dict[str, Any]] = Field(default_factory=list)
 
+    def summary_model_dump(self) -> dict[str, Any]:
+        """Return the stable capture-metadata view used by analyze artifacts."""
+        return self.model_dump(
+            exclude={
+                "hosts_file_used",
+                "mapping_file_used",
+                "resolved_peers",
+            }
+        )
+
 
 class InspectResult(BaseModel):
     metadata: CaptureMetadata

@@ -161,7 +161,7 @@ def build_summary(
 
     summary: dict[str, Any] = {
         # --- Capture-wide fields (pass-1 InspectResult — always full-capture) ---
-        "capture_metadata": inspect_result.metadata.model_dump(),
+        "capture_metadata": inspect_result.metadata.summary_model_dump(),
         "relevant_protocols": inspect_result.metadata.relevant_protocols,
         "conversations": inspect_result.conversations,
         "packet_message_counts": {

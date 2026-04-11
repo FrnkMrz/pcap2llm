@@ -79,6 +79,38 @@ selector_metadata:
   interface: name-resolution
   output_focus: support
 
+  # Strong telecom naming indicators drive discovery scoring for this profile.
+  # Scoring uses a dedicated path in recommendation.py (_score_profile special case)
+  # that evaluates dns.qry.name samples and resolved peer names — not signaling counts.
+  # The fields below are populated so discovery JSON output is not metadata-empty
+  # and _candidate_evidence() can derive a meaningful confidence/evidence_class.
+  strong_indicators:
+    - dns
+
+  weak_indicators:
+    - udp
+    - tcp
+
+  triggers:
+    protocols: [dns, udp, tcp]
+    naming_patterns:
+      - "3gppnetwork.org"
+      - ".gprs"
+      - "mnc<N>.mcc<N> (MCC/MNC operator FQDN)"
+      - "epc.mnc / ims.mnc / 5gc.mnc"
+      - "APN / IMS / Diameter realm / NF service naming"
+
+  use_when:
+    - "DNS trace with 3GPP naming: 3gppnetwork.org, .gprs, or MCC/MNC-based FQDNs"
+    - "Cross-generation telecom core naming — APNs, Diameter realms, IMS domains, 5G NF endpoints"
+    - "DNS traffic that spans generations without a strong signaling-layer anchor"
+    - "Naming-heavy trace where no single interface profile is clearly dominant"
+
+  avoid_when:
+    - "Strong signaling anchor present (ngap, s1ap, sip, diameter) — use specific interface profile"
+    - "Generic DNS traffic without any telecom core naming patterns"
+    - "DNS trace clearly bound to one generation by co-occurring signaling protocols"
+
 tshark:
   two_pass: false
   extra_args: []

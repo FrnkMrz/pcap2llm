@@ -227,24 +227,42 @@ promoting SIP, SBC, or register-specific candidates too early.
 
 ### core-name-resolution: cross-generation telecom core naming
 
-`core-name-resolution` is a support/infrastructure profile for DNS-based lookup
-behavior that appears across all generations: 2G/3G core, LTE/EPC, 5G core,
-and IMS/voice naming contexts.
+`core-name-resolution` is an evidence-driven support/infrastructure profile for
+DNS-based lookup behavior that appears across all generations: 2G/3G core,
+LTE/EPC, 5G core, and IMS/voice naming contexts.
 
 It covers DNS traffic used to resolve APNs, Diameter realms, IMS domains, NF
-service endpoints, and 3GPP-standard operator FQDNs.
+service endpoints, and 3GPP-standard operator FQDNs. It is **not** a generic
+DNS profile — it rises to the top only when actual telecom naming evidence is
+detected in sampled `dns.qry.name` values and resolved peer names.
 
-It ranks prominently when discovery finds telecom naming patterns in DNS query
-content (sampled from `dns.qry.name` during pass-1 inspection):
+#### Strong evidence (each match = one strong hit)
 
-| Pattern | Trigger |
+| Pattern | Reason emitted |
 |---|---|
-| `3gppnetwork.org` | 3GPP standard operator domain — EPC, IMS, 5GC |
-| `.gprs` | GPRS/APN operator domain |
-| `mnc*/mcc*` | MCC/MNC-based FQDN structure |
-| `epc.mnc*`, `ims.mnc*`, `5gc.mnc*` | Generation-specific 3GPP naming |
-| IMS NF names (`pcscf`, `scscf`) | IMS service resolution |
-| 5G NF names (`nrf.`, `amf.`, `smf.`) | 5G service discovery DNS |
+| `3gppnetwork.org` | `3gppnetwork.org naming detected` |
+| `.gprs` | `.gprs operator domain detected` |
+| `epc.mnc` | `APN/EPC MCC/MNC naming pattern detected` |
+| `ims.mnc` | `IMS MCC/MNC naming pattern detected` |
+| `5gc.mnc` | `5GC MCC/MNC naming pattern detected` |
+| `apn.epc` | `APN resolution naming detected` |
+| `mnc\d+.mcc\d+` (regex) | `MCC/MNC operator naming pattern detected` |
+
+Two or more strong hits → full score boost and `confidence: high`.
+One strong hit → medium boost and `confidence: medium`.
+
+#### Supporting evidence (summarized, not per-hit)
+
+IMS CSCF names (`pcscf`, `scscf`, `icscf`), MMTel, 5G NF hostnames
+(`nrf.`, `amf.`, `smf.`, `udm.`, `ausf.`, `nssf.`), and generic `3gpp`
+context. Two or more supporting hits add a smaller bonus and emit a
+summary reason when no strong hits are present.
+
+#### Generic DNS does not strongly trigger this profile
+
+A DNS trace with only `www.example.com` or similar generic names scores at
+baseline (2.5) and does not dominate the candidate list. The score is meaningful
+only when real telecom naming evidence is present.
 
 Use this profile when the DNS trace is about telecom core naming and no single
 generation is clearly dominant. It is not a replacement for specific interface

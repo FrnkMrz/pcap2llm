@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import Counter
 from typing import Any
 
@@ -70,34 +71,41 @@ _VOICE_DNS_PROFILES: frozenset[str] = frozenset({"volte-dns", "vonr-dns"})
 # core-name-resolution: telecom naming patterns
 # ---------------------------------------------------------------------------
 
-# Substrings that indicate 3GPP-standard telecom naming in DNS query names
-# or resolved peer names.  Matched case-insensitively against the combined
-# dns_name_blob (sampled dns.qry.name values + peer names).
-_CORE_NAMING_STRONG_TOKENS: frozenset[str] = frozenset({
-    "3gppnetwork.org",   # 3GPP-standard operator domain (EPC, IMS, 5GC)
-    ".gprs",             # GPRS/APN operator domain
-    "mnc",               # MCC/MNC operator naming (mnc001.mcc262...)
-    "epc.mnc",           # EPC-specific 3GPP naming
-    "ims.mnc",           # IMS-specific 3GPP naming
-    "5gc.mnc",           # 5GC-specific 3GPP naming
-    "apn.epc",           # APN resolution under EPC
-})
+# Regex for MCC/MNC operator naming: mnc001.mcc262 (2-3 MNC digits, 3 MCC digits).
+# More precise than a bare "mnc" substring which matches unrelated words (e.g. "mnemonic").
+_MCC_MNC_RE: re.Pattern = re.compile(r"mnc\d{2,3}\.mcc\d{3}", re.IGNORECASE)
 
-_CORE_NAMING_SUPPORTING_TOKENS: frozenset[str] = frozenset({
-    "3gpp",              # Generic 3GPP context
-    "pcscf",             # IMS proxy CSCF
-    "scscf",             # IMS serving CSCF
-    "icscf",             # IMS interrogating CSCF
-    "mmtel",             # IMS multimedia telephony
-    "nrf.",              # 5G NRF service discovery
-    "amf.",              # 5G AMF naming
-    "smf.",              # 5G SMF naming
-    "udm.",              # 5G UDM naming
-    "ausf.",             # 5G AUSF naming
-    "nssf.",             # 5G NSSF naming
-    ".realm",            # Diameter realm-style naming in DNS
-    "diameter",          # Diameter realm FQDNs
-})
+# Strong naming evidence: list of (substring_or_None, compiled_regex_or_None, reason_text).
+# Each entry contributes exactly one strong hit when it matches the dns_blob.
+# Multiple entries may match the same blob — that is intentional (more hits = stronger evidence).
+_CORE_NAMING_STRONG: list = [
+    # (substring,          regex,       reason_text)
+    ("3gppnetwork.org",    None,        "3gppnetwork.org naming detected"),
+    (".gprs",              None,        ".gprs operator domain detected"),
+    ("epc.mnc",            None,        "APN/EPC MCC/MNC naming pattern detected"),
+    ("ims.mnc",            None,        "IMS MCC/MNC naming pattern detected"),
+    ("5gc.mnc",            None,        "5GC MCC/MNC naming pattern detected"),
+    ("apn.epc",            None,        "APN resolution naming detected"),
+    (None,                 _MCC_MNC_RE, "MCC/MNC operator naming pattern detected"),
+]
+
+# Supporting naming evidence: (substring, reason_text).
+# Each match contributes one supporting hit.  Supporting evidence alone contributes a
+# smaller score bonus and appears as a summarized reason rather than per-hit detail.
+_CORE_NAMING_SUPPORTING: list = [
+    # (substring,   reason_text)
+    ("pcscf",       "P-CSCF IMS host naming"),
+    ("scscf",       "S-CSCF IMS host naming"),
+    ("icscf",       "I-CSCF IMS host naming"),
+    ("mmtel",       "MMTel IMS service naming"),
+    ("nrf.",        "5G NRF service naming"),
+    ("amf.",        "5G AMF naming"),
+    ("smf.",        "5G SMF naming"),
+    ("udm.",        "5G UDM naming"),
+    ("ausf.",       "5G AUSF naming"),
+    ("nssf.",       "5G NSSF naming"),
+    ("3gpp",        "3GPP naming context"),
+]
 _LTE_ANCHOR_PROTOCOLS: frozenset[str] = frozenset({"s1ap", "diameter", "gtpv2"})
 _IMS_HINT_TOKENS: frozenset[str] = frozenset({
     "ims", "cscf", "pcscf", "scscf", "icscf", "sbc", "tas", "bgcf", "as", "mmtel",
@@ -259,32 +267,36 @@ def _dns_naming_blob(inspect_result: InspectResult) -> str:
 
 
 def _telecom_naming_evidence(dns_blob: str) -> tuple[int, int, list[str]]:
-    """Count strong and supporting telecom naming token matches in *dns_blob*.
+    """Count strong and supporting telecom naming evidence in *dns_blob*.
 
     Returns (strong_hits, supporting_hits, matched_reason_fragments).
+
+    Strong hits: 3GPP-standard patterns — 3gppnetwork.org, .gprs, MCC/MNC structures,
+    EPC/IMS/5GC sub-domains.  Each matched entry in _CORE_NAMING_STRONG = one strong hit.
+    Supporting hits: IMS CSCF/MMTel names, 5G NF hostnames, generic 3GPP context.
     """
     strong_hits = 0
     supporting_hits = 0
     reasons: list[str] = []
+    seen_reasons: set[str] = set()
 
-    for token in _CORE_NAMING_STRONG_TOKENS:
-        if token in dns_blob:
+    for substring, pattern, reason_text in _CORE_NAMING_STRONG:
+        matched = (
+            (substring is not None and substring in dns_blob)
+            or (pattern is not None and pattern.search(dns_blob) is not None)
+        )
+        if matched and reason_text not in seen_reasons:
             strong_hits += 1
-            if "3gppnetwork.org" in token:
-                reasons.append("3gppnetwork.org naming detected")
-            elif ".gprs" in token:
-                reasons.append(".gprs operator domain detected")
-            elif token in ("mnc", "epc.mnc", "ims.mnc", "5gc.mnc", "apn.epc"):
-                if not any("MCC/MNC" in r for r in reasons):
-                    reasons.append("MCC/MNC naming pattern detected")
+            reasons.append(reason_text)
+            seen_reasons.add(reason_text)
 
-    for token in _CORE_NAMING_SUPPORTING_TOKENS:
-        if token in dns_blob:
+    for substring, reason_text in _CORE_NAMING_SUPPORTING:
+        if substring in dns_blob:
             supporting_hits += 1
 
-    # Summarize supporting signal if enough tokens match
+    # Summarize supporting signal
     if supporting_hits >= 2 and not reasons:
-        reasons.append("telecom core DNS naming patterns suggest APN/realm/core resolution traffic")
+        reasons.append("telecom core DNS naming patterns suggest APN/realm/core resolution")
     elif supporting_hits >= 1 and reasons:
         reasons.append("additional telecom core naming context detected")
 
@@ -527,6 +539,23 @@ def _candidate_evidence(
     profile: ProfileDefinition,
     reasons: list[str],
 ) -> tuple[str, str]:
+    # core-name-resolution: evidence class is determined by telecom naming quality,
+    # not by signaling protocol counts — the profile has no signaling indicators.
+    if profile.name == "core-name-resolution":
+        _present = _protocol_presence(inspect_result)
+        _total = inspect_result.metadata.packet_count or sum(inspect_result.protocol_counts.values()) or 1
+        _dns_factor, _, _ = _protocol_evidence(inspect_result, "dns", _total, _present)
+        if _dns_factor == 0:
+            return "low", "weak"
+        _strong, _supporting, _ = _telecom_naming_evidence(_dns_naming_blob(inspect_result))
+        if _strong >= 2:
+            return "high", "protocol_strong"
+        if _strong >= 1:
+            return "medium", "protocol_partial"
+        if _supporting >= 2:
+            return "medium", "protocol_partial"
+        return "low", "protocol_partial"
+
     present = _protocol_presence(inspect_result)
     total_packets = inspect_result.metadata.packet_count or sum(inspect_result.protocol_counts.values()) or 1
     selector = _infer_selector_metadata(profile)
@@ -748,12 +777,13 @@ def _score_profile(
         dns_factor, dns_count, dns_source = _protocol_evidence(inspect_result, "dns", total_packets, present)
         if dns_factor == 0:
             return 0.0, []  # DNS not present — profile irrelevant
-        # Base score from DNS presence (frequency-dampened)
-        base = 2.5 * dns_factor
-        reasons.append(_format_protocol_reason("dns", dns_count, dns_source))
-        # Telecom naming bonus from sampled dns.qry.name values + peer names
+        # Telecom naming evidence from sampled dns.qry.name values + resolved peer names
         dns_blob = _dns_naming_blob(inspect_result)
         strong_hits, supporting_hits, naming_reasons = _telecom_naming_evidence(dns_blob)
+        # Naming evidence reasons come first — they are the primary value signal
+        reasons = [*naming_reasons, _format_protocol_reason("dns", dns_count, dns_source)]
+        # Base score from DNS presence (frequency-dampened) + naming evidence bonus
+        base = 2.5 * dns_factor
         if strong_hits >= 2:
             base += 4.0
         elif strong_hits == 1:
@@ -762,7 +792,6 @@ def _score_profile(
             base += 1.5
         elif supporting_hits >= 1:
             base += 0.8
-        reasons.extend(naming_reasons)
         score, reasons = _apply_profile_gates(
             inspect_result, profile, selector, base, reasons,
             {"dns"}, present, total_packets, peer_blob, peer_roles,

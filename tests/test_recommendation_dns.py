@@ -300,3 +300,31 @@ class TestCoreNameResolution:
         core_pos = profiles_ranked.index("core-name-resolution")
         # It should be in top-6
         assert core_pos < 6, f"core-name-resolution too low at position {core_pos}: {profiles_ranked}"
+
+    def test_f_apn_ims_naming_raises_core_name_resolution(self) -> None:
+        """DNS trace with APN/IMS/EPC MCC/MNC naming must raise core-name-resolution prominently."""
+        result = _make_inspect_result(
+            {"dns": 400, "udp": 400},
+            dns_qry_names=[
+                "hss.epc.mnc001.mcc262.3gppnetwork.org",
+                "pcscf.ims.mnc001.mcc262.3gppnetwork.org",
+            ],
+        )
+        enriched = enrich_inspect_result(result, load_all_profiles())
+        core = next(
+            (p for p in enriched.candidate_profiles if p["profile"] == "core-name-resolution"), None
+        )
+        assert core is not None, "core-name-resolution not found in candidates"
+        assert core["score"] > 4.0, (
+            f"Expected score > 4.0 for APN/IMS naming trace, got {core['score']}"
+        )
+        # Reasons must reflect IMS, APN, or EPC evidence — not just generic DNS
+        reasons = core.get("reason", [])
+        assert any(
+            any(kw in r.lower() for kw in ("ims", "apn", "epc", "mcc/mnc", "3gppnetwork", "mnc"))
+            for r in reasons
+        ), f"Expected APN/IMS/EPC naming evidence in reasons: {reasons}"
+        # evidence_class must not be "weak" — real naming evidence warrants at least partial
+        assert core.get("evidence_class") != "weak", (
+            f"evidence_class 'weak' unexpected for APN/IMS naming trace: {core}"
+        )

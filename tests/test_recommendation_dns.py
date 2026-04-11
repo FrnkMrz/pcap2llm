@@ -6,7 +6,7 @@ from __future__ import annotations
 from pcap2llm.inspect_enrichment import enrich_inspect_result
 from pcap2llm.models import CaptureMetadata, InspectResult
 from pcap2llm.profiles import load_all_profiles
-from pcap2llm.recommendation import infer_domains
+from pcap2llm.recommendation import infer_domains, recommend_profiles_from_inspect
 
 
 def _make_inspect_result(
@@ -14,6 +14,7 @@ def _make_inspect_result(
     transport_counts: dict | None = None,
     raw_protocols: list[str] | None = None,
     resolved_peers: list[dict] | None = None,
+    dns_qry_names: list[str] | None = None,
 ) -> InspectResult:
     total = sum(protocol_counts.values()) or 1
     all_protos = raw_protocols or list(protocol_counts.keys())
@@ -26,6 +27,7 @@ def _make_inspect_result(
             relevant_protocols=all_protos,
             raw_protocols=all_protos,
             resolved_peers=resolved_peers or [],
+            dns_qry_names=dns_qry_names or [],
         ),
         protocol_counts=protocol_counts,
         transport_counts=transport_counts or {},
@@ -216,3 +218,85 @@ class TestFinalFineTuning:
             for note in enriched.classification_notes
         )
         assert has_note, f"No low-confidence note found. Notes: {enriched.classification_notes}"
+
+
+class TestCoreNameResolution:
+    """Tests for the core-name-resolution cross-generation DNS profile."""
+
+    def test_a_3gppnetwork_org_raises_core_name_resolution(self) -> None:
+        """DNS trace with 3gppnetwork.org query names must raise core-name-resolution prominently."""
+        result = _make_inspect_result(
+            {"dns": 400, "udp": 400},
+            dns_qry_names=["epc.mnc001.mcc262.3gppnetwork.org", "apn.epc.mnc001.mcc262.3gppnetwork.org"],
+        )
+        enriched = enrich_inspect_result(result, load_all_profiles())
+        top = enriched.candidate_profiles[0]
+        assert top["profile"] == "core-name-resolution", (
+            f"Expected core-name-resolution at top, got: {[p['profile'] for p in enriched.candidate_profiles[:3]]}"
+        )
+        assert top["score"] > 4.0, f"Expected score > 4.0, got {top['score']}"
+        assert any("3gppnetwork" in r.lower() for r in top.get("reason", [])), (
+            f"Expected 3gppnetwork.org in reasons: {top.get('reason')}"
+        )
+
+    def test_b_gprs_domain_raises_core_name_resolution(self) -> None:
+        """DNS trace with .gprs operator domains must raise core-name-resolution prominently."""
+        result = _make_inspect_result(
+            {"dns": 400, "udp": 400},
+            dns_qry_names=["operator.gprs", "mnc001.mcc262.gprs", "apn.mnc001.mcc262.gprs"],
+        )
+        enriched = enrich_inspect_result(result, load_all_profiles())
+        core = next((p for p in enriched.candidate_profiles if p["profile"] == "core-name-resolution"), None)
+        assert core is not None, "core-name-resolution not found in candidates"
+        assert core["score"] > 4.0, f"Expected score > 4.0 for .gprs trace, got {core['score']}"
+        assert any(".gprs" in r.lower() or "gprs" in r.lower() for r in core.get("reason", [])), (
+            f"Expected .gprs in reasons: {core.get('reason')}"
+        )
+
+    def test_c_mcc_mnc_naming_raises_core_name_resolution(self) -> None:
+        """MCC/MNC naming pattern should strongly favor core-name-resolution."""
+        result = _make_inspect_result(
+            {"dns": 400, "udp": 400},
+            dns_qry_names=["mnc001.mcc262.3gppnetwork.org", "hss.epc.mnc001.mcc262.3gppnetwork.org"],
+        )
+        rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=6)
+        profiles_ranked = [p["profile"] for p in rec["recommended_profiles"]]
+        assert "core-name-resolution" in profiles_ranked[:2], (
+            f"core-name-resolution should be in top-2 for MCC/MNC naming: {profiles_ranked}"
+        )
+        core = next(p for p in rec["recommended_profiles"] if p["profile"] == "core-name-resolution")
+        assert any("MCC/MNC" in r or "mnc" in r.lower() or "3gppnetwork" in r.lower()
+                   for r in core.get("reason", [])), (
+            f"Expected MCC/MNC reason: {core.get('reason')}"
+        )
+
+    def test_d_generic_dns_does_not_strongly_raise_core_name_resolution(self) -> None:
+        """Generic DNS without telecom naming must not score > 3.5 for core-name-resolution."""
+        result = _make_inspect_result(
+            {"dns": 400, "udp": 400},
+            dns_qry_names=["www.google.com", "api.example.com", "cdn.cloudflare.net"],
+        )
+        enriched = enrich_inspect_result(result, load_all_profiles())
+        core = next((p for p in enriched.candidate_profiles if p["profile"] == "core-name-resolution"), None)
+        if core is not None:
+            assert core["score"] < 3.5, (
+                f"core-name-resolution scored {core['score']} for generic DNS — should be < 3.5"
+            )
+        # classification_state must still be ambiguous_support
+        assert enriched.classification_state == "ambiguous_support"
+
+    def test_e_telecom_dns_plus_lte_keeps_core_name_visible(self) -> None:
+        """Telecom DNS + LTE anchor: core-name-resolution stays visible, LTE profiles may rank higher."""
+        result = _make_inspect_result(
+            {"dns": 200, "udp": 200, "diameter": 200, "sctp": 200},
+            dns_qry_names=["epc.mnc001.mcc262.3gppnetwork.org"],
+        )
+        enriched = enrich_inspect_result(result, load_all_profiles())
+        profiles_ranked = [p["profile"] for p in enriched.candidate_profiles]
+        assert "core-name-resolution" in profiles_ranked, (
+            "core-name-resolution should remain in candidates even with LTE anchor"
+        )
+        # LTE profiles are allowed to rank above it
+        core_pos = profiles_ranked.index("core-name-resolution")
+        # It should be in top-6
+        assert core_pos < 6, f"core-name-resolution too low at position {core_pos}: {profiles_ranked}"

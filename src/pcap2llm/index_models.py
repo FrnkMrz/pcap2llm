@@ -65,6 +65,9 @@ INDEX_FIELDS: tuple[str, ...] = (
     "gtpv2.seq_no",                  # older builds
     "gtpv2.sequence_number",         # another alt spelling
     "gtpv2.cause",
+    # DNS query name — used for telecom naming pattern detection (core-name-resolution)
+    # Empty for non-DNS packets; sampled at inspection time (max 30 unique names).
+    "dns.qry.name",
 )
 
 INDEX_SEPARATOR = "|"
@@ -109,6 +112,9 @@ class PacketIndexRecord:
     gtpv2_message_type: str | None
     gtpv2_seq_no: str | None
     gtpv2_cause: str | None
+
+    # DNS query name (None for non-DNS packets; sampled for telecom naming detection)
+    dns_qry_name: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -242,4 +248,5 @@ def parse_index_row(
         gtpv2_message_type=fv.get("gtpv2.message_type"),
         gtpv2_seq_no=gtpv2_seq,
         gtpv2_cause=fv.get("gtpv2.cause"),
+        dns_qry_name=fv.get("dns.qry.name"),
     )

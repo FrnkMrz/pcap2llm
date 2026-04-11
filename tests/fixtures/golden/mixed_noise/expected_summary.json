@@ -19,7 +19,8 @@
       "sctp",
       "tcp"
     ],
-    "display_filter": null
+    "display_filter": null,
+    "dns_qry_names": []
   },
   "relevant_protocols": [
     "diameter"

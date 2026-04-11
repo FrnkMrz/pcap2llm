@@ -225,6 +225,32 @@ as `lte-s6a` unless additional IMS-specific peer or signaling hints are
 visible. DNS-only traces keep DNS-focused profiles prominent instead of
 promoting SIP, SBC, or register-specific candidates too early.
 
+### core-name-resolution: cross-generation telecom core naming
+
+`core-name-resolution` is a support/infrastructure profile for DNS-based lookup
+behavior that appears across all generations: 2G/3G core, LTE/EPC, 5G core,
+and IMS/voice naming contexts.
+
+It covers DNS traffic used to resolve APNs, Diameter realms, IMS domains, NF
+service endpoints, and 3GPP-standard operator FQDNs.
+
+It ranks prominently when discovery finds telecom naming patterns in DNS query
+content (sampled from `dns.qry.name` during pass-1 inspection):
+
+| Pattern | Trigger |
+|---|---|
+| `3gppnetwork.org` | 3GPP standard operator domain — EPC, IMS, 5GC |
+| `.gprs` | GPRS/APN operator domain |
+| `mnc*/mcc*` | MCC/MNC-based FQDN structure |
+| `epc.mnc*`, `ims.mnc*`, `5gc.mnc*` | Generation-specific 3GPP naming |
+| IMS NF names (`pcscf`, `scscf`) | IMS service resolution |
+| 5G NF names (`nrf.`, `amf.`, `smf.`) | 5G service discovery DNS |
+
+Use this profile when the DNS trace is about telecom core naming and no single
+generation is clearly dominant. It is not a replacement for specific interface
+profiles (`lte-s6a`, `5g-n2`, `volte-sip`, etc.) — it sits alongside them as
+the natural home for naming-heavy, generation-ambiguous DNS traffic.
+
 ### DNS-only is intentionally family-ambiguous
 
 Pure DNS traffic without accompanying control-plane signaling (no `ngap`,
@@ -235,6 +261,7 @@ Discovery models this explicitly:
 - `classification_state` is set to `"ambiguous_support"` — a structured signal for orchestrators
 - All family-specific DNS profiles (`lte-dns`, `5g-dns`, `volte-dns`, `vonr-dns`, `2g3g-dns`) are gated unless a domain-specific anchor is present; `lte-dns` requires LTE evidence (`s1ap`, `diameter`, `gtpv2`), `5g-dns` requires 5G evidence (`ngap`, `nas-5gs`)
 - A `classification_notes` entry reads: `"family assignment remains ambiguous — DNS-only without domain-specific service markers"`
+- When telecom naming patterns are detected, `core-name-resolution` rises to the top
 
 A family-specific DNS profile is only promoted when co-occurring evidence
 warrants it: IMS peer hints allow `volte-dns`; 5G NF hostnames allow `5g-dns`.

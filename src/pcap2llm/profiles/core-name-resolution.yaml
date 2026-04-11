@@ -1,0 +1,91 @@
+name: core-name-resolution
+description: >
+  Cross-generation telecom core naming and service resolution profile.
+  Captures DNS-based lookup behavior used by 2G/3G core, LTE/EPC, 5G core,
+  and IMS/voice support contexts to resolve APNs, Diameter realms, IMS
+  domains, NF service endpoints, and 3GPP-standard operator FQDNs.
+
+  This is a support / infrastructure profile, not an interface profile.
+  It is intended for traces where the primary story is telecom core naming
+  and lookup rather than a single signaling interface (s1ap, ngap, sip, etc.).
+
+  Strong indicators:
+    - DNS with 3GPP network naming structures (3gppnetwork.org, .gprs)
+    - MCC/MNC-based operator domain FQDNs
+    - APN / realm / IMS / EPC / 5GC service endpoint names
+    - Diameter realm-style FQDNs in DNS queries
+
+  Contrast with lte-dns / 5g-dns / volte-dns / 2g3g-dns:
+    Those profiles are generation-specific. Use this profile when the DNS
+    traffic is about core naming that spans generations or when no single
+    generation is clearly dominant.
+
+# ---------------------------------------------------------------------------
+# DNS focus — useful display filters
+#
+#   All DNS:                       dns
+#   3GPP names only:               dns.qry.name contains "3gppnetwork.org"
+#   GPRS names:                    dns.qry.name contains ".gprs"
+#   Failures:                      dns.flags.rcode > 0
+#   DNS over TCP (long names/TCP): dns && tcp
+# ---------------------------------------------------------------------------
+
+relevant_protocols:
+  - dns
+  - udp
+  - tcp
+  - ip
+
+top_protocol_priority:
+  - dns
+  - udp
+  - tcp
+  - ip
+
+protocol_aliases:
+  dns: [dns]
+  udp: [udp]
+  tcp: [tcp]
+  ip: [ip, ipv6]
+
+full_detail_fields:
+  dns:
+    - dns.id
+    - dns.qry.name
+    - dns.qry.type
+    - dns.resp.name
+    - dns.a
+    - dns.aaaa
+    - dns.cname
+    - dns.srv.name
+    - dns.srv.port
+    - dns.naptr.replacement
+    - dns.flags.response
+    - dns.flags.rcode
+
+verbatim_protocols: []
+
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+
+selector_metadata:
+  family: cross-family
+  domain: core-support
+  interface: name-resolution
+  output_focus: support
+
+tshark:
+  two_pass: false
+  extra_args: []
+
+summary_heuristics:
+  - Flag NXDOMAIN and SERVFAIL patterns for 3GPP-standard names (3gppnetwork.org, .gprs) as likely APN, realm, or core service resolution failures.
+  - Highlight MCC/MNC-based FQDN patterns to identify operator-specific service or roaming partner resolution.
+  - Note IMS domain resolution failures (pcscf, scscf, icscf, ims.) as potential VoLTE/VoNR service-discovery blockers.
+  - Flag NF service discovery patterns (nrf., amf., smf., pcf., udm.) as 5G SA core name resolution activity.
+  - Highlight repeated queries for the same FQDN as indicators of resolution instability or misconfiguration upstream.

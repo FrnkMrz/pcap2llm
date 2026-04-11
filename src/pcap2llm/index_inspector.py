@@ -124,6 +124,10 @@ def inspect_index_records(
     last_seen: str | None = None
     relevant_protocols: set[str] = set()
     raw_protocols: set[str] = set()
+    # Sampled DNS query names for telecom naming pattern detection.
+    # Limited to 30 unique names — enough for pattern detection, cheap in memory.
+    _dns_qry_names_seen: set[str] = set()
+    _DNS_QRY_SAMPLE_LIMIT = 30
 
     for record in records:
         try:
@@ -145,6 +149,13 @@ def inspect_index_records(
                 if first_seen is None:
                     first_seen = record.time_epoch
                 last_seen = record.time_epoch
+
+            # Sample DNS query names (cheap — only for DNS packets, max 30)
+            if (
+                record.dns_qry_name
+                and len(_dns_qry_names_seen) < _DNS_QRY_SAMPLE_LIMIT
+            ):
+                _dns_qry_names_seen.add(record.dns_qry_name.lower())
 
             # Transport-layer anomaly (TCP retransmission / out-of-order)
             if record.tcp_retransmission or record.tcp_out_of_order:
@@ -189,6 +200,7 @@ def inspect_index_records(
         relevant_protocols=sorted(relevant_protocols),
         raw_protocols=sorted(raw_protocols),
         display_filter=display_filter,
+        dns_qry_names=sorted(_dns_qry_names_seen),
     )
     return InspectResult(
         metadata=metadata,

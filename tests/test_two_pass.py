@@ -58,6 +58,7 @@ def _make_tsv_row(
     gtpv2_seqno: str = "",       # gtpv2.seq_no            (older builds)
     gtpv2_seqno_alt: str = "",   # gtpv2.sequence_number   (alt spelling)
     gtpv2_cause: str = "",
+    dns_qry_name: str = "",      # dns.qry.name            (telecom naming detection)
 ) -> str:
     values = [
         frame_no, time_epoch, protocols,
@@ -68,6 +69,7 @@ def _make_tsv_row(
         diam_flags, diam_cmd, diam_hbh, diam_hbhid,
         diam_rc, diam_rc_lc, diam_resultcode,
         gtpv2_msgtype, gtpv2_seq, gtpv2_seqno, gtpv2_seqno_alt, gtpv2_cause,
+        dns_qry_name,
     ]
     assert len(values) == len(INDEX_FIELDS), (
         f"Row has {len(values)} columns, INDEX_FIELDS has {len(INDEX_FIELDS)}"

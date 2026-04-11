@@ -87,6 +87,9 @@ class CaptureMetadata(BaseModel):
     hosts_file_used: bool = False
     mapping_file_used: bool = False
     resolved_peers: list[dict[str, Any]] = Field(default_factory=list)
+    # Sampled DNS query names from pass-1 (max 30 unique; empty for non-DNS traces).
+    # Used for telecom naming pattern detection (core-name-resolution profile scoring).
+    dns_qry_names: list[str] = Field(default_factory=list)
 
     def summary_model_dump(self) -> dict[str, Any]:
         """Return the stable capture-metadata view used by analyze artifacts."""

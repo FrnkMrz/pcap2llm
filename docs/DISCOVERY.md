@@ -140,6 +140,11 @@ a ranked set of combo rules. For example:
 
 More specific combos win over less specific ones for the same domain.
 
+Discovery does not rely on `top_protocols` alone. When the decoded top protocol
+view is too flat, strong domain hints can still be recovered from
+`raw_protocols`, especially for combinations such as `ngap + nas-5gs + sctp`
+or `s1ap + nas-eps + sctp`.
+
 ### Frequency weighting
 
 A protocol that appears in very few packets contributes much less to the score.
@@ -155,6 +160,11 @@ The dampening tiers are:
 This prevents 3 stray DTAP frames in a 5G trace from triggering a `legacy-2g3g`
 domain result.
 
+Legacy signals also need partner protocols. A tiny `dtap` residue on its own is
+treated as a side signal; discovery only promotes 2G/3G domains when partner
+combinations such as `bssap + dtap + sccp`, `map + tcap + sccp`, or
+`gtpv1 + udp` are present.
+
 ### Transport protocols alone do not drive recommendations
 
 `ip`, `ipv6`, `tcp`, `udp`, `sctp`, `eth`, `frame`, and `data` are treated as
@@ -167,7 +177,8 @@ already present in the same profile's relevant protocol list.
 Candidate profiles are scored by summing frequency-dampened weights for their
 strong indicators, trigger protocols, and weak indicators — all excluding
 transport protocols. The profile with the highest domain-specific signal
-score ranks first.
+score ranks first, then receives an extra bonus when it aligns with the top
+`suspected_domains` hypothesis.
 
 ## Recommended Flow
 

@@ -14,9 +14,13 @@ from pcap2llm.profiles import load_all_profiles
 from pcap2llm.recommendation import _score_profile, infer_domains, recommend_profiles_from_inspect
 
 
-def _mock_result(protocol_counts: dict, transport_counts: dict | None = None) -> InspectResult:
+def _mock_result(
+    protocol_counts: dict,
+    transport_counts: dict | None = None,
+    raw_protocols: list[str] | None = None,
+) -> InspectResult:
     total = sum(protocol_counts.values())
-    all_protos = list(protocol_counts.keys())
+    all_protos = raw_protocols or list(protocol_counts.keys())
     return InspectResult(
         metadata=CaptureMetadata(
             capture_file="/dev/null",
@@ -103,6 +107,42 @@ def test_rare_dtap_does_not_dominate_strong_5g_trace() -> None:
     assert "legacy-2g3g" not in names
 
 
+def test_raw_protocols_can_recover_strong_5g_domain_from_flat_top_protocols() -> None:
+    result = _mock_result(
+        {"ip": 497, "dtap": 3},
+        {"sctp": 500},
+        ["ip", "dtap", "ngap", "nas-5gs", "nas-eps", "sctp", "nr-rrc", "gsm_a.dtap"],
+    )
+    domains = infer_domains(result)
+    assert domains, "expected raw_protocols to recover a domain hypothesis"
+    assert domains[0]["domain"] == "5g-sa-core"
+    assert domains[0]["score"] >= 0.75
+    assert any("ngap" in reason for reason in domains[0]["reason"])
+    assert any("nas-5gs" in reason for reason in domains[0]["reason"])
+
+
+def test_dtap_alone_is_not_enough_for_legacy_domain() -> None:
+    result = _mock_result(
+        {"ip": 500, "dtap": 3},
+        None,
+        ["ip", "dtap", "gsm_a.dtap"],
+    )
+    domains = infer_domains(result)
+    assert not any(d["domain"].startswith("legacy-") for d in domains)
+
+
+def test_real_legacy_combo_remains_strong() -> None:
+    result = _mock_result(
+        {"bssap": 150, "dtap": 120, "sccp": 200, "mtp3": 200, "ip": 200},
+        None,
+        ["bssap", "dtap", "sccp", "mtp3", "ip"],
+    )
+    domains = infer_domains(result)
+    assert domains
+    assert domains[0]["domain"] == "legacy-2g3g"
+    assert domains[0]["score"] >= 0.8
+
+
 # ---------------------------------------------------------------------------
 # _score_profile
 # ---------------------------------------------------------------------------
@@ -140,6 +180,16 @@ def test_rare_protocol_is_dampened() -> None:
     )
 
 
+def test_dtap_only_profile_signal_is_gated_without_legacy_partners() -> None:
+    from pcap2llm.profiles import load_profile
+
+    result = _mock_result({"ip": 500, "dtap": 3}, None, ["ip", "dtap", "gsm_a.dtap"])
+    profile = load_profile("2g3g-geran")
+    score, reasons = _score_profile(result, profile)
+    assert score < 1.0
+    assert any("gated" in reason for reason in reasons)
+
+
 # ---------------------------------------------------------------------------
 # recommend_profiles_from_inspect — ranking
 # ---------------------------------------------------------------------------
@@ -161,6 +211,23 @@ def test_5g_profiles_rank_above_2g3g_on_ngap_trace() -> None:
     first_2g3g = next((i for i, n in enumerate(names) if n.startswith("2g3g-")), 999)
     assert first_5g < first_2g3g, (
         f"2G/3G profile at position {first_2g3g} ranked above first 5G at {first_5g}"
+    )
+
+
+def test_raw_5g_signals_rank_above_legacy_profiles() -> None:
+    result = _mock_result(
+        {"ip": 497, "dtap": 3},
+        {"sctp": 500},
+        ["ip", "dtap", "ngap", "nas-5gs", "nas-eps", "sctp", "nr-rrc", "gsm_a.dtap"],
+    )
+    profiles = load_all_profiles()
+    rec = recommend_profiles_from_inspect(result, profiles)
+    names = [r["profile"] for r in rec["recommended_profiles"][:5]]
+    assert any(name.startswith("5g-") for name in names), f"No 5G profile in top 5: {names}"
+    first_5g = next((i for i, name in enumerate(names) if name.startswith("5g-")), 999)
+    first_2g3g = next((i for i, name in enumerate(names) if name.startswith("2g3g-")), 999)
+    assert first_5g < first_2g3g, (
+        f"Legacy profile ranked above recovered 5G domain: top5={names}"
     )
 
 
@@ -195,3 +262,4 @@ def test_suspected_domains_not_empty_for_5g_trace() -> None:
     rec = recommend_profiles_from_inspect(result, profiles)
     assert rec["suspected_domains"], "suspected_domains must not be empty for strong 5G signals"
     assert rec["suspected_domains"][0]["domain"] == "5g-sa-core"
+    assert rec["suspected_domains"][0]["reason"]

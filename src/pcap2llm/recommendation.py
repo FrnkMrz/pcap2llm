@@ -11,9 +11,37 @@ _TRANSPORT_PROTOCOLS: frozenset[str] = frozenset({
     "ip", "ipv6", "tcp", "udp", "sctp", "eth", "frame", "data",
 })
 
-# Domain combo rules: (required_protocol_set, domain, base_score, reason_text)
-# Ordered: best match per domain wins. base_score assumes ≥5% relative frequency.
-# Actual score is dampened for rare protocols: <0.5% → 0.2×, <1% → 0.4×, <5% → 0.7×.
+# Raw-only protocol presence is weaker than counted packets, but still strong
+# enough to influence discovery when the decoded top protocols are too coarse.
+_RAW_PROTOCOL_FACTOR = 0.85
+_RAW_TRANSPORT_FACTOR = 0.35
+_DOMAIN_BONUS_SCALE = 3.0
+
+_PROTOCOL_EQUIVALENTS: dict[str, tuple[str, ...]] = {
+    "bssap": ("bssap", "gsm_a.bssap"),
+    "bssmap": ("bssmap", "gsm_a.bssmap"),
+    "dtap": ("dtap", "gsm_a.dtap", "gsm_dtap"),
+    "http": ("http", "http2"),
+    "nas-eps": ("nas-eps", "nas_eps"),
+    "nas-5gs": ("nas-5gs", "nas_5gs"),
+    "ss7": ("ss7", "m3ua"),
+}
+
+_LEGACY_PARTNER_PROTOCOLS: frozenset[str] = frozenset({
+    "bssap", "bssmap", "sccp", "mtp3", "ss7", "map", "tcap", "cap", "gtpv1",
+})
+
+_STRONG_LEGACY_COMBOS: tuple[frozenset[str], ...] = (
+    frozenset({"bssap", "dtap", "sccp"}),
+    frozenset({"bssap", "dtap", "mtp3"}),
+    frozenset({"bssap", "dtap", "ss7"}),
+    frozenset({"map", "tcap", "sccp"}),
+    frozenset({"gtpv1", "udp"}),
+)
+
+# Domain combo rules: (required_protocol_set, domain, base_score, summary_reason)
+# Ordered: best match per domain wins. base_score assumes meaningful protocol
+# evidence, with raw_protocols able to contribute when top_protocols are too flat.
 _DOMAIN_COMBOS: list[tuple[frozenset[str], str, float, str]] = [
     # 5G SA Core — N1/N2/NAS
     (frozenset({"ngap", "nas-5gs", "sctp"}),  "5g-sa-core", 0.95, "ngap + nas-5gs + sctp = strong 5G N1/N2 signal"),
@@ -39,17 +67,177 @@ _DOMAIN_COMBOS: list[tuple[frozenset[str], str, float, str]] = [
     (frozenset({"sip", "sdp"}),                "ims-voice", 0.90, "sip + sdp = active call flow"),
     (frozenset({"sip", "dns"}),                "ims-voice", 0.72, "sip + dns = IMS registration or discovery"),
     (frozenset({"sip"}),                       "ims-voice", 0.55, "sip detected"),
-    # 2G/3G — SS7 / MAP core
+    # 2G/3G — only strong partner combinations should produce a real legacy hint
+    (frozenset({"bssap", "dtap", "sccp"}),     "legacy-2g3g", 0.88, "bssap + dtap + sccp = strong GERAN/A-interface signal"),
+    (frozenset({"bssap", "dtap", "mtp3"}),     "legacy-2g3g", 0.88, "bssap + dtap + mtp3 = strong GERAN/A-interface signal"),
+    (frozenset({"bssap", "dtap", "ss7"}),      "legacy-2g3g", 0.84, "bssap + dtap + ss7 = strong GERAN/A-interface signal"),
     (frozenset({"map", "tcap", "sccp"}),       "legacy-2g3g", 0.92, "map + tcap + sccp = SS7/MAP core"),
-    (frozenset({"map", "tcap"}),               "legacy-2g3g", 0.82, "map + tcap = SS7/MAP signal"),
-    (frozenset({"bssap", "sccp"}),             "legacy-2g3g", 0.82, "bssap + sccp = GERAN/BSSAP signal"),
-    (frozenset({"bssap"}),                     "legacy-2g3g", 0.55, "bssap detected"),
-    (frozenset({"map"}),                       "legacy-2g3g", 0.50, "map detected"),
-    (frozenset({"isup"}),                      "legacy-2g3g", 0.45, "isup detected"),
-    (frozenset({"gtpv1"}),                     "legacy-2g3g-gprs", 0.65, "gtpv1 = 2G/3G GPRS Gn/Gp"),
+    (frozenset({"gtpv1", "udp"}),              "legacy-2g3g-gprs", 0.70, "gtpv1 + udp = 2G/3G GPRS Gn/Gp"),
     # DNS support
     (frozenset({"dns"}),                       "dns-support", 0.40, "dns detected"),
 ]
+
+
+def _protocol_variants(protocol: str) -> tuple[str, ...]:
+    return _PROTOCOL_EQUIVALENTS.get(protocol, (protocol,))
+
+
+def _protocol_count(inspect_result: InspectResult, protocol: str) -> int:
+    total = 0
+    for variant in _protocol_variants(protocol):
+        total += inspect_result.protocol_counts.get(variant, 0)
+        if variant in _TRANSPORT_PROTOCOLS:
+            total += inspect_result.transport_counts.get(variant, 0)
+    return total
+
+
+def _protocol_presence(inspect_result: InspectResult) -> frozenset[str]:
+    present: set[str] = set()
+
+    for protocol, count in inspect_result.protocol_counts.items():
+        if count <= 0:
+            continue
+        present.add(protocol)
+        for canonical, variants in _PROTOCOL_EQUIVALENTS.items():
+            if protocol in variants:
+                present.add(canonical)
+
+    for protocol, count in inspect_result.transport_counts.items():
+        if count > 0:
+            present.add(protocol)
+
+    for protocol in inspect_result.metadata.raw_protocols:
+        present.add(protocol)
+        for canonical, variants in _PROTOCOL_EQUIVALENTS.items():
+            if protocol in variants:
+                present.add(canonical)
+
+    return frozenset(present)
+
+
+def _protocol_evidence(
+    inspect_result: InspectResult,
+    protocol: str,
+    total_packets: int,
+    present: frozenset[str],
+) -> tuple[float, int, str]:
+    count = _protocol_count(inspect_result, protocol)
+    if count > 0:
+        return _freq_factor(count, total_packets), count, "count"
+    if protocol in present:
+        factor = _RAW_TRANSPORT_FACTOR if protocol in _TRANSPORT_PROTOCOLS else _RAW_PROTOCOL_FACTOR
+        return factor, 0, "raw"
+    return 0.0, 0, "none"
+
+
+def _domain_family(domain: str) -> str | None:
+    if domain.startswith("5g-"):
+        return "5g"
+    if domain.startswith("lte-"):
+        return "lte"
+    if domain.startswith("legacy-"):
+        return "2g3g"
+    if domain.startswith("ims-"):
+        return "voice"
+    return None
+
+
+def _format_protocol_reason(protocol: str, count: int, source: str) -> str:
+    if protocol in _TRANSPORT_PROTOCOLS:
+        if source == "count" and count > 0:
+            return f"{protocol} transport present ({count} pkts)"
+        return f"{protocol} transport present"
+    if source == "count" and count > 0:
+        return f"{protocol} detected ({count} pkts)"
+    return f"{protocol} detected in raw_protocols"
+
+
+def _has_strong_legacy_combo(present: frozenset[str]) -> bool:
+    return any(combo.issubset(present) for combo in _STRONG_LEGACY_COMBOS)
+
+
+def _apply_profile_gates(
+    inspect_result: InspectResult,
+    selector: SelectorMetadata,
+    score: float,
+    reasons: list[str],
+    matched_domain_protocols: set[str],
+    present: frozenset[str],
+    total_packets: int,
+) -> tuple[float, list[str]]:
+    if score <= 0 or selector.family != "2g3g":
+        return score, reasons
+
+    dtap_present = "dtap" in matched_domain_protocols
+    partner_present = bool((present & _LEGACY_PARTNER_PROTOCOLS) - {"dtap"})
+    strong_legacy_combo = _has_strong_legacy_combo(present)
+    dtap_count = _protocol_count(inspect_result, "dtap")
+    rare_dtap_cutoff = max(5, int(total_packets * 0.01))
+
+    if dtap_present and not partner_present:
+        score *= 0.12
+        reasons.append("legacy dtap signal gated without bssap/sccp/mtp3-style partners")
+    elif not strong_legacy_combo:
+        score *= 0.45
+        reasons.append("legacy evidence remains partial without a strong partner combo")
+
+    if dtap_present and 0 < dtap_count < rare_dtap_cutoff and not strong_legacy_combo:
+        score *= 0.5
+        reasons.append("rare dtap signal treated as a side signal")
+
+    return score, reasons
+
+
+def _domain_alignment_bonus(
+    profile: ProfileDefinition,
+    suspected_domains: list[dict[str, Any]],
+) -> tuple[float, list[str]]:
+    selector = _infer_selector_metadata(profile)
+    best_bonus = 0.0
+    best_reason: str | None = None
+
+    for item in suspected_domains:
+        domain = item["domain"]
+        score = float(item.get("score", 0.0))
+        family = _domain_family(domain)
+
+        if domain == selector.domain:
+            bonus = score * _DOMAIN_BONUS_SCALE
+        elif family is not None and family == selector.family:
+            bonus = score * (_DOMAIN_BONUS_SCALE * 0.7)
+        else:
+            continue
+
+        if bonus > best_bonus:
+            best_bonus = bonus
+            best_reason = f"aligned with suspected domain {domain}"
+
+    return best_bonus, ([best_reason] if best_reason else [])
+
+
+def _domain_mismatch_penalty(
+    profile: ProfileDefinition,
+    suspected_domains: list[dict[str, Any]],
+) -> tuple[float, list[str]]:
+    if not suspected_domains:
+        return 1.0, []
+
+    selector = _infer_selector_metadata(profile)
+    top = suspected_domains[0]
+    top_family = _domain_family(top["domain"])
+    top_score = float(top.get("score", 0.0))
+    present_families = {_domain_family(item["domain"]) for item in suspected_domains}
+
+    if top_family is None or top_score < 0.75:
+        return 1.0, []
+
+    if selector.family == "2g3g" and top_family in {"5g", "lte"} and "2g3g" not in present_families:
+        return 0.25, [f"strong {top['domain']} evidence outweighs weak legacy side signals"]
+
+    if selector.family in {"5g", "lte"} and top_family == "2g3g" and selector.family not in present_families:
+        return 0.35, [f"strong {top['domain']} evidence outweighs weak modern side signals"]
+
+    return 1.0, []
 
 
 def _infer_selector_metadata(profile: ProfileDefinition) -> SelectorMetadata:
@@ -130,23 +318,24 @@ def _score_profile(
       push profiles to the top of the ranking.
     - A profile with zero domain-signal matches scores 0.
     """
-    protocol_counts = inspect_result.protocol_counts
-    transport_counts = inspect_result.transport_counts
-    total = sum(protocol_counts.values()) or 1
+    total_packets = inspect_result.metadata.packet_count or sum(inspect_result.protocol_counts.values()) or 1
+    present = _protocol_presence(inspect_result)
     selector = _infer_selector_metadata(profile)
     reasons: list[str] = []
     domain_score = 0.0
+    matched_domain_protocols: set[str] = set()
 
     # Strong indicators — high weight, frequency-dampened, transport excluded
     for proto in selector.strong_indicators:
         if proto in _TRANSPORT_PROTOCOLS:
             continue
-        count = protocol_counts.get(proto, 0)
-        if count == 0:
+        factor, count, source = _protocol_evidence(inspect_result, proto, total_packets, present)
+        if factor == 0:
             continue
-        weight = 5.0 * _freq_factor(count, total)
+        weight = 5.0 * factor
         domain_score += weight
-        reasons.append(f"{proto} ({count} pkts, strong)")
+        reasons.append(f"{_format_protocol_reason(proto, count, source)} (strong)")
+        matched_domain_protocols.add(proto)
 
     # Trigger protocols (from relevant_protocols) — medium weight, transport excluded
     trigger_protocols = selector.triggers.get("protocols", [])
@@ -154,37 +343,51 @@ def _score_profile(
     for proto in trigger_protocols:
         if proto in _TRANSPORT_PROTOCOLS or proto in counted:
             continue
-        count = protocol_counts.get(proto, 0)
-        if count == 0:
+        factor, count, source = _protocol_evidence(inspect_result, proto, total_packets, present)
+        if factor == 0:
             continue
-        weight = 2.0 * _freq_factor(count, total)
+        weight = 2.0 * factor
         domain_score += weight
         counted.add(proto)
-        reasons.append(f"{proto} detected")
+        reasons.append(_format_protocol_reason(proto, count, source))
+        matched_domain_protocols.add(proto)
 
     # Weak indicators — low weight, transport excluded
     for proto in selector.weak_indicators:
         if proto in _TRANSPORT_PROTOCOLS or proto in counted:
             continue
-        count = protocol_counts.get(proto, 0)
-        if count == 0:
+        factor, count, source = _protocol_evidence(inspect_result, proto, total_packets, present)
+        if factor == 0:
             continue
-        weight = 0.5 * _freq_factor(count, total)
+        weight = 0.5 * factor
         domain_score += weight
-        reasons.append(f"supporting: {proto}")
+        reasons.append(f"supporting: {_format_protocol_reason(proto, count, source)}")
+        matched_domain_protocols.add(proto)
 
     # Transport bonus: ONLY when domain signal already present
     transport_bonus = 0.0
     if domain_score > 0:
-        if "sctp" in profile.relevant_protocols and transport_counts.get("sctp", 0) > 0:
+        sctp_factor, _, _ = _protocol_evidence(inspect_result, "sctp", total_packets, present)
+        tcp_factor, _, _ = _protocol_evidence(inspect_result, "tcp", total_packets, present)
+        udp_factor, _, _ = _protocol_evidence(inspect_result, "udp", total_packets, present)
+        if "sctp" in profile.relevant_protocols and sctp_factor > 0:
             transport_bonus += 0.5
             reasons.append("sctp transport present")
-        if "tcp" in profile.relevant_protocols and transport_counts.get("tcp", 0) > 0:
+        if "tcp" in profile.relevant_protocols and tcp_factor > 0:
             transport_bonus += 0.2
-        if "udp" in profile.relevant_protocols and transport_counts.get("udp", 0) > 0:
+        if "udp" in profile.relevant_protocols and udp_factor > 0:
             transport_bonus += 0.2
 
     score = domain_score + transport_bonus
+    score, reasons = _apply_profile_gates(
+        inspect_result,
+        selector,
+        score,
+        reasons,
+        matched_domain_protocols,
+        present,
+        total_packets,
+    )
     return score, list(dict.fromkeys(reasons))
 
 
@@ -194,29 +397,37 @@ def infer_domains(inspect_result: InspectResult) -> list[dict[str, Any]]:
     Specific protocol co-occurrences produce higher confidence than single-
     protocol presence. Scores are frequency-dampened for rare protocols.
     """
-    protocol_counts = inspect_result.protocol_counts
-    total = sum(protocol_counts.values()) or 1
-    present = frozenset(p for p, c in protocol_counts.items() if c > 0)
+    total_packets = inspect_result.metadata.packet_count or sum(inspect_result.protocol_counts.values()) or 1
+    present = _protocol_presence(inspect_result)
 
-    domain_best: dict[str, tuple[float, str]] = {}
+    domain_best: dict[str, tuple[float, list[str]]] = {}
 
     for required, domain, base_score, reason in _DOMAIN_COMBOS:
         if not required.issubset(present):
             continue
+
         domain_protos = required - _TRANSPORT_PROTOCOLS
         if domain_protos:
-            min_ff = min(_freq_factor(protocol_counts.get(p, 0), total) for p in domain_protos)
+            min_ff = min(_protocol_evidence(inspect_result, p, total_packets, present)[0] for p in domain_protos)
             score = base_score * min_ff
         else:
             score = base_score * 0.3  # transport-only combo: greatly dampened
 
-        existing = domain_best.get(domain, (0.0, ""))[0]
+        reasons = [
+            _format_protocol_reason(proto, count, source)
+            for proto in required
+            for factor, count, source in [_protocol_evidence(inspect_result, proto, total_packets, present)]
+            if factor > 0
+        ]
+        reasons.append(reason)
+
+        existing = domain_best.get(domain, (0.0, []))[0]
         if score > existing:
-            domain_best[domain] = (score, reason)
+            domain_best[domain] = (score, list(dict.fromkeys(reasons)))
 
     results = [
-        {"domain": domain, "score": round(score, 2), "reason": [reason]}
-        for domain, (score, reason) in domain_best.items()
+        {"domain": domain, "score": round(score, 2), "reason": reasons}
+        for domain, (score, reasons) in domain_best.items()
         if score >= 0.35
     ]
     return sorted(results, key=lambda x: x["score"], reverse=True)
@@ -228,10 +439,15 @@ def recommend_profiles_from_inspect(
     *,
     limit: int = 8,
 ) -> dict[str, Any]:
+    suspected_domains = infer_domains(inspect_result)
     scored: list[tuple[float, ProfileDefinition, list[str]]] = []
     suppressed: list[tuple[float, ProfileDefinition, list[str]]] = []
     for profile in profiles:
         score, reasons = _score_profile(inspect_result, profile)
+        domain_bonus, domain_reasons = _domain_alignment_bonus(profile, suspected_domains)
+        penalty, penalty_reasons = _domain_mismatch_penalty(profile, suspected_domains)
+        score = (score + domain_bonus) * penalty
+        reasons = list(dict.fromkeys([*reasons, *domain_reasons, *penalty_reasons]))
         if score > 0:
             scored.append((score, profile, reasons))
         else:
@@ -262,7 +478,7 @@ def recommend_profiles_from_inspect(
         "status": "ok",
         "recommended_profiles": recommended,
         "suppressed_profiles": suppressed_payload,
-        "suspected_domains": infer_domains(inspect_result),
+        "suspected_domains": suspected_domains,
         "observed_protocols": [
             {"name": name, "count": count}
             for name, count in Counter(inspect_result.protocol_counts).most_common(10)

@@ -8,6 +8,7 @@ from typing import Any
 from pcap2llm.app_anomaly import detect_app_anomalies
 from pcap2llm.models import CaptureMetadata, InspectResult, MessageContext, NormalizedPacket
 from pcap2llm.models import PrivacySummary, ProfileDefinition, TransportContext
+from pcap2llm.models import ResolvedEndpoint
 from pcap2llm.resolver import EndpointResolver
 
 logger = logging.getLogger(__name__)

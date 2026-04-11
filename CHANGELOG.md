@@ -6,6 +6,33 @@ The format is intentionally simple and optimized for humans reading repo history
 
 ## Unreleased
 
+### Changed — 2026-04-11 (discovery hardening and ranking cleanup)
+
+- **Discovery output is now cleaner and more explicit**:
+  - `dominant_signaling_protocols` no longer emits misleading `count: 0` entries. If a protocol is only inferred from strong raw presence and no trustworthy decoded count exists, the `count` field is omitted.
+  - `top_protocols` remains the raw count-oriented packet view, while discovery now exposes a more useful `relevant_protocols` view for orchestration and first-pass human triage.
+  - Discovery markdown now calls out the raw nature of `top_protocols` more clearly so humans do not confuse packet-count dominance with domain-signaling dominance.
+
+- **Discovery recommendation heuristics were tightened across 5G, LTE, DNS, Diameter, and mixed cases**:
+  - Generic Diameter-over-SCTP traces now keep `lte-s6a` / `lte-core` clearly ahead of IMS / VoLTE Diameter profiles unless IMS-specific peer or signaling hints are present.
+  - DNS-only traces no longer pull SIP / SBC / REGISTER-style voice profiles to the top; DNS-focused profiles remain visible while SIP-specific voice profiles require stronger IMS evidence.
+  - Generic HTTP/JSON SBI traces now favor broader `5g-sbi` / `5g-core` candidates before many narrowly named SBI interfaces when no NF-specific hints are available.
+  - `5g-n26` is now more conservative and requires interworking-style evidence instead of rising early on plain GTPv2 presence.
+
+- **Host resolution is now used more effectively as a supporting discovery signal**:
+  - Resolved peer names and roles can now gently strengthen interface ranking for cases such as LTE S5/S8, S11, S6a, and mixed EPC↔5GC interworking.
+  - Host-resolution hints remain additive only; they do not replace decoded protocol evidence and continue to be surfaced transparently in discovery output.
+
+- **Discovery now reuses the lightweight inspect-enrichment layer**:
+  - Discovery inherits the cheap anomaly and trace-shape hints already used by `inspect`, improving first-pass triage without turning discovery into a full analysis mode.
+
+- **Analyze summaries remain schema-stable**:
+  - Discovery-specific metadata such as host-resolution usage and resolved peers is kept out of general `analyze` summary artifacts, preventing unintended schema drift in golden-corpus and downstream summary consumers.
+
+- **Tests and docs were expanded accordingly**:
+  - Added / updated regression coverage for DNS-only, generic Diameter, host-informed GTPv2 ranking, generic SBI bundling, null-count suppression, and host-resolution transparency.
+  - `docs/DISCOVERY.md` now documents the stricter DNS / Diameter behavior, host-resolution as a supporting signal, and the absence of null-count artifacts in dominant-signaling output.
+
 ### Added — 2026-04-10 (orchestration + local hosts)
 
 - **Orchestration layer** — three new CLI commands for staged, agent-driven workflows:

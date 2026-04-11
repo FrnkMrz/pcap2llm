@@ -24,9 +24,11 @@ _PROTOCOL_EQUIVALENTS: dict[str, tuple[str, ...]] = {
     "bssmap": ("bssmap", "gsm_a.bssmap"),
     "dtap": ("dtap", "gsm_a.dtap", "gsm_dtap"),
     "http": ("http", "http2"),
+    "map": ("map", "gsm_map"),
+    "mtp3": ("mtp3", "mtp3mg"),
     "nas-eps": ("nas-eps", "nas_eps"),
     "nas-5gs": ("nas-5gs", "nas_5gs"),
-    "ss7": ("ss7", "m3ua"),
+    "ss7": ("ss7", "m3ua", "m2pa", "mtp"),
 }
 
 _LEGACY_PARTNER_PROTOCOLS: frozenset[str] = frozenset({
@@ -38,6 +40,8 @@ _STRONG_LEGACY_COMBOS: tuple[frozenset[str], ...] = (
     frozenset({"bssap", "dtap", "mtp3"}),
     frozenset({"bssap", "dtap", "ss7"}),
     frozenset({"map", "tcap", "sccp"}),
+    frozenset({"sccp", "tcap", "mtp3"}),
+    frozenset({"sccp", "tcap", "ss7"}),
     frozenset({"gtpv1", "udp"}),
 )
 
@@ -121,6 +125,9 @@ _DOMAIN_COMBOS: list[tuple[frozenset[str], str, float, str]] = [
     (frozenset({"bssap", "dtap", "mtp3"}),     "legacy-2g3g", 0.88, "bssap + dtap + mtp3 = strong GERAN/A-interface signal"),
     (frozenset({"bssap", "dtap", "ss7"}),      "legacy-2g3g", 0.84, "bssap + dtap + ss7 = strong GERAN/A-interface signal"),
     (frozenset({"map", "tcap", "sccp"}),       "legacy-2g3g", 0.92, "map + tcap + sccp = SS7/MAP core"),
+    (frozenset({"sccp", "tcap", "mtp3"}),      "legacy-2g3g", 0.84, "sccp + tcap + mtp3 = legacy SS7 control plane"),
+    (frozenset({"sccp", "tcap", "ss7"}),       "legacy-2g3g", 0.82, "sccp + tcap + ss7 = legacy SS7 control plane"),
+    (frozenset({"sccp", "mtp3"}),              "legacy-2g3g", 0.52, "sccp + mtp3 = legacy SS7 transport/signaling"),
     (frozenset({"gtpv1", "udp"}),              "legacy-2g3g-gprs", 0.70, "gtpv1 + udp = 2G/3G GPRS Gn/Gp"),
     # DNS support
     (frozenset({"dns"}),                       "dns-support", 0.40, "dns detected"),
@@ -261,10 +268,10 @@ def _apply_profile_gates(
 
         if dtap_present and not partner_present:
             score *= 0.12
-            reasons.append("legacy dtap signal gated without bssap/sccp/mtp3-style partners")
+            reasons.append("DTAP gated: no BSSAP/SCCP/MTP3 partners")
         elif not strong_legacy_combo:
             score *= 0.45
-            reasons.append("legacy evidence remains partial without a strong partner combo")
+            reasons.append("legacy evidence partial: no strong SS7 partner combo")
 
         if dtap_present and 0 < dtap_count < rare_dtap_cutoff and not strong_legacy_combo:
             score *= 0.5
@@ -276,30 +283,57 @@ def _apply_profile_gates(
 
     if profile.name in _HYBRID_VOICE_PROFILES and not has_voice_protocol:
         score *= 0.35
-        reasons.append("voice profile downranked because no SIP/IMS indicators were detected")
+        reasons.append("voice profile downranked: no SIP/IMS indicators")
 
     if profile.name in _IMS_DIAMETER_PROFILES and not (has_strong_ims_signal or has_ims_peer_hint):
         score *= 0.35
-        reasons.append("IMS Diameter profile downranked because no IMS-specific peer or signaling hints were detected")
+        reasons.append("IMS Diameter profile downranked: no IMS peer or signaling hints")
 
     if profile.name in _VOICE_SIP_PROFILES and not ("sip" in present or has_ims_peer_hint):
         score *= 0.12
-        reasons.append("SIP-oriented voice profile downranked because no SIP or IMS-specific discovery hints were detected")
+        reasons.append("SIP voice profile downranked: no SIP or IMS hints")
 
     if profile.name in _VOICE_DNS_PROFILES and not ("sip" in present or has_ims_peer_hint):
         score *= 0.55
-        reasons.append("voice DNS profile downranked because no IMS-specific discovery hints were detected")
+        reasons.append("voice DNS profile downranked: no IMS hints")
 
     if profile.name in _IMS_CORE_PROFILES and not (has_strong_ims_signal or has_ims_peer_hint):
         score *= 0.3
-        reasons.append("IMS core profile downranked because no IMS-specific peer or signaling hints were detected")
+        reasons.append("IMS core profile downranked: no IMS peer or signaling hints")
 
     if profile.name == "5g-n26" and not (
         ("gtpv2" in present and any(proto in present for proto in {"http", "json", "ngap", "nas-5gs"}))
         or _has_peer_hint(peer_blob, _N26_HINT_TOKENS)
     ):
         score *= 0.3
-        reasons.append("N26 profile downranked because no EPC↔5GC interworking hints were detected")
+        reasons.append("N26 profile downranked: no EPC↔5GC interworking hints")
+
+    # DNS family spread: downrank family-specific DNS profiles when no domain context is present
+    _DNS_FAMILY_SPECIFIC: frozenset[str] = frozenset({"volte-dns", "vonr-dns", "2g3g-dns"})
+    _CP_PROTOCOLS: frozenset[str] = frozenset({"ngap", "nas-5gs", "s1ap", "nas-eps", "sip", "sdp"})
+    if (
+        profile.name.endswith("-dns")
+        and profile.name not in {"lte-dns", "5g-dns"}
+        and not _has_peer_hint(peer_blob, _IMS_HINT_TOKENS)
+        and not any(proto in present for proto in _CP_PROTOCOLS)
+    ):
+        score *= 0.25
+        reasons.append("family-specific DNS profile downranked: no domain context beyond DNS")
+
+    # Legacy profile gates
+    _ISUP_PROFILES: frozenset[str] = frozenset({"2g3g-isup", "isup"})
+    if profile.name in _ISUP_PROFILES and "isup" not in present:
+        score *= 0.2
+        reasons.append("ISUP profile requires explicit isup protocol evidence")
+
+    _GERAN_PROFILES: frozenset[str] = frozenset({"2g3g-ss7-geran", "2g3g-gr"})
+    if profile.name in _GERAN_PROFILES and not ("bssap" in present or "dtap" in present):
+        score *= 0.3
+        reasons.append("GERAN profile downranked: no BSSAP/DTAP evidence")
+
+    if profile.name == "2g3g-gs" and "bssap" not in present:
+        score *= 0.3
+        reasons.append("Gs interface profile downranked: no BSSAP evidence")
 
     if _is_specific_sbi_profile(profile):
         profile_hints = _SBI_PROFILE_HINTS.get(profile.name, frozenset({"amf", "smf", "pcf", "udm", "ausf", "nrf", "nssf", "scp"}))
@@ -320,35 +354,45 @@ def _supporting_context_bonus(
     bonus = 0.0
     reasons: list[str] = []
 
+    if profile.name in _IMS_DIAMETER_PROFILES and _has_peer_hint(peer_blob, _IMS_HINT_TOKENS):
+        bonus += 0.6
+        reasons.append("resolved peer hints reinforce IMS/CSCF Diameter context")
+
     if profile.name == "lte-s6a" and (
         {"mme", "hss"}.issubset(peer_roles) or _has_peer_hint(peer_blob, _LTE_S6A_HINT_TOKENS)
     ):
         bonus += 1.2
-        reasons.append("resolved peer hints suggest MME/HSS Diameter context")
+        reasons.append("protocol evidence is partial; resolved peer hints strongly suggest MME/HSS Diameter context")
 
     if profile.name in {"lte-s5", "lte-s8"} and (
         {"sgw", "pgw"}.issubset(peer_roles) or _has_peer_hint(peer_blob, _S5_S8_HINT_TOKENS)
     ):
         bonus += 1.5
-        reasons.append("resolved peer hints suggest S5/S8 GTPv2 context")
+        reasons.append("protocol evidence is partial; resolved peer hints strongly suggest S5/S8 context")
 
     if profile.name == "lte-s11" and (
         {"mme", "sgw"}.issubset(peer_roles) or _has_peer_hint(peer_blob, _S11_HINT_TOKENS)
     ):
         bonus += 1.1
-        reasons.append("resolved peer hints suggest S11 MME↔SGW context")
+        reasons.append("protocol evidence is partial; resolved peer hints suggest S11 MME↔SGW context")
 
     if profile.name == "lte-s10" and _has_peer_hint(peer_blob, _S10_HINT_TOKENS):
         bonus += 1.1
-        reasons.append("resolved peer hints suggest S10 inter-MME context")
+        reasons.append("protocol evidence is partial; resolved peer hints suggest S10 inter-MME context")
 
     if profile.name == "5g-n26" and _has_peer_hint(peer_blob, _N26_HINT_TOKENS):
         bonus += 1.0
-        reasons.append("resolved peer hints suggest EPC↔5GC interworking context")
+        reasons.append("protocol evidence is partial; resolved peer hints suggest EPC↔5GC interworking context")
 
     if profile.name in _VOICE_DNS_PROFILES and _has_peer_hint(peer_blob, _IMS_HINT_TOKENS):
         bonus += 0.8
-        reasons.append("resolved peer hints suggest IMS-oriented DNS context")
+        reasons.append("protocol evidence is partial; resolved peer hints suggest IMS-oriented DNS context")
+
+    # MAP + TCAP + SCCP combo bonus for legacy SS7 core profiles
+    _MAP_CORE_PROFILES: frozenset[str] = frozenset({"2g3g-map-core", "2g3g-gr"})
+    if profile.name in _MAP_CORE_PROFILES and {"map", "tcap", "sccp"}.issubset(present):
+        bonus += 0.5
+        reasons.append("strong MAP/TCAP/SCCP combo supports core SS7 context")
 
     if profile.name == "5g-sbi" and {"http", "json"}.issubset(present):
         profile_hints = set().union(*_SBI_PROFILE_HINTS.values())
@@ -363,6 +407,52 @@ def _supporting_context_bonus(
             reasons.append("generic 5G core candidate kept prominent because SBI traffic is broad but unspecific")
 
     return bonus, reasons
+
+
+def _candidate_evidence(
+    inspect_result: InspectResult,
+    profile: ProfileDefinition,
+    reasons: list[str],
+) -> tuple[str, str]:
+    present = _protocol_presence(inspect_result)
+    total_packets = inspect_result.metadata.packet_count or sum(inspect_result.protocol_counts.values()) or 1
+    selector = _infer_selector_metadata(profile)
+    protocol_hits = 0
+    raw_hits = 0
+
+    for proto in list(selector.strong_indicators) + selector.triggers.get("protocols", []) + list(selector.weak_indicators):
+        if proto in _TRANSPORT_PROTOCOLS:
+            continue
+        factor, count, source = _protocol_evidence(inspect_result, proto, total_packets, present)
+        if factor == 0:
+            continue
+        if source == "count" and count > 0:
+            protocol_hits += 1
+        elif source == "raw":
+            raw_hits += 1
+
+    has_host_hints = any("resolved peer hints" in reason for reason in reasons)
+
+    if profile.name in {"lte-s5", "lte-s8"} and _protocol_count(inspect_result, "gtpv2") == 0 and _protocol_count(inspect_result, "gtp") > 0:
+        if has_host_hints:
+            return "low", "protocol_partial_with_host_hints"
+        return "low", "protocol_partial"
+
+    if protocol_hits >= 2 and not has_host_hints:
+        return "high", "protocol_strong"
+    if protocol_hits >= 2 and has_host_hints:
+        return "high", "protocol_strong_with_host_hints"
+    if protocol_hits >= 1 and raw_hits >= 1 and has_host_hints:
+        return "medium", "protocol_partial_with_host_hints"
+    if protocol_hits >= 1:
+        return "medium", "protocol_partial"
+    if raw_hits >= 1 and has_host_hints:
+        return "low", "protocol_partial_with_host_hints"
+    if raw_hits >= 1:
+        return "low", "raw_protocol_partial"
+    if has_host_hints:
+        return "low", "host_hints_only"
+    return "low", "weak"
 
 
 def _domain_alignment_bonus(
@@ -425,6 +515,12 @@ def _domain_mismatch_penalty(
 
     if selector.family in {"5g", "lte"} and top_family == "2g3g" and selector.family not in present_families:
         return 0.35, [f"strong {top['domain']} evidence outweighs weak modern side signals"]
+
+    if profile.name.startswith("vonr-") and top["domain"] == "lte-eps" and "5g" not in present_families:
+        return 0.55, ["voice-over-5GS profile downranked because primary domain evidence points to LTE/EPS"]
+
+    if profile.name.startswith("volte-") and top_family == "5g" and "lte" not in present_families:
+        return 0.55, ["VoLTE/EPS voice profile downranked because primary domain evidence points to 5G SA"]
 
     return 1.0, []
 
@@ -640,7 +736,21 @@ def infer_domains(inspect_result: InspectResult) -> list[dict[str, Any]]:
         for domain, (score, reasons) in domain_best.items()
         if score >= 0.35
     ]
-    return sorted(results, key=lambda x: x["score"], reverse=True)
+    results = sorted(results, key=lambda x: x["score"], reverse=True)
+
+    # Assign role field: primary / secondary / supporting
+    if results:
+        top_score = results[0]["score"]
+        for entry in results:
+            s = entry["score"]
+            if s >= 0.7 and s == top_score:
+                entry["role"] = "primary"
+            elif s >= 0.4:
+                entry["role"] = "secondary"
+            else:
+                entry["role"] = "supporting"
+
+    return results
 
 
 def recommend_profiles_from_inspect(
@@ -681,6 +791,8 @@ def recommend_profiles_from_inspect(
             "profile": profile.name,
             "score": round(score, 2),
             "reason": reasons[:5],
+            "confidence": _candidate_evidence(inspect_result, profile, reasons)[0],
+            "evidence_class": _candidate_evidence(inspect_result, profile, reasons)[1],
             "selector_metadata": _infer_selector_metadata(profile).model_dump(),
         }
         for score, profile, reasons in scored[:limit]

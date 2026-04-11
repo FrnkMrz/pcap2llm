@@ -120,7 +120,13 @@ def test_build_discovery_markdown_renders_dominant_signaling_first() -> None:
             "top_protocols": [{"name": "ip", "count": 497}, {"name": "dtap", "count": 3}],
         },
         "suspected_domains": [{"domain": "5g-sa-core", "score": 0.81, "reason": ["primary 5G domain"]}],
-        "candidate_profiles": [{"profile": "5g-n2", "score": 7.2, "reason": ["aligned with suspected domain 5g-sa-core"]}],
+        "candidate_profiles": [{
+            "profile": "5g-n2",
+            "score": 7.2,
+            "confidence": "high",
+            "evidence_class": "protocol_strong",
+            "reason": ["aligned with suspected domain 5g-sa-core"],
+        }],
     }
 
     markdown = build_discovery_markdown(discovery)
@@ -133,3 +139,4 @@ def test_build_discovery_markdown_renders_dominant_signaling_first() -> None:
     assert "Raw top-protocol count view" in markdown
     assert "Hosts file used" in markdown
     assert "`10.109.182.14 -> AMF-01`" in markdown
+    assert "[high/protocol_strong]" in markdown

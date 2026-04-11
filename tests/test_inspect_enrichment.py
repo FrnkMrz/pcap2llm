@@ -78,6 +78,15 @@ def test_transport_only_shape() -> None:
     assert enriched.trace_shape == "transport_only"
 
 
+def test_raw_signaling_presence_avoids_false_transport_only_shape() -> None:
+    result = _make_result({"ip": 100}, transport_counts={"sctp": 100})
+    result.metadata.raw_protocols = ["ip", "sctp", "diameter"]
+    profiles = load_all_profiles()
+    enriched = enrich_inspect_result(result, profiles)
+    assert enriched.trace_shape != "transport_only"
+    assert any("raw signaling hints" in reason for reason in enriched.trace_shape_reasons)
+
+
 # ---------------------------------------------------------------------------
 # inspect_anomalies
 # ---------------------------------------------------------------------------
@@ -88,6 +97,18 @@ def test_transport_only_anomaly_flagged() -> None:
     enriched = enrich_inspect_result(result, profiles)
     anomaly_text = " ".join(enriched.anomalies)
     assert "transport" in anomaly_text.lower() or "sctp" in anomaly_text.lower()
+
+
+def test_raw_signaling_coarse_decode_flagged_without_transport_only_warning() -> None:
+    result = _make_result({"ip": 100}, transport_counts={"sctp": 100})
+    result.metadata.raw_protocols = ["ip", "sctp", "diameter"]
+    profiles = load_all_profiles()
+    enriched = enrich_inspect_result(result, profiles)
+    # "coarse" decode note goes into classification_notes, not anomalies
+    all_notes = " ".join(enriched.classification_notes).lower()
+    assert "coarse" in all_notes
+    anomaly_text = " ".join(enriched.anomalies).lower()
+    assert "no application or signaling protocol decoded" not in anomaly_text
 
 
 def test_legacy_modern_mix_flagged() -> None:

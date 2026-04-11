@@ -100,6 +100,7 @@ The exact payload can evolve, but the core blocks are:
     {
       "domain": "5g-sa-core",
       "score": 0.85,
+      "role": "primary",
       "reason": ["ngap present", "nas-5gs present"]
     }
   ],
@@ -107,8 +108,13 @@ The exact payload can evolve, but the core blocks are:
     {
       "profile": "5g-n1-n2",
       "score": 9.5,
+      "confidence": "high",
+      "evidence_class": "protocol_strong",
       "reason": ["ngap detected", "strong indicator ngap"]
     }
+  ],
+  "classification_notes": [
+    "family assignment remains ambiguous — DNS-only without domain-specific service markers"
   ]
 }
 ```
@@ -122,7 +128,7 @@ The exact payload can evolve, but the core blocks are:
 - a curated `relevant_protocols` view for discovery, plus the raw top-protocol inventory
 - a small conversation and anomaly slice
 - rule-based domain hints
-- deterministic profile recommendations
+- deterministic profile recommendations, including confidence / evidence-class hints for weaker host-assisted specializations
 
 ## What Discovery Does Not Do
 
@@ -213,14 +219,81 @@ profiles also stay visible as side signals in a 5G-dominant trace, but are
 ranked below the primary 5G candidates unless they have their own LTE anchor
 protocols such as `s1ap`, `diameter`, or `gtpv2`.
 
-Generic Diameter-over-SCTP traces now stay biased toward LTE/EPS candidates
-such as `lte-s6a` unless additional IMS-specific peer or signaling hints are
-visible. DNS-only traces likewise keep DNS-focused profiles prominent instead
-of promoting SIP, SBC, or register-specific candidates too early.
+Generic Diameter-over-SCTP traces stay biased toward LTE/EPS candidates such
+as `lte-s6a` unless additional IMS-specific peer or signaling hints are
+visible. DNS-only traces keep DNS-focused profiles prominent instead of
+promoting SIP, SBC, or register-specific candidates too early.
 
-Host-resolution data is used only as a supporting signal. Resolved peer names
-and roles may tighten interface guesses such as S5/S8 vs S11 or add context to
-Diameter and SBI ranking, but they never replace decoded protocol evidence.
+### DNS-only is intentionally family-ambiguous
+
+Pure DNS traffic without accompanying control-plane signaling (no `ngap`,
+`s1ap`, `diameter`, `sip`, `map`, etc.) is infrastructure or support traffic
+that cannot be reliably assigned to a single network generation.
+
+Discovery models this explicitly: family-specific DNS profiles (`volte-dns`,
+`vonr-dns`, `2g3g-dns`) are strongly downranked unless a domain-specific
+signal is also present — for example, an IMS peer hostname or a co-occurring
+SIP flow. Without such context, a `classification_notes` entry reads:
+
+> `family assignment remains ambiguous — DNS-only without domain-specific service markers`
+
+A family-specific DNS profile is only promoted when the co-occurring evidence
+warrants it: IMS peer hints allow `volte-dns`; 5G NF hostnames allow `5g-dns`.
+
+### Host hints: supporting evidence, not proof
+
+Resolved peer names and roles (from `--hosts-file` or `--mapping-file`) can
+tighten interface guesses — for example, identifying S5/S8 vs S11 when only
+generic GTP is visible — but they never replace decoded protocol evidence.
+
+When a candidate's score depends primarily on host hints rather than protocol
+counts, its `evidence_class` will read `protocol_partial_with_host_hints` or
+`host_hints_only`, and a `classification_notes` entry explains why:
+
+> `low-confidence specialization due to host hints; treat interface naming as plausible rather than fully proven`
+
+This is an intermediate state between "no idea" and "fully decoded". The
+candidate is still useful — it just needs to be read as plausible, not proven.
+
+### Mixed-domain traces
+
+When multiple domains score above threshold, `trace_shape` is `mixed_domain`
+and `suspected_domains` carries a `role` field on each entry:
+
+| Role | Meaning |
+|---|---|
+| `primary` | Highest-scoring domain (score ≥ 0.7) |
+| `secondary` | Additional domain with meaningful signal (score ≥ 0.4) |
+| `supporting` | Weak or side signal (score < 0.4) |
+
+Example: a mixed SS7+Diameter trace might show `legacy-2g3g` as `primary` and
+`lte-eps` as `secondary`. Run `discover` to see the full candidate list.
+
+### Legacy / SS7 profile calibration
+
+Legacy profiles are gated against specific evidence:
+
+- `2g3g-isup` requires explicit `isup` protocol evidence — it will not appear
+  for generic SS7 traces that lack ISUP decoding
+- `2g3g-ss7-geran` and `2g3g-gr` require `bssap` or `dtap` evidence — they
+  will not surface from MAP+TCAP+SCCP alone
+- `2g3g-gs` requires `bssap` evidence
+- `map + tcap + sccp` combinations boost `2g3g-map-core` and `2g3g-gr` as the
+  primary SS7 core candidates
+
+### Classification notes vs. anomalies
+
+The output separates two kinds of diagnostic messages:
+
+- **`anomalies`** — actual network events worth investigating: transport-only
+  traces, sparse Diameter, SCTP without upper-layer decode, legacy protocols
+  alongside modern signaling
+- **`classification_notes`** — methodological discovery limits: coarse decoded
+  protocols, DNS-only ambiguity, host-hint-driven confidence, family
+  uncertainty
+
+An orchestrator should act on anomalies; classification notes explain the
+discovery method's confidence level and are informational.
 
 ## Recommended Flow
 

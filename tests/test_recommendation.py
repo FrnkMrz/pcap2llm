@@ -300,6 +300,7 @@ def test_legacy_ss7_trace_prefers_legacy_profiles() -> None:
     top = [item["profile"] for item in rec["recommended_profiles"][:3]]
     assert top[0] in {"2g3g-gr", "2g3g-map-core"}
     assert all(name.startswith("2g3g-") for name in top)
+    assert rec["suspected_domains"][0]["domain"] == "legacy-2g3g"
 
 
 def test_5g_domain_remains_primary_when_nas_eps_side_signal_is_present() -> None:
@@ -360,7 +361,24 @@ def test_gtpv2_with_s5s8_host_hints_prefers_s5_s8_profiles() -> None:
     names = [item["profile"] for item in rec["recommended_profiles"][:4]]
     assert names[:2] == ["lte-s5", "lte-s8"]
     reasons = next(item["reason"] for item in rec["recommended_profiles"] if item["profile"] == "lte-s5")
-    assert any("resolved peer hints suggest S5/S8" in reason for reason in reasons)
+    assert any("protocol evidence is partial; resolved peer hints strongly suggest S5/S8 context" in reason for reason in reasons)
+
+
+def test_host_hint_only_gtp_specialization_is_marked_low_confidence() -> None:
+    result = _mock_result(
+        {"gtp": 80, "udp": 80, "ip": 80},
+        {"udp": 80},
+        ["gtp", "udp", "ip"],
+    )
+    result.metadata.resolved_peers = [
+        {"ip": "10.0.0.1", "name": "S5-S8-PGW-01", "role": "pgw"},
+        {"ip": "10.0.0.2", "name": "S5-S8-SGW-01", "role": "sgw"},
+    ]
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=6)
+    s5 = next(item for item in rec["recommended_profiles"] if item["profile"] == "lte-s5")
+    assert s5["confidence"] == "low"
+    assert s5["evidence_class"] == "protocol_partial_with_host_hints"
+    assert any("protocol evidence is partial" in reason for reason in s5["reason"])
 
 
 def test_generic_sbi_trace_prefers_generic_profiles_over_many_specific_interfaces() -> None:
@@ -373,6 +391,51 @@ def test_generic_sbi_trace_prefers_generic_profiles_over_many_specific_interface
     names = [item["profile"] for item in rec["recommended_profiles"][:6]]
     assert names[:2] == ["5g-sbi", "5g-core"]
     assert names.count("5g-sbi") == 1
+
+
+def test_diameter_with_ims_hints_can_raise_ims_profiles() -> None:
+    result = _mock_result(
+        {"diameter": 200, "sctp": 200, "sip": 30, "dns": 20, "ip": 220},
+        {"sctp": 200},
+        ["diameter", "sctp", "sip", "dns", "ip"],
+    )
+    result.metadata.resolved_peers = [
+        {"ip": "10.0.0.1", "name": "IMS-CSCF-01", "role": "cscf"},
+        {"ip": "10.0.0.2", "name": "IMS-HSS-01", "role": "hss"},
+    ]
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=8)
+    ims = [item for item in rec["recommended_profiles"] if item["profile"] in {"volte-diameter-cx", "volte-ims-core"}]
+    assert ims
+    assert any(item["score"] > 4.0 for item in ims)
+    assert any(
+        "IMS" in " ".join(item["reason"]) or "cscf" in " ".join(item["reason"]).lower()
+        for item in ims
+    )
+
+
+def test_mixed_legacy_and_modern_trace_surfaces_multiple_domains() -> None:
+    result = _mock_result(
+        {"sccp": 120, "tcap": 70, "mtp3": 70, "diameter": 80, "sctp": 80, "ip": 150},
+        {"sctp": 80},
+        ["sccp", "tcap", "mtp3", "diameter", "sctp", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=8)
+    domains = [item["domain"] for item in rec["suspected_domains"]]
+    assert "legacy-2g3g" in domains
+    assert "lte-eps" in domains
+
+
+def test_lte_voice_mix_prefers_volte_over_vonr_when_primary_domain_is_lte() -> None:
+    result = _mock_result(
+        {"s1ap": 240, "nas-eps": 80, "sctp": 320, "sip": 50, "dns": 30, "ip": 320},
+        {"sctp": 320},
+        ["s1ap", "nas-eps", "sctp", "sip", "dns", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=12)
+    names = [item["profile"] for item in rec["recommended_profiles"]]
+    first_volte = next(i for i, name in enumerate(names) if name.startswith("volte-"))
+    first_vonr = next(i for i, name in enumerate(names) if name.startswith("vonr-"))
+    assert first_volte < first_vonr
 
 
 def test_lte_candidates_marked_as_side_signals_in_5g_trace() -> None:

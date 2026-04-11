@@ -112,6 +112,9 @@ class InspectResult(BaseModel):
     trace_shape: str = "unknown"
     trace_shape_reasons: list[str] = Field(default_factory=list)
     next_step_hints: list[str] = Field(default_factory=list)
+    # Methodological discovery notes — separate from network anomalies.
+    # Covers decode limitations, host-hint-only evidence, family ambiguity, etc.
+    classification_notes: list[str] = Field(default_factory=list)
 
 
 class PrivacyProfileDefinition(BaseModel):

@@ -34,9 +34,11 @@ PROTOCOL_EQUIVALENTS: dict[str, tuple[str, ...]] = {
     "bssmap": ("bssmap", "gsm_a.bssmap"),
     "dtap": ("dtap", "gsm_a.dtap", "gsm_dtap"),
     "http": ("http", "http2"),
+    "map": ("map", "gsm_map"),
+    "mtp3": ("mtp3", "mtp3mg"),
     "nas-eps": ("nas-eps", "nas_eps"),
     "nas-5gs": ("nas-5gs", "nas_5gs"),
-    "ss7": ("ss7", "m3ua"),
+    "ss7": ("ss7", "m3ua", "m2pa", "mtp"),
 }
 
 _SIGNAL_PRIORITY: dict[str, int] = {

@@ -173,7 +173,14 @@ def build_discovery_markdown(discovery: dict[str, Any]) -> str:
     lines.extend(["", "## Candidate Profiles"])
     if discovery["candidate_profiles"]:
         for item in discovery["candidate_profiles"][:8]:
-            lines.append(f"- `{item['profile']}` ({item['score']:.2f}): {', '.join(item['reason'])}")
+            confidence = item.get("confidence")
+            evidence_class = item.get("evidence_class")
+            qualifier = ""
+            if confidence and evidence_class:
+                qualifier = f" [{confidence}/{evidence_class}]"
+            elif confidence:
+                qualifier = f" [{confidence}]"
+            lines.append(f"- `{item['profile']}`{qualifier} ({item['score']:.2f}): {', '.join(item['reason'])}")
     else:
         lines.append("- No profile recommendations were produced.")
     return "\n".join(lines) + "\n"

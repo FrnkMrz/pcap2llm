@@ -15,12 +15,13 @@ from typing import Any
 from pcap2llm.models import InspectResult, ProfileDefinition
 from pcap2llm.recommendation import infer_domains, recommend_profiles_from_inspect
 from pcap2llm.signaling import TRANSPORT_ONLY as _TRANSPORT_ONLY
-from pcap2llm.signaling import dominant_signaling_names
+from pcap2llm.signaling import dominant_signaling_names, protocol_presence, protocol_role
 
 
 def _trace_shape(
     suspected_domains: list[dict[str, Any]],
     protocol_counts: dict[str, int],
+    present_protocols: frozenset[str],
 ) -> tuple[str, list[str]]:
     """Classify the trace as single_domain, mixed_domain, transport_only, or unknown."""
     total = sum(protocol_counts.values()) or 1
@@ -28,9 +29,17 @@ def _trace_shape(
         c for p, c in protocol_counts.items() if p not in _TRANSPORT_ONLY
     )
     signaling_ratio = signaling_total / total
+    raw_signaling = sorted(
+        protocol for protocol in present_protocols if protocol_role(protocol) == "domain_signaling"
+    )
 
-    if signaling_ratio < 0.05:
+    if signaling_ratio < 0.05 and not raw_signaling:
         return "transport_only", ["less than 5% signaling protocol traffic detected"]
+    if signaling_ratio < 0.05 and raw_signaling:
+        reason = ", ".join(raw_signaling[:4])
+        return "single_domain" if suspected_domains else "unknown", [
+            f"decoded top protocols are coarse, but raw signaling hints are present: {reason}"
+        ]
 
     high_conf = [d for d in suspected_domains if d.get("score", 0) >= 0.6]
     medium_conf = [d for d in suspected_domains if 0.35 <= d.get("score", 0) < 0.6]
@@ -43,12 +52,12 @@ def _trace_shape(
 
     if len(high_conf) >= 2:
         names = [d["domain"] for d in high_conf[:3]]
-        return "mixed_domain", [f"multiple high-confidence domains: {', '.join(names)}"]
+        return "mixed_domain", [f"co-dominant domains: {', '.join(names)}"]
 
     if high_conf and medium_conf:
         other_names = [d["domain"] for d in medium_conf[:2]]
         return "mixed_domain", [
-            f"primary domain {high_conf[0]['domain']} with secondary signals: {', '.join(other_names)}"
+            f"primary domain {high_conf[0]['domain']}; secondary signals: {', '.join(other_names)}"
         ]
 
     # Only medium-confidence signals
@@ -64,25 +73,37 @@ def _inspect_anomalies(
     transport_counts: dict[str, int],
     suspected_domains: list[dict[str, Any]],
     trace_shape: str,
-) -> list[str]:
-    """Generate lightweight inspect-level anomaly flags."""
-    notes: list[str] = []
+    present_protocols: frozenset[str],
+    candidate_profiles: list[dict[str, Any]],
+) -> tuple[list[str], list[str]]:
+    """Generate lightweight inspect-level anomaly and classification note flags.
+
+    Returns a tuple of (network_anomalies, classification_notes).
+    - network_anomalies: real network issues (transport-only, sparse diameter, etc.)
+    - classification_notes: methodological notes about discovery confidence/limitations
+    """
+    network_anomalies: list[str] = []
+    classification_notes: list[str] = []
     total = sum(protocol_counts.values()) or 1
     signaling_total = sum(
         c for p, c in protocol_counts.items() if p not in _TRANSPORT_ONLY
     )
 
     if not protocol_counts:
-        notes.append("no protocols detected")
-        return notes
+        network_anomalies.append("no protocols detected")
+        return network_anomalies, classification_notes
 
-    if signaling_total == 0:
-        notes.append("transport-only trace: no application or signaling protocol decoded")
+    raw_signaling_present = any(protocol_role(protocol) == "domain_signaling" for protocol in present_protocols)
+
+    if signaling_total == 0 and not raw_signaling_present:
+        network_anomalies.append("transport-only trace: no application or signaling protocol decoded")
+    elif signaling_total == 0 and raw_signaling_present:
+        classification_notes.append("decoded top protocols are coarse; discovery is relying on raw signaling hints for classification")
 
     if trace_shape == "transport_only":
         sctp_count = transport_counts.get("sctp", 0)
         if sctp_count > 0 and signaling_total == 0:
-            notes.append(
+            network_anomalies.append(
                 "SCTP flows present but no upper-layer protocol decoded — "
                 "check port assignments or try --tshark-arg '-d sctp.port==<port>,<dissector>'"
             )
@@ -90,12 +111,12 @@ def _inspect_anomalies(
     if protocol_counts.get("diameter", 0) > 0:
         total_diam = protocol_counts.get("diameter", 0)
         if total_diam / total < 0.03:
-            notes.append("diameter present but sparse — may need '--tshark-arg \"-d sctp.port==3868,diameter\"'")
+            network_anomalies.append("diameter present but sparse — may need '--tshark-arg \"-d sctp.port==3868,diameter\"'")
 
     if protocol_counts.get("http", 0) > 0:
         json_count = protocol_counts.get("json", 0)
         if json_count == 0:
-            notes.append(
+            network_anomalies.append(
                 "HTTP/2 detected without JSON body visibility — "
                 "SBI payload content may not be decoded"
             )
@@ -104,13 +125,19 @@ def _inspect_anomalies(
     if dns_count > 0:
         control_protos = {"ngap", "s1ap", "diameter", "sip", "map", "gtpv2"}
         if not any(protocol_counts.get(p, 0) > 0 for p in control_protos):
-            notes.append(
+            classification_notes.append(
                 "DNS-only trace with no control-plane signaling — "
                 "may be a support-traffic-only capture"
             )
+            classification_notes.append(
+                "family assignment remains ambiguous — DNS-only without domain-specific service markers"
+            )
 
     if trace_shape == "mixed_domain":
-        notes.append("mixed-domain trace — consider running discover for profile selection")
+        network_anomalies.append("mixed-domain trace — consider running discover for profile selection")
+
+    if any(profile.get("evidence_class") in {"host_hints_only", "protocol_partial_with_host_hints"} for profile in candidate_profiles[:4]):
+        classification_notes.append("low-confidence specialization due to host hints; treat interface naming as plausible rather than fully proven")
 
     # Rare legacy signal in modern trace
     modern_protos = {"ngap", "nas-5gs", "s1ap", "nas-eps", "http"}
@@ -119,12 +146,12 @@ def _inspect_anomalies(
     has_legacy = any(protocol_counts.get(p, 0) > 0 for p in legacy_protos)
     if has_modern and has_legacy:
         legacy_found = sorted(p for p in legacy_protos if protocol_counts.get(p, 0) > 0)
-        notes.append(
+        network_anomalies.append(
             f"legacy protocol(s) present alongside modern signaling: {', '.join(legacy_found)} — "
             "may indicate interworking trace or stray frames"
         )
 
-    return notes
+    return network_anomalies, classification_notes
 
 
 def _next_step_hints(
@@ -193,19 +220,22 @@ def enrich_inspect_result(
     suspected = infer_domains(result)
     rec = recommend_profiles_from_inspect(result, profiles, limit=6)
     candidates = rec["recommended_profiles"]
+    present_protocols = protocol_presence(result)
 
     # Protocol classification
     dominant = dominant_signaling_names(result)
 
     # Trace shape
-    shape, shape_reasons = _trace_shape(suspected, result.protocol_counts)
+    shape, shape_reasons = _trace_shape(suspected, result.protocol_counts, present_protocols)
 
     # Inspect-level anomaly heuristics (appended to existing transport/app anomalies)
-    extra_anomalies = _inspect_anomalies(
+    network_anomalies, classification_notes = _inspect_anomalies(
         result.protocol_counts,
         result.transport_counts,
         suspected,
         shape,
+        present_protocols,
+        candidates,
     )
 
     # Next-step hints
@@ -218,7 +248,8 @@ def enrich_inspect_result(
         "trace_shape": shape,
         "trace_shape_reasons": shape_reasons,
         "next_step_hints": hints,
-        "anomalies": result.anomalies + extra_anomalies,
+        "anomalies": result.anomalies + network_anomalies,
+        "classification_notes": classification_notes,
     })
 
 
@@ -296,6 +327,11 @@ def build_inspect_markdown(result: InspectResult) -> str:
             lines.append(f"- `{profile_name}` [{conf}]: {reasons}")
     else:
         lines.append("- No profile recommendations.")
+
+    if result.classification_notes:
+        lines += ["", "## Classification Notes", ""]
+        for note in result.classification_notes:
+            lines.append(f"- {note}")
 
     lines += ["", "## Notable Anomalies", ""]
     if result.anomalies:

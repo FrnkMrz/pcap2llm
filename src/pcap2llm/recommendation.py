@@ -8,7 +8,9 @@ from pcap2llm.models import InspectResult, ProfileDefinition, SelectorMetadata
 # Protocols that alone do NOT indicate a specific network domain.
 # They may add a small bonus only when a domain-specific signal is already present.
 _TRANSPORT_PROTOCOLS: frozenset[str] = frozenset({
-    "ip", "ipv6", "tcp", "udp", "sctp", "eth", "frame", "data",
+    "ip", "ipv6", "tcp", "udp", "sctp", "eth", "ethertype", "vlan", "frame", "data",
+    "arp", "ppp", "pppoe", "pppoed", "pppoes", "lcp", "ipcp", "pap", "chap",
+    "wlan", "wlan_radio", "radiotap", "ieee80211", "llc", "sll", "null", "loop",
 })
 
 # Raw-only protocol presence is weaker than counted packets, but still strong
@@ -264,6 +266,22 @@ def _domain_mismatch_penalty(
     return 1.0, []
 
 
+def _prioritize_reasons(reasons: list[str]) -> list[str]:
+    def sort_key(reason: str) -> tuple[int, str]:
+        if reason.startswith("aligned with suspected domain"):
+            return (0, reason)
+        if reason.startswith("treated as cross-generation side signal"):
+            return (1, reason)
+        if reason.startswith("voice profile downranked"):
+            return (2, reason)
+        if "outweighs weak" in reason:
+            return (3, reason)
+        return (10, reason)
+
+    unique = list(dict.fromkeys(reasons))
+    return sorted(unique, key=sort_key)
+
+
 def _infer_selector_metadata(profile: ProfileDefinition) -> SelectorMetadata:
     if profile.selector_metadata is not None:
         return profile.selector_metadata
@@ -473,7 +491,7 @@ def recommend_profiles_from_inspect(
             domain_bonus, domain_reasons = _domain_alignment_bonus(profile, suspected_domains)
             penalty, penalty_reasons = _domain_mismatch_penalty(inspect_result, profile, suspected_domains)
             score = (score + domain_bonus) * penalty
-            reasons = list(dict.fromkeys([*reasons, *domain_reasons, *penalty_reasons]))
+            reasons = _prioritize_reasons([*reasons, *domain_reasons, *penalty_reasons])
             scored.append((score, profile, reasons))
         else:
             suppressed.append((score, profile, reasons or ["no matching protocol evidence"]))

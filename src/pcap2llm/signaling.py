@@ -4,10 +4,26 @@ from typing import Any
 
 from pcap2llm.models import InspectResult
 
-TRANSPORT_ONLY: frozenset[str] = frozenset({
-    "ip", "ipv6", "tcp", "udp", "sctp", "eth", "frame", "data",
-    "ip.options", "ipv6.hopopts", "arp",
+DOMAIN_SIGNALING_PROTOCOLS: frozenset[str] = frozenset({
+    "ngap", "nas-5gs", "nr-rrc", "http", "json", "pfcp",
+    "s1ap", "nas-eps", "diameter", "gtpv2", "gtpv1",
+    "sip", "sdp", "rtp", "rtcp", "dns",
+    "map", "tcap", "sccp", "mtp3", "m3ua", "bssap", "bssmap", "dtap", "isup", "cap",
+    "sbcap",
 })
+
+TRANSPORT_SUPPORT_PROTOCOLS: frozenset[str] = frozenset({
+    "sctp", "tcp", "udp",
+})
+
+LINK_OR_ENVELOPE_CONTEXT_PROTOCOLS: frozenset[str] = frozenset({
+    "eth", "ethertype", "vlan", "frame", "data",
+    "ip", "ipv6", "ip.options", "ipv6.hopopts", "arp",
+    "ppp", "pppoe", "pppoed", "pppoes", "lcp", "ipcp", "pap", "chap",
+    "wlan", "wlan_radio", "radiotap", "ieee80211", "llc", "sll", "null", "loop",
+})
+
+TRANSPORT_ONLY: frozenset[str] = TRANSPORT_SUPPORT_PROTOCOLS | LINK_OR_ENVELOPE_CONTEXT_PROTOCOLS
 
 RAW_SIGNAL_FACTOR = 0.85
 RAW_TRANSPORT_FACTOR = 0.35
@@ -46,6 +62,15 @@ _SIGNAL_PRIORITY: dict[str, int] = {
     "isup": 60,
 }
 
+_DOMAIN_PRIMARY_PROTOCOLS: dict[str, frozenset[str]] = {
+    "5g-sa-core": frozenset({"ngap", "nas-5gs", "http", "json", "pfcp", "dns"}),
+    "5g-sa-core-sbi": frozenset({"http", "json", "pfcp", "dns"}),
+    "lte-eps": frozenset({"s1ap", "nas-eps", "diameter", "gtpv2", "dns"}),
+    "ims-voice": frozenset({"sip", "sdp", "dns", "rtp", "rtcp"}),
+    "legacy-2g3g": frozenset({"map", "tcap", "sccp", "mtp3", "bssap", "dtap", "isup", "cap"}),
+    "legacy-2g3g-gprs": frozenset({"gtpv1", "dns"}),
+}
+
 
 def _freq_factor(count: int, total: int) -> float:
     if total == 0 or count == 0:
@@ -69,6 +94,17 @@ def canonical_protocol(protocol: str) -> str:
         if protocol == canonical or protocol in variants:
             return canonical
     return protocol
+
+
+def protocol_role(protocol: str) -> str:
+    canonical = canonical_protocol(protocol)
+    if canonical in DOMAIN_SIGNALING_PROTOCOLS:
+        return "domain_signaling"
+    if canonical in TRANSPORT_SUPPORT_PROTOCOLS:
+        return "transport_support"
+    if canonical in LINK_OR_ENVELOPE_CONTEXT_PROTOCOLS:
+        return "link_or_envelope_context"
+    return "link_or_envelope_context"
 
 
 def protocol_count(inspect_result: InspectResult, protocol: str) -> int:
@@ -120,16 +156,20 @@ def dominant_signaling_protocols(
     inspect_result: InspectResult,
     *,
     limit: int = 10,
+    primary_domain: str | None = None,
 ) -> list[dict[str, Any]]:
     total_packets = inspect_result.metadata.packet_count or sum(inspect_result.protocol_counts.values()) or 1
     present = protocol_presence(inspect_result)
+    domain_protocols = _DOMAIN_PRIMARY_PROTOCOLS.get(primary_domain)
 
     candidates: list[dict[str, Any]] = []
     for protocol in present:
-        if protocol in TRANSPORT_ONLY:
+        if protocol_role(protocol) != "domain_signaling":
             continue
         factor, count, source = protocol_evidence(inspect_result, protocol, total_packets, present)
         if factor == 0:
+            continue
+        if source == "raw" and domain_protocols is not None and protocol not in domain_protocols:
             continue
         candidates.append(
             {
@@ -171,13 +211,24 @@ def dominant_signaling_protocols(
     ]
 
 
+def capture_context(inspect_result: InspectResult) -> dict[str, list[str]]:
+    present = sorted(protocol_presence(inspect_result))
+    link_or_envelope = [protocol for protocol in present if protocol_role(protocol) == "link_or_envelope_context"]
+    transport_support = [protocol for protocol in present if protocol_role(protocol) == "transport_support"]
+    return {
+        "link_or_envelope_protocols": link_or_envelope,
+        "transport_support_protocols": transport_support,
+    }
+
+
 def dominant_signaling_names(
     inspect_result: InspectResult,
     *,
     limit: int = 10,
+    primary_domain: str | None = None,
 ) -> list[str]:
     return [
         item["name"]
-        for item in dominant_signaling_protocols(inspect_result, limit=limit)
+        for item in dominant_signaling_protocols(inspect_result, limit=limit, primary_domain=primary_domain)
         if item["strength"] == "strong"
     ]

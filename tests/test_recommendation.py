@@ -261,6 +261,7 @@ def test_vonr_profiles_downrank_without_voice_indicators() -> None:
     assert names.index("5g-n2") < names.index("vonr-n1-n2-voice")
 
     vonr_reason = next(r["reason"] for r in rec["recommended_profiles"] if r["profile"] == "vonr-n1-n2-voice")
+    assert vonr_reason[0].startswith("voice profile downranked")
     assert any("no SIP/IMS indicators" in reason for reason in vonr_reason)
 
 
@@ -277,7 +278,20 @@ def test_lte_candidates_marked_as_side_signals_in_5g_trace() -> None:
     assert names.index("5g-core") < names.index("lte-s1")
 
     lte_reason = next(r["reason"] for r in rec["recommended_profiles"] if r["profile"] == "lte-s1")
+    assert lte_reason[0].startswith("treated as cross-generation side signal")
     assert any("cross-generation side signal" in reason for reason in lte_reason)
+
+
+def test_low_level_context_protocols_do_not_drive_domains_or_candidates() -> None:
+    result = _mock_result(
+        {"ip": 400, "ethertype": 200, "vlan": 200, "ipcp": 40, "pap": 10},
+        None,
+        ["eth", "ethertype", "vlan", "ip", "ipcp", "pap"],
+    )
+    profiles = load_all_profiles()
+    rec = recommend_profiles_from_inspect(result, profiles)
+    assert infer_domains(result) == []
+    assert rec["recommended_profiles"] == []
 
 
 def test_lte_s1_profiles_rank_above_5g_on_s1ap_trace() -> None:

@@ -11,7 +11,7 @@ from pcap2llm.models import InspectResult, ProfileDefinition
 from pcap2llm.pipeline import artifact_timestamp_prefix
 from pcap2llm.profiles import load_all_profiles
 from pcap2llm.recommendation import recommend_profiles_from_inspect
-from pcap2llm.signaling import dominant_signaling_protocols
+from pcap2llm.signaling import capture_context, dominant_signaling_protocols
 from pcap2llm.tshark_runner import TSharkRunner
 
 
@@ -69,6 +69,7 @@ def build_discovery_payload(
     inspect_result: InspectResult,
     candidate_profiles: dict[str, Any],
 ) -> dict[str, Any]:
+    primary_domain = candidate_profiles["suspected_domains"][0]["domain"] if candidate_profiles["suspected_domains"] else None
     top_protocols = [
         {"name": name, "count": count}
         for name, count in sorted(
@@ -76,7 +77,8 @@ def build_discovery_payload(
             key=lambda item: (-item[1], item[0]),
         )[:10]
     ]
-    dominant = dominant_signaling_protocols(inspect_result)
+    dominant = dominant_signaling_protocols(inspect_result, primary_domain=primary_domain)
+    context = capture_context(inspect_result)
     return {
         "status": "ok",
         "mode": "discovery",
@@ -88,6 +90,7 @@ def build_discovery_payload(
             "last_seen": inspect_result.metadata.last_seen_epoch,
         },
         "transport_summary": inspect_result.transport_counts,
+        "capture_context": context,
         "protocol_summary": {
             "top_protocols": top_protocols,
             "dominant_signaling_protocols": dominant,
@@ -120,6 +123,20 @@ def build_discovery_markdown(discovery: dict[str, Any]) -> str:
                 lines.append(f"- `{item['name']}` [{item['strength']}]")
     else:
         lines.append("- No dominant signaling protocols detected.")
+
+    lines.extend([
+        "",
+        "## Capture Context",
+    ])
+    context = discovery.get("capture_context", {})
+    link_context = context.get("link_or_envelope_protocols", [])
+    transport_context = context.get("transport_support_protocols", [])
+    if link_context:
+        lines.append(f"- Link/envelope context: {', '.join(f'`{item}`' for item in link_context)}")
+    if transport_context:
+        lines.append(f"- Transport support: {', '.join(f'`{item}`' for item in transport_context)}")
+    if not link_context and not transport_context:
+        lines.append("- No notable low-level capture context detected.")
 
     lines.extend([
         "",

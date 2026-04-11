@@ -79,6 +79,10 @@ The exact payload can evolve, but the core blocks are:
     "udp": 50,
     "sctp": 200
   },
+  "capture_context": {
+    "link_or_envelope_protocols": ["eth", "vlan", "ethertype"],
+    "transport_support_protocols": ["sctp"]
+  },
   "protocol_summary": {
     "dominant_signaling_protocols": [
       {"name": "ngap", "count": 120, "strength": "strong"},
@@ -113,6 +117,7 @@ The exact payload can evolve, but the core blocks are:
 
 - capture path, packet count, first/last timestamps, SHA-256 when readable
 - transport mix such as TCP, UDP, SCTP
+- low-level capture context such as Ethernet, VLAN, PPP, or similar envelopes
 - dominant signaling protocols derived from decoded counts plus strong raw-protocol hints
 - top protocols and raw protocol inventory
 - a small conversation and anomaly slice
@@ -154,6 +159,11 @@ or `s1ap + nas-eps + sctp`.
 The discovery payload also exposes `dominant_signaling_protocols` so humans and
 agents can immediately see the primary signaling stack without confusing it with
 generic carrier protocols such as `ip`.
+
+Low-level link, envelope, and early Layer-3 protocols such as `eth`,
+`ethertype`, `vlan`, `ipcp`, or `pap` are intentionally kept out of
+`dominant_signaling_protocols`. They remain available under `capture_context`
+as trace context, but they do not drive domain scoring or profile ranking.
 
 ### Frequency weighting
 

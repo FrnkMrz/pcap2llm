@@ -24,6 +24,10 @@ def _discovery_payload(capture: Path) -> dict:
             "last_seen": "2.0",
         },
         "transport_summary": {"sctp": 4, "tcp": 3},
+        "capture_context": {
+            "link_or_envelope_protocols": ["eth", "vlan"],
+            "transport_support_protocols": ["sctp", "tcp"],
+        },
         "protocol_summary": {
             "dominant_signaling_protocols": [{"name": "ngap", "count": 4, "strength": "strong"}],
             "top_protocols": [{"name": "ngap", "count": 4}],

@@ -33,7 +33,7 @@ def test_build_discovery_payload_adds_dominant_signaling_protocols() -> None:
     result = _make_result(
         {"ip": 497, "dtap": 3},
         {"sctp": 500},
-        ["ip", "dtap", "ngap", "nas-5gs", "sctp"],
+        ["eth", "ethertype", "vlan", "ip", "dtap", "ngap", "nas-5gs", "sctp", "ipcp", "pap"],
     )
     payload = build_discovery_payload(
         capture_path=Path("/tmp/sample.pcapng"),
@@ -48,13 +48,22 @@ def test_build_discovery_payload_adds_dominant_signaling_protocols() -> None:
     dominant = payload["protocol_summary"]["dominant_signaling_protocols"]
     assert dominant[0] == {"name": "ngap", "count": 0, "strength": "strong"}
     assert dominant[1] == {"name": "nas-5gs", "count": 0, "strength": "strong"}
+    assert not any(item["name"] == "nas-eps" for item in dominant)
+    assert not any(item["name"] == "nr-rrc" for item in dominant)
+    assert not any(item["name"] in {"eth", "ethertype", "vlan", "ipcp", "pap"} for item in dominant)
     assert any(item["name"] == "sctp" and item["strength"] == "supporting" for item in dominant)
+    assert payload["capture_context"]["link_or_envelope_protocols"] == ["eth", "ethertype", "ip", "ipcp", "pap", "vlan"]
+    assert payload["capture_context"]["transport_support_protocols"] == ["sctp"]
     assert payload["protocol_summary"]["top_protocols"][0]["name"] == "ip"
 
 
 def test_build_discovery_markdown_renders_dominant_signaling_first() -> None:
     discovery = {
         "capture": {"path": "/tmp/sample.pcapng", "packet_count": 503},
+        "capture_context": {
+            "link_or_envelope_protocols": ["eth", "ethertype", "vlan", "ipcp", "pap"],
+            "transport_support_protocols": ["sctp"],
+        },
         "protocol_summary": {
             "dominant_signaling_protocols": [
                 {"name": "ngap", "count": 0, "strength": "strong"},
@@ -69,6 +78,8 @@ def test_build_discovery_markdown_renders_dominant_signaling_first() -> None:
 
     markdown = build_discovery_markdown(discovery)
     assert "## Dominant Signaling Protocols" in markdown
+    assert "## Capture Context" in markdown
     assert markdown.index("## Dominant Signaling Protocols") < markdown.index("## Top Protocols")
     assert "`ngap` [strong]" in markdown
+    assert "`ethertype`" in markdown
     assert "`ip`: 497" in markdown

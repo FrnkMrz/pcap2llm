@@ -641,6 +641,32 @@ class TestAnalyzeCapturePipeline:
         assert len(artifacts.detail["messages"]) == 3
         assert artifacts.summary["coverage"]["detail_truncated"] is False
 
+    def test_large_export_with_truncation_produces_correct_output(self, tmp_path: Path) -> None:
+        """Pipeline produces correct output when pass-2 raw export is larger than max_packets.
+
+        This exercises the early ``del detail_raw`` path: after _select_packets returns,
+        the full pass-2 export is released before normalization.  The test verifies that
+        correct output is still produced — memory itself is not asserted, only correctness.
+        """
+        profile = load_profile("lte-core")
+        runner = TSharkRunner()
+        # 20 packets exported by pass 2, but max_packets=5 means only 5 are selected
+        many_packets = [_make_raw_packet(number=str(i), src_ip=f"10.0.0.{i}") for i in range(1, 21)]
+
+        with mock_runner_two_pass(runner, many_packets):
+            artifacts = analyze_capture(
+                tmp_path / "sample.pcapng",
+                out_dir=tmp_path / "out",
+                runner=runner,
+                profile=profile,
+                privacy_modes={},
+                max_packets=5,
+            )
+        assert len(artifacts.detail["messages"]) == 5
+        assert artifacts.summary["coverage"]["detail_truncated"] is True
+        assert artifacts.summary["coverage"]["detail_packets_included"] == 5
+        assert artifacts.summary["coverage"]["detail_packets_available"] == 20
+
     def test_invalid_vault_key_raises_before_processing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

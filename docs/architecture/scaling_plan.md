@@ -135,5 +135,6 @@ Pass 1 uses `-T fields` which is lightweight (no JSON parsing, no full dissectio
 | `capture_oversize` error code | ✅ Implemented |
 | Two-pass extraction (pass 1 lightweight, pass 2 selective) | ✅ Implemented |
 | `--max-packets` as real processing bound | ✅ Implemented |
-| Early release of pass-1 index after frame selection | ✅ Implemented |
+| Early release of pass-1 index after frame selection (`del index_records`) | ✅ Implemented |
+| Early release of pass-2 raw JSON before normalization (`del detail_raw`) | ✅ Implemented |
 | Streaming ingestion (pass 2 line-by-line) | ⬜ Future work |

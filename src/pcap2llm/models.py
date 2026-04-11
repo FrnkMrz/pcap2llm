@@ -92,6 +92,13 @@ class InspectResult(BaseModel):
     transport_counts: dict[str, int] = Field(default_factory=dict)
     conversations: list[dict[str, Any]] = Field(default_factory=list)
     anomalies: list[str] = Field(default_factory=list)
+    # --- enrichment fields (populated by enrich_inspect_result) ---
+    suspected_domains: list[dict[str, Any]] = Field(default_factory=list)
+    candidate_profiles: list[dict[str, Any]] = Field(default_factory=list)
+    dominant_signaling_protocols: list[str] = Field(default_factory=list)
+    trace_shape: str = "unknown"
+    trace_shape_reasons: list[str] = Field(default_factory=list)
+    next_step_hints: list[str] = Field(default_factory=list)
 
 
 class PrivacyProfileDefinition(BaseModel):

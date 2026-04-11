@@ -113,13 +113,13 @@ By default `detail.json` contains the first **1,000 packets**. Use
 
 The pipeline uses **two passes**:
 
-- pass 1 exports lightweight field data for all packets
-- pass 2 exports full JSON only for the selected packets
+- pass 1 scans all packets as lightweight field data (low memory)
+- pass 2 exports full JSON only for the selected packet window — memory is proportional to `--max-packets`, not the full capture
 
 Important consequence: **pass 1 still scans the entire capture**. A large
 rolling trace with a 500-packet limit still requires a full pass-1 scan and
-produces a random slice as output. The remedy is a tighter `-Y` filter, not a
-bigger limit.
+produces only the first 500 packets as output. The remedy is a tighter `-Y`
+filter, not a bigger limit.
 
 Practical rule:
 

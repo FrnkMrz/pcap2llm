@@ -143,6 +143,7 @@ def discover_capture(
         extra_args=extra_args,
         two_pass=two_pass,
         on_stage=on_stage,
+        enrich=False,
     )
     recommendations = recommend_profiles_from_inspect(inspect_result, load_all_profiles())
     discovery = build_discovery_payload(

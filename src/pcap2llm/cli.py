@@ -296,7 +296,8 @@ def inspect_command(
     profile_name: str = typer.Option("lte-core", "--profile", help="Protocol profile name."),
     display_filter: str | None = typer.Option(None, "--display-filter", "-Y", help="TShark display filter."),
     config_path: Path | None = typer.Option(None, "--config", help="Optional YAML config file."),
-    out: Path | None = typer.Option(None, "--out", help="Optional path for inspect JSON output."),
+    out: Path | None = typer.Option(None, "--out", help="Optional path for inspect output (JSON or .md for markdown)."),
+    format: str = typer.Option("json", "--format", help="Output format: json or markdown."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show the planned tshark command without executing."),
     two_pass: bool | None = typer.Option(None, "--two-pass/--no-two-pass", help="Override tshark two-pass mode."),
     tshark_path: str = typer.Option("tshark", "--tshark-path", help="TShark executable path."),
@@ -331,12 +332,17 @@ def inspect_command(
     except TSharkError as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1) from exc
-    payload = json.dumps(result.model_dump(), indent=2)
+    use_markdown = format == "markdown" or (out is not None and str(out).endswith(".md"))
+    if use_markdown:
+        from pcap2llm.inspect_enrichment import build_inspect_markdown
+        text = build_inspect_markdown(result)
+    else:
+        text = json.dumps(result.model_dump(), indent=2)
     if out:
-        out.write_text(payload, encoding="utf-8")
+        out.write_text(text, encoding="utf-8")
         typer.echo(f"Wrote inspect output to {out}")
         return
-    typer.echo(payload)
+    typer.echo(text)
 
 
 @app.command("discover")

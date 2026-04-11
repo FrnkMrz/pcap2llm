@@ -84,6 +84,9 @@ class CaptureMetadata(BaseModel):
     relevant_protocols: list[str] = Field(default_factory=list)
     raw_protocols: list[str] = Field(default_factory=list)
     display_filter: str | None = None
+    hosts_file_used: bool = False
+    mapping_file_used: bool = False
+    resolved_peers: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class InspectResult(BaseModel):

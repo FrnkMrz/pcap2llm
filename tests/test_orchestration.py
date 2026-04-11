@@ -24,6 +24,12 @@ def _discovery_payload(capture: Path) -> dict:
             "last_seen": "2.0",
         },
         "transport_summary": {"sctp": 4, "tcp": 3},
+        "name_resolution": {
+            "hosts_file_used": False,
+            "mapping_file_used": False,
+            "resolved_peer_count": 0,
+        },
+        "resolved_peers": [],
         "capture_context": {
             "link_or_envelope_protocols": ["eth", "vlan"],
             "transport_support_protocols": ["sctp", "tcp"],
@@ -69,6 +75,45 @@ def test_discover_command_writes_discovery_artifacts(tmp_path: Path) -> None:
     # no subdirectory created
     subdirs = [p for p in out_dir.iterdir() if p.is_dir()]
     assert subdirs == [], f"unexpected subdirectories: {subdirs}"
+
+
+def test_discover_command_passes_resolution_inputs_through_to_discovery(tmp_path: Path) -> None:
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+    out_dir = tmp_path / "artifacts"
+    config = tmp_path / "pcap2llm.config.yaml"
+    config.write_text("display_filter: ngap\ntshark_extra_args:\n  - --foo\n", encoding="utf-8")
+    hosts = tmp_path / "hosts.txt"
+    hosts.write_text("10.109.182.14 AMF-01\n", encoding="utf-8")
+    mapping = tmp_path / "mapping.yaml"
+    mapping.write_text("nodes: []\n", encoding="utf-8")
+
+    with patch(
+        "pcap2llm.cli.discover_capture",
+        return_value=(_discovery_payload(capture), "# Discovery Report\n"),
+    ) as mocked:
+        result = runner.invoke(
+            app,
+            [
+                "discover",
+                str(capture),
+                "--out",
+                str(out_dir),
+                "--config",
+                str(config),
+                "--hosts-file",
+                str(hosts),
+                "--mapping-file",
+                str(mapping),
+            ],
+        )
+
+    assert result.exit_code == 0, result.stdout
+    kwargs = mocked.call_args.kwargs
+    assert kwargs["display_filter"] == "ngap"
+    assert kwargs["hosts_file"] == hosts
+    assert kwargs["mapping_file"] == mapping
+    assert kwargs["extra_args"] == ["--foo"]
 
 
 def test_recommend_profiles_reads_discovery_json(tmp_path: Path) -> None:

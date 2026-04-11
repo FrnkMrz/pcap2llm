@@ -350,13 +350,18 @@ def discover_command(
     capture: Path = typer.Argument(..., exists=True, readable=True, help="Input .pcap or .pcapng file."),
     out_dir: Path = typer.Option(Path("artifacts"), "--out", help="Output directory for discovery artifacts."),
     display_filter: str | None = typer.Option(None, "--display-filter", "-Y", help="Optional TShark display filter."),
+    config_path: Path | None = typer.Option(None, "--config", help="Optional YAML config file."),
+    mapping_file: Path | None = typer.Option(None, "--mapping-file", help="Custom YAML/JSON alias mapping."),
+    hosts_file: Path | None = typer.Option(None, "--hosts-file", help="Wireshark hosts-style mapping file."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Validate options and print the discovery plan only."),
     two_pass: bool = typer.Option(False, "--two-pass/--no-two-pass", help="Override TShark two-pass mode for discovery."),
     tshark_path: str = typer.Option("tshark", "--tshark-path", help="TShark executable path."),
     tshark_arg: list[str] = typer.Option(None, "--tshark-arg", help="Extra argument passed to tshark."),
 ) -> None:
+    config_data = load_config_file(config_path)
+    effective_hosts = _resolve_hosts_file(hosts_file, config_data)
     runner = TSharkRunner(binary=tshark_path)
-    extra_args = list(tshark_arg or [])
+    extra_args = list(config_data.get("tshark_extra_args", [])) + list(tshark_arg or [])
     if dry_run:
         typer.echo(
             json.dumps(
@@ -364,11 +369,13 @@ def discover_command(
                     "capture": str(capture),
                     "mode": "discovery",
                     "out_dir": str(out_dir),
-                    "display_filter": display_filter,
+                    "display_filter": display_filter or config_data.get("display_filter"),
+                    "hosts_file": str(effective_hosts) if effective_hosts else None,
+                    "mapping_file": str(mapping_file) if mapping_file else None,
                     "two_pass": two_pass,
                     "command": runner.build_export_command(
                         capture,
-                        display_filter=display_filter,
+                        display_filter=display_filter or config_data.get("display_filter"),
                         extra_args=extra_args,
                         two_pass=two_pass,
                     ),
@@ -381,10 +388,12 @@ def discover_command(
         discovery, markdown = discover_capture(
             capture,
             runner=runner,
-            display_filter=display_filter,
+            display_filter=display_filter or config_data.get("display_filter"),
             extra_args=extra_args,
             two_pass=two_pass,
             on_stage=on_stage,
+            hosts_file=effective_hosts,
+            mapping_file=mapping_file,
         )
     # write_discovery_artifacts handles timestamp prefix and flat file layout
     outputs = write_discovery_artifacts(out_dir, discovery, markdown)
@@ -779,6 +788,9 @@ def session_start_command(
 def session_run_discovery_command(
     session: Path = typer.Option(..., "--session", exists=True, file_okay=False, dir_okay=True, readable=True, help="Existing session directory."),
     display_filter: str | None = typer.Option(None, "--display-filter", "-Y", help="Optional TShark display filter."),
+    config_path: Path | None = typer.Option(None, "--config", help="Optional YAML config file."),
+    mapping_file: Path | None = typer.Option(None, "--mapping-file", help="Custom YAML/JSON alias mapping."),
+    hosts_file: Path | None = typer.Option(None, "--hosts-file", help="Wireshark hosts-style mapping file."),
     tshark_path: str = typer.Option("tshark", "--tshark-path", help="TShark executable path."),
     tshark_arg: list[str] = typer.Option(None, "--tshark-arg", help="Extra argument passed to tshark."),
 ) -> None:
@@ -786,6 +798,8 @@ def session_run_discovery_command(
     capture = Path(manifest["input_capture"]["path"])
     run_id = next_run_id(manifest, "discovery")
     run_dir = session / run_id
+    config_data = load_config_file(config_path)
+    effective_hosts = _resolve_hosts_file(hosts_file, config_data)
     runner = TSharkRunner(binary=tshark_path)
     run = {
         "run_id": run_id,
@@ -799,9 +813,11 @@ def session_run_discovery_command(
         discovery, markdown = discover_capture(
             capture,
             runner=runner,
-            display_filter=display_filter,
-            extra_args=list(tshark_arg or []),
+            display_filter=display_filter or config_data.get("display_filter"),
+            extra_args=list(config_data.get("tshark_extra_args", [])) + list(tshark_arg or []),
             two_pass=False,
+            hosts_file=effective_hosts,
+            mapping_file=mapping_file,
         )
         outputs = write_discovery_artifacts(run_dir, discovery, markdown)
         run.update(

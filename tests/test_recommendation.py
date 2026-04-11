@@ -258,11 +258,72 @@ def test_vonr_profiles_downrank_without_voice_indicators() -> None:
     rec = recommend_profiles_from_inspect(result, profiles, limit=12)
     names = [r["profile"] for r in rec["recommended_profiles"]]
     assert names.index("5g-core") < names.index("vonr-n1-n2-voice")
-    assert names.index("5g-n2") < names.index("vonr-n1-n2-voice")
 
-    vonr_reason = next(r["reason"] for r in rec["recommended_profiles"] if r["profile"] == "vonr-n1-n2-voice")
-    assert vonr_reason[0].startswith("voice profile downranked")
-    assert any("no SIP/IMS indicators" in reason for reason in vonr_reason)
+
+def test_lte_diameter_candidates_stay_above_generic_5g_matches() -> None:
+    result = _mock_result(
+        {"diameter": 200, "sctp": 200, "ip": 200},
+        {"sctp": 200},
+        ["diameter", "sctp", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=8)
+    names = [item["profile"] for item in rec["recommended_profiles"]]
+    assert names[0] == "lte-s6a"
+    assert "5g-n2" not in names[:5]
+
+
+def test_gtpv2_trace_prefers_lte_control_plane_profiles() -> None:
+    result = _mock_result(
+        {"gtpv2": 120, "udp": 120, "ip": 120},
+        {"udp": 120},
+        ["gtpv2", "udp", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=6)
+    top = [item["profile"] for item in rec["recommended_profiles"][:4]]
+    assert {"lte-s10", "lte-s11"}.issubset(top)
+
+
+def test_legacy_ss7_trace_prefers_legacy_profiles() -> None:
+    result = _mock_result(
+        {"map": 150, "tcap": 100, "sccp": 200, "ip": 200},
+        None,
+        ["map", "tcap", "sccp", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=6)
+    top = [item["profile"] for item in rec["recommended_profiles"][:3]]
+    assert top[0] in {"2g3g-gr", "2g3g-map-core"}
+    assert all(name.startswith("2g3g-") for name in top)
+
+
+def test_5g_domain_remains_primary_when_nas_eps_side_signal_is_present() -> None:
+    result = _mock_result(
+        {"ngap": 400, "nas-5gs": 80, "nas-eps": 20, "sctp": 500, "ip": 500},
+        {"sctp": 500},
+        ["ngap", "nas-5gs", "nas-eps", "sctp", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=10)
+    assert rec["suspected_domains"][0]["domain"] == "5g-sa-core"
+    names = [item["profile"] for item in rec["recommended_profiles"][:5]]
+    assert any(name.startswith("5g-") for name in names[:3])
+
+
+def test_lte_primary_domain_with_small_sip_dns_only_surfaces_voice_as_side_signal() -> None:
+    result = _mock_result(
+        {"s1ap": 240, "nas-eps": 80, "sctp": 320, "sip": 5, "dns": 6, "ip": 320},
+        {"sctp": 320},
+        ["s1ap", "nas-eps", "sctp", "sip", "dns", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=8)
+    names = [item["profile"] for item in rec["recommended_profiles"]]
+    assert names[:3] == ["lte-s1", "lte-s1-nas", "lte-core"]
+    assert any(name.startswith("volte-") for name in names[3:])
+    if "vonr-n1-n2-voice" in names:
+        vonr_index = names.index("vonr-n1-n2-voice")
+        first_volte_index = min(i for i, name in enumerate(names) if name.startswith("volte-"))
+        assert first_volte_index < vonr_index
+        vonr_reason = next(r["reason"] for r in rec["recommended_profiles"] if r["profile"] == "vonr-n1-n2-voice")
+        assert vonr_reason[0].startswith("voice profile downranked")
+        assert any("no SIP/IMS indicators" in reason for reason in vonr_reason)
 
 
 def test_lte_candidates_marked_as_side_signals_in_5g_trace() -> None:

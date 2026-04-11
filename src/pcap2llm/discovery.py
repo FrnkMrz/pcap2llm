@@ -79,6 +79,12 @@ def build_discovery_payload(
     ]
     dominant = dominant_signaling_protocols(inspect_result, primary_domain=primary_domain)
     context = capture_context(inspect_result)
+    resolved_peers = inspect_result.metadata.resolved_peers[:10]
+    name_resolution = {
+        "hosts_file_used": inspect_result.metadata.hosts_file_used,
+        "mapping_file_used": inspect_result.metadata.mapping_file_used,
+        "resolved_peer_count": len(inspect_result.metadata.resolved_peers),
+    }
     return {
         "status": "ok",
         "mode": "discovery",
@@ -90,6 +96,8 @@ def build_discovery_payload(
             "last_seen": inspect_result.metadata.last_seen_epoch,
         },
         "transport_summary": inspect_result.transport_counts,
+        "name_resolution": name_resolution,
+        "resolved_peers": resolved_peers,
         "capture_context": context,
         "protocol_summary": {
             "top_protocols": top_protocols,
@@ -128,6 +136,15 @@ def build_discovery_markdown(discovery: dict[str, Any]) -> str:
         "",
         "## Capture Context",
     ])
+    name_resolution = discovery.get("name_resolution", {})
+    if name_resolution.get("hosts_file_used") or name_resolution.get("mapping_file_used"):
+        lines.append(f"- Hosts file used: `{'yes' if name_resolution.get('hosts_file_used') else 'no'}`")
+        lines.append(f"- Mapping file used: `{'yes' if name_resolution.get('mapping_file_used') else 'no'}`")
+        lines.append(f"- Resolved peers: `{name_resolution.get('resolved_peer_count', 0)}`")
+        examples = discovery.get("resolved_peers", [])[:3]
+        if examples:
+            rendered = ", ".join(f"`{item['ip']} -> {item['name']}`" for item in examples)
+            lines.append(f"- Example mappings: {rendered}")
     context = discovery.get("capture_context", {})
     link_context = context.get("link_or_envelope_protocols", [])
     transport_context = context.get("transport_support_protocols", [])
@@ -167,6 +184,8 @@ def discover_capture(
     extra_args: list[str] | None = None,
     two_pass: bool = False,
     on_stage=None,
+    hosts_file: Path | None = None,
+    mapping_file: Path | None = None,
 ) -> tuple[dict[str, Any], str]:
     profile = build_discovery_profile()
     inspect_result = inspect_capture(
@@ -178,6 +197,8 @@ def discover_capture(
         two_pass=two_pass,
         on_stage=on_stage,
         enrich=False,
+        hosts_file=hosts_file,
+        mapping_file=mapping_file,
     )
     recommendations = recommend_profiles_from_inspect(inspect_result, load_all_profiles())
     discovery = build_discovery_payload(

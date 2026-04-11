@@ -4,6 +4,7 @@ from pathlib import Path
 
 from pcap2llm.normalizer import inspect_raw_packets
 from pcap2llm.profiles import load_profile
+from pcap2llm.resolver import EndpointResolver
 
 
 def _make_packet(
@@ -142,6 +143,41 @@ def test_inspect_display_filter_stored_in_metadata(tmp_path: Path) -> None:
         profile=profile,
     )
     assert result.metadata.display_filter == "diameter"
+
+
+def test_inspect_adds_resolution_metadata_and_conversation_names(tmp_path: Path) -> None:
+    profile = load_profile("lte-core")
+    mapping = tmp_path / "mapping.yaml"
+    mapping.write_text(
+        """
+nodes:
+  - ip: 10.0.0.1
+    alias: MME_FRA_A
+  - ip: 10.0.0.2
+    alias: HSS_CORE_1
+""".strip(),
+        encoding="utf-8",
+    )
+    result = inspect_raw_packets(
+        [_make_packet()],
+        capture_path=tmp_path / "resolved.pcapng",
+        display_filter=None,
+        profile=profile,
+        resolver=EndpointResolver(mapping_file=mapping),
+        mapping_file_used=True,
+    )
+
+    assert result.metadata.mapping_file_used is True
+    assert result.metadata.hosts_file_used is False
+    mappings = {(item["ip"], item["name"]) for item in result.metadata.resolved_peers}
+    assert mappings == {
+        ("10.0.0.1", "MME_FRA_A"),
+        ("10.0.0.2", "HSS_CORE_1"),
+    }
+    assert result.conversations[0]["src"] == "10.0.0.1"
+    assert result.conversations[0]["dst"] == "10.0.0.2"
+    assert result.conversations[0]["src_name"] == "MME_FRA_A"
+    assert result.conversations[0]["dst_name"] == "HSS_CORE_1"
 
 
 def test_inspect_malformed_packet_is_skipped(tmp_path: Path) -> None:

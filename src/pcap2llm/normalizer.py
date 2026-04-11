@@ -251,6 +251,9 @@ def inspect_raw_packets(
     capture_path: Path,
     display_filter: str | None,
     profile: ProfileDefinition,
+    resolver: EndpointResolver | None = None,
+    hosts_file_used: bool = False,
+    mapping_file_used: bool = False,
 ) -> InspectResult:
     protocol_counts: Counter[str] = Counter()
     transport_counts: Counter[str] = Counter()
@@ -260,6 +263,21 @@ def inspect_raw_packets(
     last_seen: str | None = None
     relevant_protocols: set[str] = set()
     raw_protocols: set[str] = set()
+    resolver = resolver or EndpointResolver()
+    resolved_peers: dict[str, dict[str, Any]] = {}
+    endpoint_names: dict[str, str] = {}
+
+    def _remember_endpoint(endpoint: ResolvedEndpoint) -> None:
+        name = endpoint.alias or endpoint.hostname
+        if not endpoint.ip or not name:
+            return
+        endpoint_names[endpoint.ip] = name
+        row = {"ip": endpoint.ip, "name": name}
+        if endpoint.hostname and endpoint.hostname != name:
+            row["hostname"] = endpoint.hostname
+        if endpoint.role:
+            row["role"] = endpoint.role
+        resolved_peers[endpoint.ip] = row
 
     for packet in raw_packets:
         try:
@@ -273,6 +291,8 @@ def inspect_raw_packets(
             transport = _extract_transport(layers)
             transport_counts[transport.proto or "unknown"] += 1
             src_ip, dst_ip = _extract_ip_pair(layers)
+            _remember_endpoint(resolver.resolve(src_ip, service_port=transport.src_port))
+            _remember_endpoint(resolver.resolve(dst_ip, service_port=transport.dst_port))
             conversations[(transport.proto or "unknown", str(src_ip), str(dst_ip), top_protocol)] += 1
             frame_time = _field(layers, "frame.time_epoch")
             if first_seen is None:
@@ -289,11 +309,15 @@ def inspect_raw_packets(
 
     conversation_rows = [
         {
-            "transport": proto,
-            "src": src,
-            "dst": dst,
-            "top_protocol": top,
-            "packet_count": count,
+            **{
+                "transport": proto,
+                "src": src,
+                "dst": dst,
+                "top_protocol": top,
+                "packet_count": count,
+            },
+            **({"src_name": endpoint_names[src]} if src in endpoint_names else {}),
+            **({"dst_name": endpoint_names[dst]} if dst in endpoint_names else {}),
         }
         for (proto, src, dst, top), count in conversations.most_common(profile.max_conversations)
     ]
@@ -305,6 +329,9 @@ def inspect_raw_packets(
         relevant_protocols=sorted(relevant_protocols),
         raw_protocols=sorted(raw_protocols),
         display_filter=display_filter,
+        hosts_file_used=hosts_file_used,
+        mapping_file_used=mapping_file_used,
+        resolved_peers=sorted(resolved_peers.values(), key=lambda item: (item["name"], item["ip"])),
     )
     return InspectResult(
         metadata=metadata,

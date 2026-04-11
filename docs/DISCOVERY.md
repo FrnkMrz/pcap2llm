@@ -86,7 +86,7 @@ The exact payload can evolve, but the core blocks are:
   "protocol_summary": {
     "dominant_signaling_protocols": [
       {"name": "ngap", "count": 120, "strength": "strong"},
-      {"name": "nas-5gs", "count": 90, "strength": "strong"},
+      {"name": "nas-5gs", "strength": "strong"},
       {"name": "sctp", "count": 200, "strength": "supporting"}
     ],
     "top_protocols": [
@@ -119,7 +119,7 @@ The exact payload can evolve, but the core blocks are:
 - transport mix such as TCP, UDP, SCTP
 - low-level capture context such as Ethernet, VLAN, PPP, or similar envelopes
 - dominant signaling protocols derived from decoded counts plus strong raw-protocol hints
-- top protocols and raw protocol inventory
+- a curated `relevant_protocols` view for discovery, plus the raw top-protocol inventory
 - a small conversation and anomaly slice
 - rule-based domain hints
 - deterministic profile recommendations
@@ -158,12 +158,19 @@ or `s1ap + nas-eps + sctp`.
 
 The discovery payload also exposes `dominant_signaling_protocols` so humans and
 agents can immediately see the primary signaling stack without confusing it with
-generic carrier protocols such as `ip`.
+generic carrier protocols such as `ip`. If a protocol is only recovered from
+raw presence and there is no trustworthy decoded packet count, discovery omits
+the `count` field instead of emitting misleading `count: 0`.
 
 Low-level link, envelope, and early Layer-3 protocols such as `eth`,
 `ethertype`, `vlan`, `ipcp`, or `pap` are intentionally kept out of
 `dominant_signaling_protocols`. They remain available under `capture_context`
 as trace context, but they do not drive domain scoring or profile ranking.
+
+`top_protocols` remains the raw count-oriented view. Use it as a technical
+packet summary, not as the primary fachliche interpretation. The curated
+`relevant_protocols` and `dominant_signaling_protocols` blocks are the better
+starting points for orchestration.
 
 ### Frequency weighting
 
@@ -205,6 +212,15 @@ no SIP-, SDP-, DNS-, or other IMS-specific indicators are present. LTE / EPS
 profiles also stay visible as side signals in a 5G-dominant trace, but are
 ranked below the primary 5G candidates unless they have their own LTE anchor
 protocols such as `s1ap`, `diameter`, or `gtpv2`.
+
+Generic Diameter-over-SCTP traces now stay biased toward LTE/EPS candidates
+such as `lte-s6a` unless additional IMS-specific peer or signaling hints are
+visible. DNS-only traces likewise keep DNS-focused profiles prominent instead
+of promoting SIP, SBC, or register-specific candidates too early.
+
+Host-resolution data is used only as a supporting signal. Resolved peer names
+and roles may tighten interface guesses such as S5/S8 vs S11 or add context to
+Diameter and SBI ranking, but they never replace decoded protocol evidence.
 
 ## Recommended Flow
 

@@ -43,7 +43,50 @@ _STRONG_LEGACY_COMBOS: tuple[frozenset[str], ...] = (
 
 _VOICE_INDICATOR_PROTOCOLS: frozenset[str] = frozenset({"sip", "sdp", "dns", "rtp", "rtcp"})
 _HYBRID_VOICE_PROFILES: frozenset[str] = frozenset({"vonr-n1-n2-voice", "vonr-ims-core"})
+_IMS_DIAMETER_PROFILES: frozenset[str] = frozenset({
+    "volte-diameter-cx",
+    "volte-diameter-rx",
+    "volte-diameter-sh",
+    "volte-ims-core",
+})
+_IMS_CORE_PROFILES: frozenset[str] = frozenset({"volte-ims-core", "vonr-ims-core"})
+_VOICE_SIP_PROFILES: frozenset[str] = frozenset({
+    "volte-sbc",
+    "volte-sip",
+    "volte-sip-call",
+    "volte-sip-register",
+    "vonr-sbc",
+    "vonr-sip",
+    "vonr-sip-call",
+    "vonr-sip-register",
+})
+_VOICE_DNS_PROFILES: frozenset[str] = frozenset({"volte-dns", "vonr-dns"})
 _LTE_ANCHOR_PROTOCOLS: frozenset[str] = frozenset({"s1ap", "diameter", "gtpv2"})
+_IMS_HINT_TOKENS: frozenset[str] = frozenset({
+    "ims", "cscf", "pcscf", "scscf", "icscf", "sbc", "tas", "bgcf", "as", "mmtel",
+})
+_LTE_S6A_HINT_TOKENS: frozenset[str] = frozenset({"s6a", "mme", "hss"})
+_S5_S8_HINT_TOKENS: frozenset[str] = frozenset({"s5", "s8", "s5-s8", "pgw", "sgw", "spgw", "roaming"})
+_S10_HINT_TOKENS: frozenset[str] = frozenset({"s10", "inter-mme", "relocation"})
+_S11_HINT_TOKENS: frozenset[str] = frozenset({"s11", "mme", "sgw"})
+_N26_HINT_TOKENS: frozenset[str] = frozenset({"n26", "interworking", "amf", "mme"})
+_GENERIC_SBI_KEEP_PROFILES: frozenset[str] = frozenset({"5g-sbi", "5g-core"})
+_SBI_PROFILE_HINTS: dict[str, frozenset[str]] = {
+    "5g-n10": frozenset({"smf", "udm", "udr"}),
+    "5g-n11": frozenset({"amf", "smf", "sm-context", "pdu"}),
+    "5g-n12": frozenset({"amf", "ausf"}),
+    "5g-n13": frozenset({"amf", "udm", "udr"}),
+    "5g-n14": frozenset({"amf", "pcf"}),
+    "5g-n15": frozenset({"amf", "pcf", "af"}),
+    "5g-n16": frozenset({"smf", "pcf"}),
+    "5g-n22": frozenset({"amf", "nssf"}),
+    "5g-n40": frozenset({"smf", "nrf", "service"}),
+    "5g-n8": frozenset({"udm", "ausf"}),
+    "5g-sbi-auth": frozenset({"ausf", "udm", "udr", "auth"}),
+    "vonr-policy": frozenset({"pcf", "policy", "ims"}),
+    "vonr-sbi-auth": frozenset({"ausf", "auth", "ims"}),
+    "vonr-sbi-pdu": frozenset({"smf", "pdu", "ims"}),
+}
 
 # Domain combo rules: (required_protocol_set, domain, base_score, summary_reason)
 # Ordered: best match per domain wins. base_score assumes meaningful protocol
@@ -160,6 +203,36 @@ def _format_protocol_reason(protocol: str, count: int, source: str) -> str:
     return f"{protocol} detected in raw_protocols"
 
 
+def _resolved_peer_blob(inspect_result: InspectResult) -> str:
+    parts: list[str] = []
+    for peer in inspect_result.metadata.resolved_peers:
+        for key in ("name", "hostname", "alias", "role", "site"):
+            value = peer.get(key)
+            if value:
+                parts.append(str(value).lower())
+    return " ".join(parts)
+
+
+def _resolved_peer_roles(inspect_result: InspectResult) -> set[str]:
+    roles: set[str] = set()
+    for peer in inspect_result.metadata.resolved_peers:
+        value = peer.get("role")
+        if value:
+            roles.add(str(value).lower())
+    return roles
+
+
+def _has_peer_hint(peer_blob: str, hints: frozenset[str]) -> bool:
+    return any(hint in peer_blob for hint in hints)
+
+
+def _is_specific_sbi_profile(profile: ProfileDefinition) -> bool:
+    if profile.name in _GENERIC_SBI_KEEP_PROFILES or profile.name == "5g-n26":
+        return False
+    protocols = set(profile.relevant_protocols)
+    return {"http", "json"}.issubset(protocols)
+
+
 def _has_strong_legacy_combo(present: frozenset[str]) -> bool:
     return any(combo.issubset(present) for combo in _STRONG_LEGACY_COMBOS)
 
@@ -173,6 +246,8 @@ def _apply_profile_gates(
     matched_domain_protocols: set[str],
     present: frozenset[str],
     total_packets: int,
+    peer_blob: str,
+    peer_roles: set[str],
 ) -> tuple[float, list[str]]:
     if score <= 0:
         return score, reasons
@@ -195,11 +270,99 @@ def _apply_profile_gates(
             score *= 0.5
             reasons.append("rare dtap signal treated as a side signal")
 
-    if profile.name in _HYBRID_VOICE_PROFILES and not any(proto in present for proto in _VOICE_INDICATOR_PROTOCOLS):
+    has_voice_protocol = any(proto in present for proto in _VOICE_INDICATOR_PROTOCOLS)
+    has_strong_ims_signal = any(proto in present for proto in {"sip", "sdp", "rtp", "rtcp"})
+    has_ims_peer_hint = _has_peer_hint(peer_blob, _IMS_HINT_TOKENS)
+
+    if profile.name in _HYBRID_VOICE_PROFILES and not has_voice_protocol:
         score *= 0.35
         reasons.append("voice profile downranked because no SIP/IMS indicators were detected")
 
+    if profile.name in _IMS_DIAMETER_PROFILES and not (has_strong_ims_signal or has_ims_peer_hint):
+        score *= 0.35
+        reasons.append("IMS Diameter profile downranked because no IMS-specific peer or signaling hints were detected")
+
+    if profile.name in _VOICE_SIP_PROFILES and not ("sip" in present or has_ims_peer_hint):
+        score *= 0.12
+        reasons.append("SIP-oriented voice profile downranked because no SIP or IMS-specific discovery hints were detected")
+
+    if profile.name in _VOICE_DNS_PROFILES and not ("sip" in present or has_ims_peer_hint):
+        score *= 0.55
+        reasons.append("voice DNS profile downranked because no IMS-specific discovery hints were detected")
+
+    if profile.name in _IMS_CORE_PROFILES and not (has_strong_ims_signal or has_ims_peer_hint):
+        score *= 0.3
+        reasons.append("IMS core profile downranked because no IMS-specific peer or signaling hints were detected")
+
+    if profile.name == "5g-n26" and not (
+        ("gtpv2" in present and any(proto in present for proto in {"http", "json", "ngap", "nas-5gs"}))
+        or _has_peer_hint(peer_blob, _N26_HINT_TOKENS)
+    ):
+        score *= 0.3
+        reasons.append("N26 profile downranked because no EPC↔5GC interworking hints were detected")
+
+    if _is_specific_sbi_profile(profile):
+        profile_hints = _SBI_PROFILE_HINTS.get(profile.name, frozenset({"amf", "smf", "pcf", "udm", "ausf", "nrf", "nssf", "scp"}))
+        if not _has_peer_hint(peer_blob, profile_hints):
+            score *= 0.3
+            reasons.append("specific SBI interface downranked because no NF or interface hints were detected")
+
     return score, reasons
+
+
+def _supporting_context_bonus(
+    inspect_result: InspectResult,
+    profile: ProfileDefinition,
+    present: frozenset[str],
+    peer_blob: str,
+    peer_roles: set[str],
+) -> tuple[float, list[str]]:
+    bonus = 0.0
+    reasons: list[str] = []
+
+    if profile.name == "lte-s6a" and (
+        {"mme", "hss"}.issubset(peer_roles) or _has_peer_hint(peer_blob, _LTE_S6A_HINT_TOKENS)
+    ):
+        bonus += 1.2
+        reasons.append("resolved peer hints suggest MME/HSS Diameter context")
+
+    if profile.name in {"lte-s5", "lte-s8"} and (
+        {"sgw", "pgw"}.issubset(peer_roles) or _has_peer_hint(peer_blob, _S5_S8_HINT_TOKENS)
+    ):
+        bonus += 1.5
+        reasons.append("resolved peer hints suggest S5/S8 GTPv2 context")
+
+    if profile.name == "lte-s11" and (
+        {"mme", "sgw"}.issubset(peer_roles) or _has_peer_hint(peer_blob, _S11_HINT_TOKENS)
+    ):
+        bonus += 1.1
+        reasons.append("resolved peer hints suggest S11 MME↔SGW context")
+
+    if profile.name == "lte-s10" and _has_peer_hint(peer_blob, _S10_HINT_TOKENS):
+        bonus += 1.1
+        reasons.append("resolved peer hints suggest S10 inter-MME context")
+
+    if profile.name == "5g-n26" and _has_peer_hint(peer_blob, _N26_HINT_TOKENS):
+        bonus += 1.0
+        reasons.append("resolved peer hints suggest EPC↔5GC interworking context")
+
+    if profile.name in _VOICE_DNS_PROFILES and _has_peer_hint(peer_blob, _IMS_HINT_TOKENS):
+        bonus += 0.8
+        reasons.append("resolved peer hints suggest IMS-oriented DNS context")
+
+    if profile.name == "5g-sbi" and {"http", "json"}.issubset(present):
+        profile_hints = set().union(*_SBI_PROFILE_HINTS.values())
+        if not _has_peer_hint(peer_blob, frozenset(profile_hints)):
+            bonus += 1.2
+            reasons.append("generic SBI candidate favored because no specific NF/interface hints were detected")
+
+    if profile.name == "5g-core" and {"http", "json"}.issubset(present):
+        profile_hints = set().union(*_SBI_PROFILE_HINTS.values())
+        if not _has_peer_hint(peer_blob, frozenset(profile_hints)):
+            bonus += 2.0
+            reasons.append("generic 5G core candidate kept prominent because SBI traffic is broad but unspecific")
+
+    return bonus, reasons
 
 
 def _domain_alignment_bonus(
@@ -362,6 +525,8 @@ def _score_profile(
     """
     total_packets = inspect_result.metadata.packet_count or sum(inspect_result.protocol_counts.values()) or 1
     present = _protocol_presence(inspect_result)
+    peer_blob = _resolved_peer_blob(inspect_result)
+    peer_roles = _resolved_peer_roles(inspect_result)
     selector = _infer_selector_metadata(profile)
     reasons: list[str] = []
     domain_score = 0.0
@@ -430,6 +595,8 @@ def _score_profile(
         matched_domain_protocols,
         present,
         total_packets,
+        peer_blob,
+        peer_roles,
     )
     return score, list(dict.fromkeys(reasons))
 
@@ -485,13 +652,23 @@ def recommend_profiles_from_inspect(
     suspected_domains = infer_domains(inspect_result)
     scored: list[tuple[float, ProfileDefinition, list[str]]] = []
     suppressed: list[tuple[float, ProfileDefinition, list[str]]] = []
+    present = _protocol_presence(inspect_result)
+    peer_blob = _resolved_peer_blob(inspect_result)
+    peer_roles = _resolved_peer_roles(inspect_result)
     for profile in profiles:
         score, reasons = _score_profile(inspect_result, profile)
         if score > 0:
             domain_bonus, domain_reasons = _domain_alignment_bonus(profile, suspected_domains)
             penalty, penalty_reasons = _domain_mismatch_penalty(inspect_result, profile, suspected_domains)
-            score = (score + domain_bonus) * penalty
-            reasons = _prioritize_reasons([*reasons, *domain_reasons, *penalty_reasons])
+            context_bonus, context_reasons = _supporting_context_bonus(
+                inspect_result,
+                profile,
+                present,
+                peer_blob,
+                peer_roles,
+            )
+            score = (score + domain_bonus + context_bonus) * penalty
+            reasons = _prioritize_reasons([*reasons, *domain_reasons, *context_reasons, *penalty_reasons])
             scored.append((score, profile, reasons))
         else:
             suppressed.append((score, profile, reasons or ["no matching protocol evidence"]))

@@ -270,6 +270,13 @@ def test_lte_diameter_candidates_stay_above_generic_5g_matches() -> None:
     names = [item["profile"] for item in rec["recommended_profiles"]]
     assert names[0] == "lte-s6a"
     assert "5g-n2" not in names[:5]
+    ims_scores = {
+        item["profile"]: item["score"]
+        for item in rec["recommended_profiles"]
+        if item["profile"] in {"volte-diameter-cx", "volte-diameter-rx", "volte-diameter-sh", "volte-ims-core"}
+    }
+    assert ims_scores
+    assert all(score < 2.5 for score in ims_scores.values())
 
 
 def test_gtpv2_trace_prefers_lte_control_plane_profiles() -> None:
@@ -324,6 +331,48 @@ def test_lte_primary_domain_with_small_sip_dns_only_surfaces_voice_as_side_signa
         vonr_reason = next(r["reason"] for r in rec["recommended_profiles"] if r["profile"] == "vonr-n1-n2-voice")
         assert vonr_reason[0].startswith("voice profile downranked")
         assert any("no SIP/IMS indicators" in reason for reason in vonr_reason)
+
+
+def test_dns_only_trace_does_not_raise_sip_or_sbc_profiles() -> None:
+    result = _mock_result(
+        {"dns": 120, "udp": 120, "ip": 120},
+        {"udp": 120},
+        ["dns", "udp", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=8)
+    names = [item["profile"] for item in rec["recommended_profiles"][:6]]
+    assert "5g-dns" in names
+    assert "lte-dns" in names
+    assert not any(name in names for name in {"volte-sbc", "volte-sip", "volte-sip-call", "volte-sip-register"})
+
+
+def test_gtpv2_with_s5s8_host_hints_prefers_s5_s8_profiles() -> None:
+    result = _mock_result(
+        {"gtpv2": 120, "udp": 120, "ip": 120},
+        {"udp": 120},
+        ["gtpv2", "udp", "ip"],
+    )
+    result.metadata.resolved_peers = [
+        {"ip": "10.0.0.1", "name": "S5-S8-PGW-01", "role": "pgw"},
+        {"ip": "10.0.0.2", "name": "S5-S8-SGW-01", "role": "sgw"},
+    ]
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=6)
+    names = [item["profile"] for item in rec["recommended_profiles"][:4]]
+    assert names[:2] == ["lte-s5", "lte-s8"]
+    reasons = next(item["reason"] for item in rec["recommended_profiles"] if item["profile"] == "lte-s5")
+    assert any("resolved peer hints suggest S5/S8" in reason for reason in reasons)
+
+
+def test_generic_sbi_trace_prefers_generic_profiles_over_many_specific_interfaces() -> None:
+    result = _mock_result(
+        {"http": 90, "json": 60, "tcp": 100, "ip": 100},
+        {"tcp": 100},
+        ["http", "json", "tcp", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=10)
+    names = [item["profile"] for item in rec["recommended_profiles"][:6]]
+    assert names[:2] == ["5g-sbi", "5g-core"]
+    assert names.count("5g-sbi") == 1
 
 
 def test_lte_candidates_marked_as_side_signals_in_5g_trace() -> None:

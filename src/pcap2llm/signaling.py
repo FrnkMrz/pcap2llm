@@ -200,15 +200,63 @@ def dominant_signaling_protocols(
         selected.append(
             {
                 "name": "sctp",
-                "count": sctp_count,
                 "strength": "supporting",
+                **({"count": sctp_count} if sctp_count > 0 else {}),
             }
         )
 
     return [
-        {"name": item["name"], "count": item["count"], "strength": item["strength"]}
+        {
+            "name": item["name"],
+            "strength": item["strength"],
+            **({"count": item["count"]} if item.get("count", 0) > 0 else {}),
+        }
         for item in selected[:limit]
     ]
+
+
+def discovery_relevant_protocols(
+    inspect_result: InspectResult,
+    *,
+    limit: int = 12,
+    primary_domain: str | None = None,
+) -> list[str]:
+    total_packets = inspect_result.metadata.packet_count or sum(inspect_result.protocol_counts.values()) or 1
+    present = protocol_presence(inspect_result)
+    domain_protocols = _DOMAIN_PRIMARY_PROTOCOLS.get(primary_domain)
+
+    candidates: list[dict[str, Any]] = []
+    for protocol in present:
+        role = protocol_role(protocol)
+        if role == "link_or_envelope_context":
+            continue
+        factor, count, source = protocol_evidence(inspect_result, protocol, total_packets, present)
+        if factor == 0:
+            continue
+        if role == "domain_signaling" and source == "raw" and domain_protocols is not None and protocol not in domain_protocols:
+            continue
+        candidates.append(
+            {
+                "name": protocol,
+                "role": role,
+                "count": count,
+                "_score": factor,
+                "_priority": _SIGNAL_PRIORITY.get(protocol, 0),
+                "_source": source,
+            }
+        )
+
+    candidates.sort(
+        key=lambda item: (
+            0 if item["role"] == "domain_signaling" else 1,
+            0 if item["_source"] == "count" else 1,
+            -item["count"],
+            -item["_score"],
+            -item["_priority"],
+            item["name"],
+        )
+    )
+    return [item["name"] for item in candidates[:limit]]
 
 
 def capture_context(inspect_result: InspectResult) -> dict[str, list[str]]:

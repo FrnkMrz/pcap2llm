@@ -11,7 +11,7 @@ from pcap2llm.models import InspectResult, ProfileDefinition
 from pcap2llm.pipeline import artifact_timestamp_prefix
 from pcap2llm.profiles import load_all_profiles
 from pcap2llm.recommendation import recommend_profiles_from_inspect
-from pcap2llm.signaling import capture_context, dominant_signaling_protocols
+from pcap2llm.signaling import capture_context, discovery_relevant_protocols, dominant_signaling_protocols
 from pcap2llm.tshark_runner import TSharkRunner
 
 
@@ -78,6 +78,7 @@ def build_discovery_payload(
         )[:10]
     ]
     dominant = dominant_signaling_protocols(inspect_result, primary_domain=primary_domain)
+    relevant_protocols = discovery_relevant_protocols(inspect_result, primary_domain=primary_domain)
     context = capture_context(inspect_result)
     resolved_peers = inspect_result.metadata.resolved_peers[:10]
     name_resolution = {
@@ -102,7 +103,7 @@ def build_discovery_payload(
         "protocol_summary": {
             "top_protocols": top_protocols,
             "dominant_signaling_protocols": dominant,
-            "relevant_protocols": inspect_result.metadata.relevant_protocols,
+            "relevant_protocols": relevant_protocols,
             "raw_protocols": inspect_result.metadata.raw_protocols,
         },
         "conversations": inspect_result.conversations[:10],
@@ -125,7 +126,7 @@ def build_discovery_markdown(discovery: dict[str, Any]) -> str:
     dominant = discovery["protocol_summary"].get("dominant_signaling_protocols", [])
     if dominant:
         for item in dominant:
-            if item["count"] > 0:
+            if item.get("count", 0) > 0:
                 lines.append(f"- `{item['name']}` [{item['strength']}]: {item['count']}")
             else:
                 lines.append(f"- `{item['name']}` [{item['strength']}]")
@@ -158,6 +159,8 @@ def build_discovery_markdown(discovery: dict[str, Any]) -> str:
     lines.extend([
         "",
         "## Top Protocols",
+        "",
+        "- Raw top-protocol count view; use the dominant signaling section above for the fachliche reading.",
     ])
     for item in discovery["protocol_summary"]["top_protocols"]:
         lines.append(f"- `{item['name']}`: {item['count']}")
@@ -196,7 +199,7 @@ def discover_capture(
         extra_args=extra_args,
         two_pass=two_pass,
         on_stage=on_stage,
-        enrich=False,
+        enrich=True,
         hosts_file=hosts_file,
         mapping_file=mapping_file,
     )

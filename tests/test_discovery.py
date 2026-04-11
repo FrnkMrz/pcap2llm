@@ -52,15 +52,17 @@ def test_build_discovery_payload_adds_dominant_signaling_protocols() -> None:
     )
 
     dominant = payload["protocol_summary"]["dominant_signaling_protocols"]
-    assert dominant[0] == {"name": "ngap", "count": 0, "strength": "strong"}
-    assert dominant[1] == {"name": "nas-5gs", "count": 0, "strength": "strong"}
+    assert dominant[0] == {"name": "ngap", "strength": "strong"}
+    assert dominant[1] == {"name": "nas-5gs", "strength": "strong"}
     assert not any(item["name"] == "nas-eps" for item in dominant)
     assert not any(item["name"] == "nr-rrc" for item in dominant)
     assert not any(item["name"] in {"eth", "ethertype", "vlan", "ipcp", "pap"} for item in dominant)
     assert any(item["name"] == "sctp" and item["strength"] == "supporting" for item in dominant)
+    assert all(item.get("count", 1) != 0 for item in dominant)
     assert payload["capture_context"]["link_or_envelope_protocols"] == ["eth", "ethertype", "ip", "ipcp", "pap", "vlan"]
     assert payload["capture_context"]["transport_support_protocols"] == ["sctp"]
     assert payload["protocol_summary"]["top_protocols"][0]["name"] == "ip"
+    assert payload["protocol_summary"]["relevant_protocols"] == ["dtap", "ngap", "nas-5gs", "sctp"]
 
 
 def test_build_discovery_payload_surfaces_name_resolution_transparently() -> None:
@@ -111,8 +113,8 @@ def test_build_discovery_markdown_renders_dominant_signaling_first() -> None:
         },
         "protocol_summary": {
             "dominant_signaling_protocols": [
-                {"name": "ngap", "count": 0, "strength": "strong"},
-                {"name": "nas-5gs", "count": 0, "strength": "strong"},
+                {"name": "ngap", "strength": "strong"},
+                {"name": "nas-5gs", "strength": "strong"},
                 {"name": "sctp", "count": 500, "strength": "supporting"},
             ],
             "top_protocols": [{"name": "ip", "count": 497}, {"name": "dtap", "count": 3}],
@@ -128,5 +130,6 @@ def test_build_discovery_markdown_renders_dominant_signaling_first() -> None:
     assert "`ngap` [strong]" in markdown
     assert "`ethertype`" in markdown
     assert "`ip`: 497" in markdown
+    assert "Raw top-protocol count view" in markdown
     assert "Hosts file used" in markdown
     assert "`10.109.182.14 -> AMF-01`" in markdown

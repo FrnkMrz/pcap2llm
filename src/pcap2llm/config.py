@@ -64,7 +64,7 @@ def sample_config_text() -> str:
         "profile: lte-core",
         "",
         "# Privacy profile: how sensitive data classes are treated.",
-        "# Built-in: internal | share | lab | prod-safe",
+        "# Built-in: internal | share | lab | prod-safe | llm-telecom-safe",
         "privacy_profile: share",
         "",
         "display_filter:",

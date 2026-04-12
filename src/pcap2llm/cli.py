@@ -495,7 +495,7 @@ def analyze_command(
     privacy_profile_name: str | None = typer.Option(
         None,
         "--privacy-profile",
-        help="Privacy profile name (built-in: internal, share, lab, prod-safe) or path to a YAML file.",
+        help="Privacy profile name (built-in: internal, share, lab, prod-safe, llm-telecom-safe) or path to a YAML file.",
     ),
     display_filter: str | None = typer.Option(None, "--display-filter", "-Y", help="TShark display filter."),
     config_path: Path | None = typer.Option(None, "--config", help="Optional YAML config file."),

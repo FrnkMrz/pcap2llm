@@ -128,7 +128,7 @@ pcap2llm init-config
 ### `analyze`
 ```
 --profile               analysis profile name (default: lte-core)
---privacy-profile       privacy profile (built-in: internal, share, lab, prod-safe)
+--privacy-profile       privacy profile (built-in: internal, share, lab, prod-safe, llm-telecom-safe)
 --display-filter/-Y     tshark display filter
 --config                optional YAML config file
 --out                   artifact output directory (default: artifacts)

@@ -7,7 +7,7 @@ import yaml
 from pcap2llm.models import PrivacyProfileDefinition
 
 _PACKAGE = "pcap2llm.privacy_profiles"
-_BUILTIN = {"internal", "share", "lab", "prod-safe"}
+_BUILTIN = {"internal", "share", "lab", "prod-safe", "llm-telecom-safe"}
 
 
 def load_privacy_profile(name: str) -> PrivacyProfileDefinition:

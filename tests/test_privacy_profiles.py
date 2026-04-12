@@ -49,8 +49,17 @@ class TestLoadBuiltinPrivacyProfiles:
         assert profile.modes["token"] == "remove"
         assert profile.modes["payload_text"] == "remove"
 
+    def test_load_llm_telecom_safe(self) -> None:
+        profile = load_privacy_profile("llm-telecom-safe")
+        assert profile.name == "llm-telecom-safe"
+        assert profile.modes["ip"] == "pseudonymize"
+        assert profile.modes["hostname"] == "pseudonymize"
+        assert profile.modes["imsi"] == "pseudonymize"
+        assert profile.modes["token"] == "remove"
+        assert profile.modes["payload_text"] == "remove"
+
     def test_all_profiles_have_description(self) -> None:
-        for name in ("internal", "share", "lab", "prod-safe"):
+        for name in ("internal", "share", "lab", "prod-safe", "llm-telecom-safe"):
             profile = load_privacy_profile(name)
             assert isinstance(profile.description, str)
             assert len(profile.description) > 0
@@ -58,7 +67,7 @@ class TestLoadBuiltinPrivacyProfiles:
     def test_all_profiles_have_all_data_classes(self) -> None:
         from pcap2llm.models import DATA_CLASSES
 
-        for name in ("internal", "share", "lab", "prod-safe"):
+        for name in ("internal", "share", "lab", "prod-safe", "llm-telecom-safe"):
             profile = load_privacy_profile(name)
             for data_class in DATA_CLASSES:
                 assert data_class in profile.modes, (
@@ -80,7 +89,7 @@ class TestLoadPrivacyProfileErrors:
         with pytest.raises(FileNotFoundError) as exc_info:
             load_privacy_profile("nope")
         message = str(exc_info.value)
-        for name in ("internal", "share", "lab", "prod-safe"):
+        for name in ("internal", "share", "lab", "prod-safe", "llm-telecom-safe"):
             assert name in message
 
     def test_nonexistent_file_path_raises(self, tmp_path: Path) -> None:
@@ -96,11 +105,11 @@ class TestLoadPrivacyProfileErrors:
 class TestListPrivacyProfiles:
     def test_returns_four_profiles(self) -> None:
         profiles = list_privacy_profiles()
-        assert len(profiles) == 4
+        assert len(profiles) == 5
 
     def test_returns_all_expected_names(self) -> None:
         profiles = list_privacy_profiles()
-        assert set(profiles) == {"internal", "share", "lab", "prod-safe"}
+        assert set(profiles) == {"internal", "share", "lab", "prod-safe", "llm-telecom-safe"}
 
     def test_returns_sorted(self) -> None:
         profiles = list_privacy_profiles()

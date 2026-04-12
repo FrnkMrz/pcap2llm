@@ -146,7 +146,7 @@ For bounded analyze runs, the JSON artifacts also include `selection.start_packe
 ```
 Profile & filtering:
   --profile               Protocol profile (default: lte-core)
-  --privacy-profile       Privacy profile: internal | share | lab | prod-safe | <path>
+  --privacy-profile       Privacy profile: internal | share | lab | prod-safe | llm-telecom-safe | <path>
   -Y / --display-filter   TShark display filter
   --config                YAML config file
 
@@ -505,6 +505,7 @@ pcap2llm analyze sample.pcapng --profile lte-core \
 | `share` | Pseudonymize subscriber IDs (IMSI, MSISDN), remove tokens |
 | `lab` | Pseudonymize all subscriber data, mask IPs |
 | `prod-safe` | Maximum protection — mask IPs, pseudonymize all PII, remove tokens/email/URI/payload |
+| `llm-telecom-safe` | External LLM-safe default — pseudonymize endpoints and subscriber IDs, remove secrets/payload, keep telecom structure |
 
 ```bash
 pcap2llm analyze sample.pcapng --profile lte-core --privacy-profile share

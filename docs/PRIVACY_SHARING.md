@@ -8,7 +8,7 @@
 | Vendor ticket | `prod-safe` | Remove tokens, reduce sensitive metadata |
 | Lab replay / test environment | `lab` | Stronger anonymization, still useful context |
 | Personal local analysis | `internal` | Only in fully trusted environments |
-| LLM sharing outside trusted boundary | `prod-safe` minimum | Review outputs before sharing |
+| LLM sharing outside trusted boundary | `llm-telecom-safe` | Keeps topology correlation through pseudonyms without exposing raw endpoints |
 
 ```bash
 pcap2llm analyze trace.pcapng --profile lte-core --privacy-profile share --out ./artifacts
@@ -32,7 +32,7 @@ pcap2llm analyze trace.pcapng --profile lte-core --privacy-profile share --out .
 
 ## Safe-Sharing Workflow
 
-1. **Choose a privacy profile** — use the table above to pick `share`, `prod-safe`, `lab`, or `internal`
+1. **Choose a privacy profile** — use the table above to pick `share`, `prod-safe`, `llm-telecom-safe`, `lab`, or `internal`
 2. **Run analyze** — check that the command includes `--privacy-profile <chosen>`
 3. **Verify the effective output** — open `summary.json` and read the `privacy_modes` block; the profile name alone does not tell you what actually ran (see note below)
 4. **Verify optional sidecars** — if `pseudonym_mapping.json` was created, keep it separate; if `vault.json` was created, confirm the key is stored outside the share path
@@ -56,7 +56,7 @@ pcap2llm analyze trace.pcapng --profile lte-core --privacy-profile share --out .
 
 - **Sharing `pseudonym_mapping.json` with the artifact set.** This file maps pseudonyms back to real subscriber IDs and IP addresses. Sharing it alongside `detail.json` undoes all pseudonymization.
 - **Assuming `vault.json` is a recovery package.** It contains key metadata only — not the key itself. An encrypted artifact is unreadable without `PCAP2LLM_VAULT_KEY` stored separately.
-- **Using `share` when `prod-safe` is more appropriate.** `share` is a sensible default for internal work. If the artifact is leaving your team — vendor ticket, external LLM, third-party review — use `prod-safe` and check the effective modes.
+- **Using `share` when `prod-safe` or `llm-telecom-safe` is more appropriate.** `share` is a sensible default for internal work. If the artifact is leaving your team — vendor ticket, external LLM, third-party review — use `prod-safe` for maximum suppression or `llm-telecom-safe` when the receiver needs correlated node relationships without raw endpoint exposure.
 - **Sending `detail.json` when `summary.json` would be enough.** For most vendor tickets, `summary.json` + `summary.md` contain the protocol counts, anomalies, and timing needed to diagnose an issue. Attach `detail.json` only when the recipient needs packet-level fields.
 - **Trusting the profile name instead of reading the output.** Profile, config overrides, and CLI flags all interact. Read `privacy_modes` in `summary.json` before sharing — not just the command line you ran.
 
@@ -97,7 +97,7 @@ Do not share: `pseudonym_mapping.json`, `vault.json`, any key material.
 ```bash
 pcap2llm analyze gtp_session.pcapng \
   --profile lte-core \
-  --privacy-profile prod-safe \
+  --privacy-profile llm-telecom-safe \
   --llm-mode \
   --out ./artifacts
 ```

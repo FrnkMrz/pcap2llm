@@ -493,7 +493,7 @@ def test_lte_voice_mix_prefers_volte_over_vonr_when_primary_domain_is_lte() -> N
     volte_idx = next((i for i, name in enumerate(names) if name.startswith("volte-")), None)
     vonr_idx = next((i for i, name in enumerate(names) if name.startswith("vonr-")), None)
     if vonr_idx is not None:
-        assert volte_idx < vonr_idx, f"volte- should rank above vonr- in LTE+SIP trace"
+        assert volte_idx < vonr_idx, "volte- should rank above vonr- in LTE+SIP trace"
 
 
 def test_sip_sdp_call_flow_prefers_call_profile_over_register_profile() -> None:

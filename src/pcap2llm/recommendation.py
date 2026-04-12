@@ -433,7 +433,6 @@ def _apply_profile_gates(
             score *= 0.5
             reasons.append("rare dtap signal treated as a side signal")
 
-    has_voice_protocol = any(proto in present for proto in _VOICE_INDICATOR_PROTOCOLS)
     has_strong_ims_signal = any(proto in present for proto in {"sip", "sdp", "rtp", "rtcp"})
     has_ims_peer_hint = _has_peer_hint(peer_blob, _IMS_HINT_TOKENS)
     has_call_context = _has_call_context(present)
@@ -820,7 +819,7 @@ def _domain_mismatch_penalty(
         if has_nas_eps and not has_anchor:
             return 0.35, [f"treated as cross-generation side signal; primary domain evidence points to {top['domain']}"]
         if not has_nas_eps and not has_anchor:
-            return 0.15, [f"LTE profile suppressed: no LTE anchor signal in strongly 5G SA dominated trace"]
+            return 0.15, ["LTE profile suppressed: no LTE anchor signal in strongly 5G SA dominated trace"]
 
     if selector.family == "2g3g" and top_family in {"5g", "lte"} and "2g3g" not in present_families:
         return 0.25, [f"strong {top['domain']} evidence outweighs weak legacy side signals"]

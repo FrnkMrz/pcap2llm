@@ -158,7 +158,7 @@ pcap2llm init-config
 
 ## Test Suite
 
-18 test modules in `tests/`. Key ones:
+27 test modules in `tests/`. Key ones:
 
 | File | What it covers |
 |---|---|
@@ -167,7 +167,14 @@ pcap2llm init-config
 | `test_privacy_profiles.py` | Privacy profile loading, precedence, deprecated path |
 | `test_schema_contract.py` | Schema version, artifact contract (SummaryArtifactV1 / DetailArtifactV1) |
 | `test_cli.py` | CLI invocation, dry-run, LLM mode |
-| `test_cli_llm_mode.py` | LLM mode JSON output validation |
+| `test_cli_llm_mode.py` | LLM mode JSON output contract — primary machine-facing test |
 | `test_app_anomaly.py` | Diameter and GTPv2-C anomaly detection |
 | `test_dx_quality.py` | Data extraction quality, all CLI option help text |
 | `test_golden_corpus.py` | Golden corpus integration tests |
+| `test_two_pass.py` | Pass-1 index field extraction, PacketIndexRecord parsing |
+| `test_inspect_enrichment.py` | Domain detection, trace shape, classification_state, anomalies |
+| `test_recommendation.py` | Profile scoring, domain inference, evidence class, host hints |
+| `test_recommendation_dns.py` | DNS discovery, core-name-resolution, dns-support suppression |
+| `test_discovery.py` | Discovery artifacts, versioned filenames, JSON/Markdown output |
+| `test_orchestration.py` | Session manifests, multi-run orchestration |
+| `test_profiles.py` | Profile YAML loading, selector_metadata, verbatim_protocols |

@@ -4,10 +4,10 @@
 
 ## Maturity
 
-- Project maturity: early alpha
+- Project maturity: beta — core pipeline, privacy model, discovery, and LLM-mode contract are stable; profile coverage is broad; API surface is hardening
 - Support expectation: best effort
-- Release posture: suitable for controlled internal use, not yet positioned as a frictionless general-purpose packet-analysis product
-- Change policy: public artifact fields are moving toward a documented Schema 1.0 contract, with `detail.json` treated as the primary stable handoff surface
+- Release posture: suitable for controlled internal and integration use; the artifact contract is stable enough to build downstream consumers against
+- Change policy: public artifact fields follow a documented Schema 1.0 contract; `detail.json` is the primary stable handoff surface; `discovery.json` structure is declared stable as of the core-name-resolution release
 
 ## Intended Use
 
@@ -46,10 +46,10 @@
 ## Known Limits
 
 - Best results come from focused traces and explicit display filters.
-- Large captures are bounded for detail export, but the underlying TShark JSON ingestion is still full-load in memory.
+- Large captures are bounded for detail export. Pass-1 index records and pass-2 raw JSON are released from memory after each stage completes, so peak memory scales with `--max-packets`, not total capture size — but pass-1 still scans the full capture.
 - A default pre-export size guard exists to catch accidental large inputs early; disabling it should be an explicit operator decision.
 - TShark version drift can affect raw extraction, which is why public serializer contracts are validated.
-- `--llm-mode` currently exists only on `analyze`; other commands still target human operators first.
+- `--llm-mode` is available on `analyze` and `discover`; `inspect` and `session` commands still target human operators first.
 - The CLI contract is stable enough for integration work, but still young enough that downstream consumers should pin versions and run contract tests.
 
 ## Near-Term Direction

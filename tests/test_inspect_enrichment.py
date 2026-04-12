@@ -2,7 +2,11 @@
 from __future__ import annotations
 
 
-from pcap2llm.inspect_enrichment import build_inspect_markdown, enrich_inspect_result
+from pcap2llm.inspect_enrichment import (
+    _classification_state,
+    build_inspect_markdown,
+    enrich_inspect_result,
+)
 from pcap2llm.models import CaptureMetadata, InspectResult
 from pcap2llm.profiles import load_all_profiles
 from pcap2llm.signaling import dominant_signaling_names
@@ -221,3 +225,83 @@ def test_markdown_has_useful_content() -> None:
     md = build_inspect_markdown(enriched)
     assert "ngap" in md
     assert "5g" in md.lower()
+
+
+# ---------------------------------------------------------------------------
+# classification_state — Bug fix: vacuous all() over empty suspected_domains
+# ---------------------------------------------------------------------------
+
+def test_classification_state_empty_domains_returns_unknown() -> None:
+    """_classification_state with empty suspected_domains and no notes → 'unknown'.
+
+    Regression: len([]) <= 1 and all(... for d in []) was vacuously True,
+    causing any trace with no suspected domains to return 'ambiguous_support'.
+    """
+    state = _classification_state(
+        trace_shape="unknown",
+        suspected_domains=[],
+        classification_notes=[],
+        candidate_profiles=[],
+    )
+    assert state == "unknown", (
+        f"Empty suspected_domains with no notes must produce 'unknown', got '{state}'"
+    )
+
+
+def test_classification_state_no_domains_not_ambiguous_support() -> None:
+    """A trace with no suspected domains must never be classified as ambiguous_support.
+
+    ambiguous_support means 'DNS-only support traffic without family context',
+    not 'we have no idea what this is'.
+    """
+    state = _classification_state(
+        trace_shape="single_domain",
+        suspected_domains=[],
+        classification_notes=[],
+        candidate_profiles=[{"confidence": "medium", "evidence_class": "protocol_partial"}],
+    )
+    assert state != "ambiguous_support", (
+        f"No suspected_domains must not produce ambiguous_support, got '{state}'"
+    )
+
+
+def test_classification_state_single_dns_support_stays_ambiguous() -> None:
+    """Single dns-support domain must still produce ambiguous_support after the fix.
+
+    Regression guard: the fix must not break the intended DNS-only behavior.
+    """
+    state = _classification_state(
+        trace_shape="single_domain",
+        suspected_domains=[{"domain": "dns-support", "score": 0.40}],
+        classification_notes=[],
+        candidate_profiles=[],
+    )
+    assert state == "ambiguous_support", (
+        f"Single dns-support domain must produce ambiguous_support, got '{state}'"
+    )
+
+
+def test_gtp_host_hints_not_classified_as_ambiguous_support() -> None:
+    """GTP trace with host hints must produce 'partial', not 'ambiguous_support'.
+
+    Regression: before the fix, GTP-only traces with no suspected_domains got
+    ambiguous_support because of the vacuous all() bug.
+    """
+    result = _make_result({"gtp": 200, "udp": 200})
+    result = result.model_copy(update={
+        "metadata": result.metadata.model_copy(update={
+            "resolved_peers": [
+                {"name": "s5-pgw.example.com", "role": "pgw"},
+                {"name": "s8-sgw.example.com", "role": "sgw"},
+            ]
+        })
+    })
+    profiles = load_all_profiles()
+    enriched = enrich_inspect_result(result, profiles)
+    assert enriched.classification_state != "ambiguous_support", (
+        f"GTP+host-hints trace must not be classified as ambiguous_support, "
+        f"got: {enriched.classification_state}"
+    )
+    assert enriched.classification_state in ("partial", "unknown"), (
+        f"GTP+host-hints expected partial or unknown, got: {enriched.classification_state}"
+    )

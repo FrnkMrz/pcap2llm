@@ -231,8 +231,8 @@ def _classification_state(
         for note in classification_notes
     )
     only_dns_support = (
-        len(suspected_domains) <= 1
-        and all(d.get("domain") == "dns-support" for d in suspected_domains)
+        len(suspected_domains) == 1
+        and suspected_domains[0].get("domain") == "dns-support"
     )
     if is_dns_ambiguous or only_dns_support:
         return "ambiguous_support"

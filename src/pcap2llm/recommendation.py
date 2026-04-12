@@ -174,6 +174,20 @@ _DOMAIN_COMBOS: list[tuple[frozenset[str], str, float, str]] = [
     (frozenset({"dns"}),                       "dns-support", 0.40, "dns detected"),
 ]
 
+# Domains that suppress dns-support when co-present in infer_domains().
+# The bare `dns` rule fires for any trace that has DNS traffic — including IMS,
+# 5G, and LTE traces that use DNS as ancillary infrastructure.  When a primary
+# telecom domain is already identified, dns-support adds no useful information
+# and causes false state=mixed in _classification_state.
+_DNS_SUPPORT_SUPPRESSORS: frozenset[str] = frozenset({
+    "ims-voice",
+    "5g-sa-core",
+    "5g-sa-core-sbi",
+    "lte-eps",
+    "legacy-2g3g",
+    "legacy-2g3g-gprs",
+})
+
 
 def _protocol_variants(protocol: str) -> tuple[str, ...]:
     return _PROTOCOL_EQUIVALENTS.get(protocol, (protocol,))
@@ -919,6 +933,14 @@ def infer_domains(inspect_result: InspectResult) -> list[dict[str, Any]]:
         existing = domain_best.get(domain, (0.0, []))[0]
         if score > existing:
             domain_best[domain] = (score, deduped)
+
+    # Suppress dns-support when a primary telecom domain is already present.
+    # The bare dns rule fires on any trace that has DNS, including IMS, 5G, and
+    # LTE captures where DNS is ancillary infrastructure.  When a stronger domain
+    # explanation is already established, dns-support is noise that causes false
+    # state=mixed in _classification_state.
+    if "dns-support" in domain_best and domain_best.keys() & _DNS_SUPPORT_SUPPRESSORS:
+        del domain_best["dns-support"]
 
     results = [
         {"domain": domain, "score": round(score, 2), "reason": reasons}

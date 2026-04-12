@@ -220,6 +220,81 @@ class TestFinalFineTuning:
         assert has_note, f"No low-confidence note found. Notes: {enriched.classification_notes}"
 
 
+class TestDnsSupportSuppression:
+    """Bug fix: dns-support domain must be suppressed when a primary telecom domain is present.
+
+    The bare (frozenset({"dns"}), "dns-support") combo rule fires for any trace
+    that has DNS traffic — including IMS, 5G, and LTE captures where DNS is
+    ancillary infrastructure.  When a stronger domain is identified, dns-support
+    is noise and causes false classification_state=mixed.
+    """
+
+    def test_sip_dns_no_dns_support_alongside_ims(self) -> None:
+        """sip+dns (IMS registration trace) must not surface dns-support as a domain."""
+        result = _make_inspect_result({"sip": 300, "dns": 200, "udp": 300, "tcp": 200})
+        domains = infer_domains(result)
+        domain_names = [d["domain"] for d in domains]
+        assert "ims-voice" in domain_names, f"Expected ims-voice: {domain_names}"
+        assert "dns-support" not in domain_names, (
+            f"dns-support must be suppressed when ims-voice is present, got: {domain_names}"
+        )
+
+    def test_sip_dns_classification_state_not_mixed(self) -> None:
+        """sip+dns trace must not produce classification_state='mixed' after suppression."""
+        result = _make_inspect_result({"sip": 300, "dns": 200, "udp": 300, "tcp": 200})
+        enriched = enrich_inspect_result(result, load_all_profiles())
+        assert enriched.classification_state != "mixed", (
+            f"sip+dns must not be 'mixed' after dns-support suppression. "
+            f"Got: {enriched.classification_state}, domains: {enriched.suspected_domains}"
+        )
+
+    def test_5g_dns_no_dns_support_alongside_5g_core(self) -> None:
+        """5G trace with ancillary DNS must not produce dns-support as a domain."""
+        result = _make_inspect_result(
+            {"ngap": 400, "nas-5gs": 100, "dns": 100, "sctp": 400, "udp": 100}
+        )
+        domains = infer_domains(result)
+        domain_names = [d["domain"] for d in domains]
+        assert "dns-support" not in domain_names, (
+            f"dns-support must not appear alongside 5g-sa-core: {domain_names}"
+        )
+
+    def test_lte_diameter_dns_no_dns_support(self) -> None:
+        """LTE Diameter trace with DNS must not produce dns-support alongside lte-eps."""
+        result = _make_inspect_result({"diameter": 200, "sctp": 200, "dns": 50, "udp": 50})
+        domains = infer_domains(result)
+        domain_names = [d["domain"] for d in domains]
+        assert "lte-eps" in domain_names, f"Expected lte-eps: {domain_names}"
+        assert "dns-support" not in domain_names, (
+            f"dns-support must be suppressed when lte-eps is present: {domain_names}"
+        )
+
+    def test_dns_only_still_produces_dns_support(self) -> None:
+        """DNS-only trace must still produce dns-support when no suppressor domain exists.
+
+        Regression guard: the suppression must only remove dns-support when a
+        primary domain is also present.
+        """
+        result = _make_inspect_result({"dns": 500, "udp": 500})
+        domains = infer_domains(result)
+        domain_names = [d["domain"] for d in domains]
+        assert "dns-support" in domain_names, (
+            f"DNS-only trace must still produce dns-support: {domain_names}"
+        )
+
+    def test_sip_sdp_dns_produces_confident_not_mixed(self) -> None:
+        """sip+sdp+dns trace: ims-voice dominant, dns-support suppressed, state not mixed."""
+        result = _make_inspect_result({"sip": 200, "sdp": 150, "dns": 50, "udp": 200})
+        enriched = enrich_inspect_result(result, load_all_profiles())
+        domain_names = [d["domain"] for d in enriched.suspected_domains]
+        assert "dns-support" not in domain_names, (
+            f"dns-support must be suppressed in sip+sdp+dns: {domain_names}"
+        )
+        assert enriched.classification_state in ("confident", "partial"), (
+            f"sip+sdp+dns state should be confident or partial, got: {enriched.classification_state}"
+        )
+
+
 class TestCoreNameResolution:
     """Tests for the core-name-resolution cross-generation DNS profile."""
 

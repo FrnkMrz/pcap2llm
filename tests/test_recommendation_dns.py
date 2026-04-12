@@ -653,3 +653,66 @@ class TestProtocolCountPresentation:
         assert "`nas-5gs` [raw signal]" in markdown, (
             "Raw-signal protocol must render with [raw signal] label, not [supporting]"
         )
+
+
+class TestExtendedNamingAndCluterReduction:
+    """Tests for Task 5 (extended telecom naming) and Task 6 (DNS clutter reduction)."""
+
+    def test_topon_prefix_triggers_core_name_resolution(self) -> None:
+        """topon. DNS prefix (3GPP TS 29.303) must count as strong naming evidence."""
+        result = _make_inspect_result(
+            {"dns": 80, "udp": 80, "ip": 80},
+            dns_qry_names=["topon.s5s8pgw.epc.mnc001.mcc262.3gppnetwork.org"],
+        )
+        rec = recommend_profiles_from_inspect(result, load_all_profiles())
+        top = rec["recommended_profiles"]
+        assert top, "Expected at least one profile recommendation"
+        assert top[0]["profile"] == "core-name-resolution", (
+            f"core-name-resolution must rank first for TOPON naming: {[r['profile'] for r in top[:3]]}"
+        )
+        reasons_text = " ".join(top[0]["reason"]).lower()
+        assert "topon" in reasons_text or "3gpp" in reasons_text or "naming" in reasons_text
+
+    def test_pgw_sgw_mme_node_naming_raises_supporting_evidence(self) -> None:
+        """DNS names containing pgw./sgw./mme. node names must contribute supporting evidence."""
+        result = _make_inspect_result(
+            {"dns": 60, "udp": 60, "ip": 60},
+            dns_qry_names=["pgw.operator.net", "sgw.dc1.operator.net", "mme.home.net"],
+        )
+        from pcap2llm.recommendation import _telecom_naming_evidence, _dns_naming_blob
+        blob = _dns_naming_blob(result)
+        strong, supporting, reasons = _telecom_naming_evidence(blob)
+        assert supporting >= 2, (
+            f"pgw./sgw./mme. node names must contribute ≥2 supporting hits: {supporting}"
+        )
+
+    def test_dns_family_profiles_more_aggressively_suppressed(self) -> None:
+        """With core-name-resolution dominant, family DNS profiles must be further suppressed."""
+        result = _make_inspect_result(
+            {"dns": 200, "udp": 200, "ip": 200},
+            dns_qry_names=["3gppnetwork.org", "epc.mnc001.mcc262.gprs"],
+        )
+        rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=12)
+        core = next((r for r in rec["recommended_profiles"] if r["profile"] == "core-name-resolution"), None)
+        assert core is not None, "core-name-resolution must appear"
+        for item in rec["recommended_profiles"]:
+            if item["profile"].endswith("-dns") and item["profile"] != "core-name-resolution":
+                assert item["score"] < core["score"] * 0.6, (
+                    f"{item['profile']} score {item['score']} too close to core-name-resolution {core['score']}"
+                )
+
+    def test_family_core_profiles_reduced_when_naming_dominates(self) -> None:
+        """lte-core / 5g-core must score well below core-name-resolution in DNS-only naming trace."""
+        result = _make_inspect_result(
+            {"dns": 200, "udp": 200, "ip": 200},
+            dns_qry_names=["hss.mnc001.mcc262.3gppnetwork.org", "epc.mnc001.mcc262.gprs"],
+        )
+        rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=12)
+        core = next((r for r in rec["recommended_profiles"] if r["profile"] == "core-name-resolution"), None)
+        assert core is not None
+        for name in ("lte-core", "5g-core"):
+            entry = next((r for r in rec["recommended_profiles"] if r["profile"] == name), None)
+            if entry is not None:
+                assert entry["score"] < core["score"] * 0.7, (
+                    f"{name} score {entry['score']} too close to core-name-resolution {core['score']}"
+                )

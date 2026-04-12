@@ -478,6 +478,9 @@ def test_mixed_legacy_and_modern_trace_surfaces_multiple_domains() -> None:
 
 
 def test_lte_voice_mix_prefers_volte_over_vonr_when_primary_domain_is_lte() -> None:
+    # In an LTE+SIP trace with no 5G context, VoLTE profiles should rank clearly above
+    # VoNR profiles.  VoNR profiles without ngap/nas-5gs get an additional ×0.3 gate,
+    # so they may fall off the top-12 entirely — that is acceptable and more correct.
     result = _mock_result(
         {"s1ap": 240, "nas-eps": 80, "sctp": 320, "sip": 50, "dns": 30, "ip": 320},
         {"sctp": 320},
@@ -485,9 +488,12 @@ def test_lte_voice_mix_prefers_volte_over_vonr_when_primary_domain_is_lte() -> N
     )
     rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=12)
     names = [item["profile"] for item in rec["recommended_profiles"]]
-    first_volte = next(i for i, name in enumerate(names) if name.startswith("volte-"))
-    first_vonr = next(i for i, name in enumerate(names) if name.startswith("vonr-"))
-    assert first_volte < first_vonr
+    assert any(name.startswith("volte-") for name in names), "at least one volte- profile expected"
+    # If any vonr- profile appears, it must rank below the first volte- profile
+    volte_idx = next((i for i, name in enumerate(names) if name.startswith("volte-")), None)
+    vonr_idx = next((i for i, name in enumerate(names) if name.startswith("vonr-")), None)
+    if vonr_idx is not None:
+        assert volte_idx < vonr_idx, f"volte- should rank above vonr- in LTE+SIP trace"
 
 
 def test_sip_sdp_call_flow_prefers_call_profile_over_register_profile() -> None:
@@ -763,3 +769,200 @@ def test_lte_s1_suppressed_in_strong_5g_sa_without_lte_anchor() -> None:
             "suppressed" in reason or "5G SA" in reason or "cross-generation" in reason
             for reason in lte_s1_entry["reason"]
         ), f"lte-s1 must carry a suppression reason: {lte_s1_entry['reason']}"
+
+
+# ---------------------------------------------------------------------------
+# GTPv1/GTPv2 correction tests — Tasks 1+2 (2g3g-gp gate, 5g-n26 tighten)
+# ---------------------------------------------------------------------------
+
+def test_2g3g_gp_excluded_when_gtpv2_present() -> None:
+    """GTPv2 EPS context: 2g3g-gp must be zeroed like 2g3g-gn."""
+    result = _mock_result(
+        {"gtpv2": 120, "gtp": 60, "udp": 180, "ip": 200},
+        {"udp": 180},
+        ["gtpv2", "gtp", "udp", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=12)
+    names = [item["profile"] for item in rec["recommended_profiles"]]
+    assert "2g3g-gp" not in names, (
+        f"2g3g-gp must not appear when gtpv2 is present: {names}"
+    )
+
+
+def test_2g3g_gp_excluded_when_no_gtp_at_all() -> None:
+    """Without any GTP evidence, 2g3g-gp must be suppressed."""
+    result = _mock_result(
+        {"diameter": 100, "sctp": 100, "ip": 100},
+        {"sctp": 100},
+        ["diameter", "sctp", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=12)
+    names = [item["profile"] for item in rec["recommended_profiles"]]
+    assert "2g3g-gp" not in names, (
+        f"2g3g-gp must not appear in diameter-only trace: {names}"
+    )
+
+
+def test_5g_n26_suppressed_in_clear_eps_without_5gc() -> None:
+    """Pure EPS/GTPv2 without 5GC indicators: 5g-n26 must be heavily suppressed."""
+    result = _mock_result(
+        {"gtpv2": 200, "udp": 200, "ip": 200},
+        {"udp": 200},
+        ["gtpv2", "udp", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=12)
+    n26 = next((item for item in rec["recommended_profiles"] if item["profile"] == "5g-n26"), None)
+    if n26 is not None:
+        assert n26["score"] < 1.0, (
+            f"5g-n26 must be heavily suppressed in clear EPS trace: score={n26['score']}"
+        )
+    domain_names = [d["domain"] for d in rec["suspected_domains"]]
+    assert "lte-eps" in domain_names
+
+
+# ---------------------------------------------------------------------------
+# IMS/voice separation tests — Task 3
+# ---------------------------------------------------------------------------
+
+def test_vonr_sip_call_downranked_in_sip_sdp_trace_without_5g() -> None:
+    """SIP+SDP trace without ngap/nas-5gs: vonr-sip-call must rank below volte-sip-call."""
+    result = _mock_result(
+        {"sip": 200, "sdp": 120, "dns": 30, "tcp": 200, "ip": 200},
+        {"tcp": 200},
+        ["sip", "sdp", "dns", "tcp", "ip"],
+        resolved_peers=[{"name": "pcscf.ims.example.net", "role": "pcscf"}],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=12)
+    names = [r["profile"] for r in rec["recommended_profiles"]]
+    assert "volte-sip-call" in names, "volte-sip-call must be in top-12 for SIP+SDP trace"
+    if "vonr-sip-call" in names:
+        assert names.index("volte-sip-call") < names.index("vonr-sip-call"), (
+            "vonr-sip-call must rank below volte-sip-call when no 5G context"
+        )
+
+
+def test_volte_ims_core_downranked_without_diameter() -> None:
+    """IMS-core profile must be downranked when SIP present but no Diameter or IMS peer."""
+    result_sip_only = _mock_result(
+        {"sip": 200, "sdp": 100, "tcp": 200, "ip": 200},
+        {"tcp": 200},
+        ["sip", "sdp", "tcp", "ip"],
+    )
+    result_sip_diameter = _mock_result(
+        {"sip": 150, "sdp": 80, "diameter": 60, "sctp": 60, "tcp": 150, "ip": 200},
+        {"tcp": 150, "sctp": 60},
+        ["sip", "sdp", "diameter", "sctp", "tcp", "ip"],
+    )
+    rec_sip = recommend_profiles_from_inspect(result_sip_only, load_all_profiles(), limit=12)
+    rec_dia = recommend_profiles_from_inspect(result_sip_diameter, load_all_profiles(), limit=12)
+
+    core_sip = next((r for r in rec_sip["recommended_profiles"] if r["profile"] == "volte-ims-core"), None)
+    core_dia = next((r for r in rec_dia["recommended_profiles"] if r["profile"] == "volte-ims-core"), None)
+
+    if core_sip is not None and core_dia is not None:
+        assert core_sip["score"] < core_dia["score"], (
+            "volte-ims-core must score lower without Diameter than with"
+        )
+    # SIP-only variant must carry a downrank reason mentioning Diameter or IMS evidence
+    if core_sip is not None:
+        reasons_text = " ".join(core_sip["reason"]).lower()
+        assert "diameter" in reasons_text or "ims" in reasons_text or "downranked" in reasons_text
+
+
+def test_sip_register_profile_downranked_without_registrar_context() -> None:
+    """SIP+SDP call trace without registrar hints: register profiles must be suppressed."""
+    result = _mock_result(
+        {"sip": 200, "sdp": 150, "tcp": 200, "ip": 200},
+        {"tcp": 200},
+        ["sip", "sdp", "tcp", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=12)
+    names = [r["profile"] for r in rec["recommended_profiles"]]
+    # Call profile must rank above register profile
+    if "volte-sip-call" in names and "volte-sip-register" in names:
+        assert names.index("volte-sip-call") < names.index("volte-sip-register"), (
+            "call profile must outrank register profile in SDP call-flow trace"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Legacy SS7 side-profile damping tests — Task 4
+# ---------------------------------------------------------------------------
+
+def test_bssap_gs_geran_suppressed_in_map_tcap_sccp_trace() -> None:
+    """MAP+TCAP+SCCP trace: BSSAP/Gs/GERAN side profiles must stay out of top-5."""
+    result = _mock_result(
+        {"map": 200, "tcap": 150, "sccp": 180, "mtp3": 100, "ip": 200},
+        None,
+        ["map", "tcap", "sccp", "mtp3", "m2pa", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=8)
+    top5 = [r["profile"] for r in rec["recommended_profiles"][:5]]
+    side_profiles = {"2g3g-bssap", "2g3g-gs", "2g3g-ss7-geran", "2g3g-geran"}
+    overlap = side_profiles & set(top5)
+    assert not overlap, (
+        f"Side profiles without BSSAP/DTAP evidence must not appear in top-5: {overlap}"
+    )
+
+
+def test_2g3g_isup_suppressed_without_isup_evidence() -> None:
+    """MAP+TCAP+SCCP trace: 2g3g-isup must not appear in top-5 without ISUP evidence."""
+    result = _mock_result(
+        {"map": 180, "tcap": 140, "sccp": 160, "mtp3": 90, "ip": 180},
+        None,
+        ["map", "tcap", "sccp", "mtp3", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=8)
+    top5 = [r["profile"] for r in rec["recommended_profiles"][:5]]
+    assert "2g3g-isup" not in top5, (
+        f"2g3g-isup must not appear in top-5 without ISUP evidence: {top5}"
+    )
+
+
+def test_map_core_and_sccp_mtp_remain_strong_in_ss7_trace() -> None:
+    """MAP+TCAP+SCCP trace: map-core and sccp-mtp must stay in top-3."""
+    result = _mock_result(
+        {"map": 200, "tcap": 150, "sccp": 180, "mtp3": 100, "ip": 200},
+        None,
+        ["map", "tcap", "sccp", "mtp3", "m2pa", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=8)
+    top3 = [r["profile"] for r in rec["recommended_profiles"][:3]]
+    assert any("map" in name or "sccp" in name for name in top3), (
+        f"map-core or sccp-mtp must appear in top-3 for MAP+TCAP+SCCP trace: {top3}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 5G SA voice side-signal tests — Task 7
+# ---------------------------------------------------------------------------
+
+def test_voice_profiles_suppressed_in_strong_5g_sa_without_sip() -> None:
+    """Pure 5G SA trace without voice evidence: all voice profiles must stay low."""
+    result = _mock_result(
+        {"ngap": 400, "nas-5gs": 100, "sctp": 500, "ip": 500},
+        {"sctp": 500},
+        ["ngap", "nas-5gs", "sctp", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=12)
+    for item in rec["recommended_profiles"]:
+        if item["profile"].startswith("vonr-") or item["profile"].startswith("volte-"):
+            # Any voice profile that sneaks in must score far below the top 5G candidate
+            top_5g = next(r for r in rec["recommended_profiles"] if r["profile"].startswith("5g-"))
+            assert item["score"] < top_5g["score"] * 0.3, (
+                f"{item['profile']} scored {item['score']} — too close to 5G SA leader {top_5g['score']}"
+            )
+
+
+def test_5g_core_candidates_dominate_in_pure_5g_sa_trace() -> None:
+    """5G SA trace must have 5g-* profiles clearly at the top."""
+    result = _mock_result(
+        {"ngap": 400, "nas-5gs": 100, "sctp": 500, "ip": 500},
+        {"sctp": 500},
+        ["ngap", "nas-5gs", "sctp", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles())
+    top3 = [r["profile"] for r in rec["recommended_profiles"][:3]]
+    assert all(name.startswith("5g-") for name in top3), (
+        f"Top-3 must be 5g-* profiles in pure 5G SA trace: {top3}"
+    )

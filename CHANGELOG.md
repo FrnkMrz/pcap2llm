@@ -46,6 +46,45 @@ The format is intentionally simple and optimized for humans reading repo history
   - README, discovery/reference/schema/workflow docs now describe the explicit metadata block and its ordering.
   - Regression coverage now checks JSON presence, Markdown header order, explicit version emission, and selection-range packet numbering.
 
+### Changed — 2026-04-12 (final comprehensive Discovery correction pass)
+
+- **Narrower GTPv2/EPS candidate fan-out**: `2g3g-gp` is now gated the same way as
+  `2g3g-gn` — zeroed when no GTPv1 evidence exists, or when `gtpv2` is the active
+  control plane. `5g-n26` is suppressed to × 0.1 in clear EPS traces without any
+  5GC indicators (`ngap`, `nas-5gs`, `http+json`) or N26 peer hints.
+
+- **Tighter IMS/voice Discovery separation**:
+  - All `vonr-*` profiles now require 5G SA context (`ngap`/`nas-5gs`) beyond generic
+    IMS/SIP presence — without it they receive an additional × 0.3 gate
+  - `volte-ims-core` and `vonr-ims-core` now require `diameter` or IMS peer hints;
+    SIP alone is no longer sufficient to keep them prominently ranked
+  - `-sip-register` profiles are more aggressively downranked (× 0.25) without
+    registrar/auth-style context
+
+- **Legacy SS7 side profiles fully suppressed without evidence**: `2g3g-bssap`,
+  `2g3g-geran`, `2g3g-gs`, and `2g3g-ss7-geran` are now fully zeroed (score = 0)
+  when no BSSAP/DTAP/GSM-A evidence exists, instead of applying a multiplier that
+  the domain bonus could overcome. `2g3g-isup` is likewise zeroed without `isup`
+  evidence. `2g3g-map-core` and `2g3g-sccp-mtp` remain the clear primary SS7
+  candidates for MAP+TCAP+SCCP traces.
+
+- **Stronger telecom naming extraction**: Added `topon.` (3GPP TS 29.303 node
+  resolution prefix) as a strong naming hit. Added EPC/LTE node names (`pgw.`,
+  `sgw.`, `mme.`, `hss.`) and base-station names (`enb.`, `gnb.`) as supporting
+  evidence hits.
+
+- **Further DNS-only clutter reduction**: DNS family profile suppression factor
+  lowered from 0.45 to 0.3; family-core profile suppression lowered from 0.55 to
+  0.35 when `core-name-resolution` clearly dominates.
+
+- **Calmer 5G SA side noise**: Voice profiles (`vonr-*`, `volte-*`) are now
+  suppressed to × 0.2 in strong 5G SA traces (top domain score ≥ 0.75) when no
+  voice evidence (SIP/SDP/RTP/RTCP) is present.
+
+- **19 new regression tests** covering all correction areas; `docs/DISCOVERY.md`
+  updated for GTPv2/EPS fan-out, VoNR gate semantics, TOPON naming, and legacy SS7
+  side-profile behavior.
+
 ### Changed — 2026-04-12 (final scoring correction pass)
 
 - **Corrected GTPv1 domain inference**: TShark reports GTPv1 packets as `gtp`

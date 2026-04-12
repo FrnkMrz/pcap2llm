@@ -94,6 +94,9 @@ _CORE_NAMING_STRONG: list = [
     ("ims.mnc",            None,        "IMS MCC/MNC naming pattern detected"),
     ("5gc.mnc",            None,        "5GC MCC/MNC naming pattern detected"),
     ("apn.epc",            None,        "APN resolution naming detected"),
+    # TOPON prefix: 3GPP TS 29.303 DNS-based node resolution for GTPv1/v2 routing.
+    # Present only in operator-internal traces — very strong telecom signal.
+    ("topon.",             None,        "TOPON DNS routing prefix detected (3GPP node resolution)"),
     (None,                 _MCC_MNC_RE, "MCC/MNC operator naming pattern detected"),
 ]
 
@@ -113,6 +116,13 @@ _CORE_NAMING_SUPPORTING: list = [
     ("ausf.",       "5G AUSF naming"),
     ("nssf.",       "5G NSSF naming"),
     ("3gpp",        "3GPP naming context"),
+    # EPC/LTE core node naming — commonly seen in operator DNS for GTP and Diameter
+    ("pgw.",        "P-GW node naming"),
+    ("sgw.",        "S-GW node naming"),
+    ("mme.",        "MME node naming"),
+    ("hss.",        "HSS node naming"),
+    ("enb.",        "eNodeB naming"),
+    ("gnb.",        "gNodeB naming"),
 ]
 _LTE_ANCHOR_PROTOCOLS: frozenset[str] = frozenset({"s1ap", "diameter", "gtpv2"})
 _IMS_HINT_TOKENS: frozenset[str] = frozenset({
@@ -434,6 +444,16 @@ def _apply_profile_gates(
         score *= 0.35
         reasons.append("voice profile downranked: no SIP/IMS indicators")
 
+    # All vonr-* profiles (beyond the hybrid gate above) require 5G SA context.
+    # In a pure SIP/SDP IMS trace without ngap/nas-5gs, VoNR profiles should be
+    # clearly weaker than their VoLTE equivalents — they represent a different
+    # generation's voice architecture and need more than generic IMS evidence.
+    if profile.name.startswith("vonr-") and profile.name not in _HYBRID_VOICE_PROFILES:
+        has_5g_context = any(proto in present for proto in {"ngap", "nas-5gs"})
+        if not has_5g_context:
+            score *= 0.3
+            reasons.append("VoNR profile downranked: no 5G SA context (ngap/nas-5gs) detected")
+
     # IMS/voice profile gates — applied at most once per profile to avoid stacking.
     # Profiles in both _IMS_DIAMETER_PROFILES and _IMS_CORE_PROFILES (e.g. volte-ims-core)
     # receive the combined penalty once with a single reason rather than two separate gates.
@@ -452,6 +472,15 @@ def _apply_profile_gates(
         score *= 0.3
         reasons.append("IMS core profile downranked: no IMS peer or signaling hints")
 
+    # IMS-core profiles need Diameter or IMS peer hints — SIP alone is insufficient.
+    # A SIP+SDP call trace does not confirm IMS core infrastructure; the core role
+    # requires either Diameter (Cx/Rx/Sh) or resolved peer evidence placing a CSCF/HSS.
+    if profile.name in _IMS_CORE_PROFILES and has_strong_ims_signal and not (
+        "diameter" in present or has_ims_peer_hint
+    ):
+        score *= 0.4
+        reasons.append("IMS core profile downranked: SIP alone is insufficient — Diameter or IMS peer evidence needed")
+
     if profile.name in _VOICE_SIP_PROFILES and not ("sip" in present or has_ims_peer_hint):
         score *= 0.12
         reasons.append("SIP voice profile downranked: no SIP or IMS hints")
@@ -461,7 +490,7 @@ def _apply_profile_gates(
         reasons.append("SIP call profile downranked: no SDP/media call markers")
 
     if profile.name.endswith("-sip-register") and not has_registration_context:
-        score *= 0.4
+        score *= 0.25
         reasons.append("SIP register profile downranked: no registrar/auth-style context")
 
     if profile.name.endswith("-sbc") and not has_sbc_context:
@@ -472,12 +501,21 @@ def _apply_profile_gates(
         score *= 0.55
         reasons.append("voice DNS profile downranked: no IMS hints")
 
-    if profile.name == "5g-n26" and not (
-        ("gtpv2" in present and any(proto in present for proto in {"http", "json", "ngap", "nas-5gs"}))
-        or _has_peer_hint(peer_blob, _N26_HINT_TOKENS)
-    ):
-        score *= 0.3
-        reasons.append("N26 profile downranked: no EPC↔5GC interworking hints")
+    if profile.name == "5g-n26":
+        has_interworking = (
+            ("gtpv2" in present and any(proto in present for proto in {"http", "json", "ngap", "nas-5gs"}))
+            or _has_peer_hint(peer_blob, _N26_HINT_TOKENS)
+        )
+        if not has_interworking:
+            # Pure EPS without 5GC indicators: suppress strongly — N26 requires explicit
+            # EPC↔5GC interworking context (dual-registration, AMF-MME connectivity).
+            has_lte_only = "gtpv2" in present and not any(proto in present for proto in {"ngap", "nas-5gs"})
+            if has_lte_only:
+                score *= 0.1
+                reasons.append("N26 profile suppressed: clear EPS/GTPv2 context without any 5GC indicators")
+            else:
+                score *= 0.3
+                reasons.append("N26 profile downranked: no EPC↔5GC interworking hints")
 
     # DNS family spread: gate all family-specific DNS profiles when no anchor for that family exists.
     #
@@ -516,27 +554,29 @@ def _apply_profile_gates(
     # Legacy profile gates
     _ISUP_PROFILES: frozenset[str] = frozenset({"2g3g-isup", "isup"})
     if profile.name in _ISUP_PROFILES and "isup" not in present:
-        score *= 0.2
-        reasons.append("ISUP profile requires explicit isup protocol evidence")
+        score = 0.0
+        reasons.append("ISUP profile suppressed: no isup protocol evidence detected")
 
     has_bssap_evidence = any(proto in present for proto in {"bssap", "bssap+", "bssmap"})
     has_geran_evidence = has_bssap_evidence or any(proto in present for proto in {"dtap", "gsm_a"})
 
     if profile.name == "2g3g-bssap" and not has_bssap_evidence:
-        score *= 0.12
-        reasons.append("BSSAP profile downranked: no BSSAP/BSSMAP evidence")
+        score = 0.0
+        reasons.append("BSSAP profile suppressed: no BSSAP/BSSMAP evidence")
 
     if profile.name == "2g3g-geran" and not has_geran_evidence:
-        score *= 0.12
-        reasons.append("GERAN profile downranked: no BSSAP/DTAP/GSM-A evidence")
+        score = 0.0
+        reasons.append("GERAN profile suppressed: no BSSAP/DTAP/GSM-A evidence")
 
     if profile.name == "2g3g-ss7-geran" and not has_geran_evidence:
-        score *= 0.18
-        reasons.append("legacy GERAN bundle downranked: no BSSAP/DTAP/GSM-A evidence")
+        # Without BSSAP/DTAP/GSM-A evidence the SS7 part is already covered by
+        # 2g3g-map-core / 2g3g-sccp-mtp; this bundle profile adds no value.
+        score = 0.0
+        reasons.append("legacy GERAN bundle suppressed: no BSSAP/DTAP/GSM-A evidence")
 
     if profile.name == "2g3g-gs" and not (has_bssap_evidence or "dtap" in present):
-        score *= 0.12
-        reasons.append("Gs interface profile downranked: no BSSAP/DTAP evidence")
+        score = 0.0
+        reasons.append("Gs interface profile suppressed: no BSSAP/DTAP evidence")
 
     if profile.name == "2g3g-gn":
         has_gtp1 = any(proto in present for proto in {"gtpv1", "gtp"})
@@ -547,6 +587,19 @@ def _apply_profile_gates(
         elif has_gtpv2:
             score = 0.0
             reasons.append("Gn profile not applicable: GTPv2 control plane present — GTP user-plane is LTE-U, not legacy Gn")
+
+    # Gp is the inter-PLMN roaming equivalent of Gn — same GTPv1 requirement.
+    # When no GTPv1 evidence exists, or when GTPv2 is present (LTE context),
+    # the Gp profile is equally inapplicable.
+    if profile.name == "2g3g-gp":
+        has_gtp1 = any(proto in present for proto in {"gtpv1", "gtp"})
+        has_gtpv2 = "gtpv2" in present
+        if not has_gtp1:
+            score = 0.0
+            reasons.append("Gp profile not applicable: no GTPv1 evidence detected")
+        elif has_gtpv2:
+            score = 0.0
+            reasons.append("Gp profile not applicable: GTPv2 control plane present — GTP user-plane is LTE-U, not legacy Gp/roaming")
 
     if profile.name in {"lte-s5", "lte-s8"}:
         _has_gtp1_only = (
@@ -780,6 +833,16 @@ def _domain_mismatch_penalty(
 
     if profile.name.startswith("volte-") and top_family == "5g" and "lte" not in present_families:
         return 0.55, ["VoLTE/EPS voice profile downranked because primary domain evidence points to 5G SA"]
+
+    # In a strong 5G SA trace without any voice signaling, voice profiles are side noise.
+    # Neither VoNR nor VoLTE profiles have enough independent evidence to rank prominently
+    # when the primary domain is clearly 5G SA and no SIP/SDP/RTP evidence exists.
+    if top_family == "5g" and top_score >= 0.75:
+        is_voice_profile = profile.name.startswith("vonr-") or profile.name.startswith("volte-")
+        if is_voice_profile:
+            has_voice = any(proto in present for proto in {"sip", "sdp", "rtp", "rtcp"})
+            if not has_voice:
+                return 0.2, ["voice profile suppressed: primary domain is 5G SA with no voice evidence detected"]
 
     return 1.0, []
 
@@ -1086,7 +1149,7 @@ def infer_domains(inspect_result: InspectResult) -> list[dict[str, Any]]:
 # Profiles suppressed further when core-name-resolution clearly dominates a DNS trace.
 # These are family-specific DNS profiles that contribute noise when the better
 # explanation is already "telecom core naming support traffic, generation ambiguous".
-_DNS_SUPPRESSION_FACTOR = 0.45
+_DNS_SUPPRESSION_FACTOR = 0.3
 
 # Protocols that indicate a real signaling anchor — if any of these are present,
 # the trace is not purely DNS-support and fan-out suppression should not apply.
@@ -1152,7 +1215,7 @@ def _apply_dns_fanout_suppression(
             continue
         # Family-specific core profiles without non-DNS signaling anchor: reduce further
         if profile.name in _FAMILY_CORE_SUPPRESS:
-            new_score = score * 0.55
+            new_score = score * 0.35
             new_reasons = list(dict.fromkeys([
                 *reasons,
                 "downranked: family-specific profile without signaling anchor in DNS support trace",

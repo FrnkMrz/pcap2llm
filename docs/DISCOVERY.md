@@ -289,7 +289,12 @@ detected in sampled `dns.qry.name` values and resolved peer names.
 | `ims.mnc` | `IMS MCC/MNC naming pattern detected` |
 | `5gc.mnc` | `5GC MCC/MNC naming pattern detected` |
 | `apn.epc` | `APN resolution naming detected` |
+| `topon.` | `TOPON DNS routing prefix detected (3GPP node resolution)` |
 | `mnc\d+.mcc\d+` (regex) | `MCC/MNC operator naming pattern detected` |
+
+`topon.` is the 3GPP TS 29.303 DNS-based node-resolution prefix used for GTPv1/v2
+routing in operator networks. Its presence in DNS queries is a strong indicator of
+EPC or packet-core infrastructure traffic.
 
 Two or more strong hits → full score boost and `confidence: high`.
 One strong hit → medium boost and `confidence: medium`.
@@ -297,8 +302,9 @@ One strong hit → medium boost and `confidence: medium`.
 #### Supporting evidence (summarized, not per-hit)
 
 IMS CSCF names (`pcscf`, `scscf`, `icscf`), MMTel, 5G NF hostnames
-(`nrf.`, `amf.`, `smf.`, `udm.`, `ausf.`, `nssf.`), and generic `3gpp`
-context. Two or more supporting hits add a smaller bonus and emit a
+(`nrf.`, `amf.`, `smf.`, `udm.`, `ausf.`, `nssf.`), EPC/LTE node names
+(`pgw.`, `sgw.`, `mme.`, `hss.`), base-station names (`enb.`, `gnb.`),
+and generic `3gpp` context. Two or more supporting hits add a smaller bonus and emit a
 summary reason when no strong hits are present.
 
 #### Generic DNS does not strongly trigger this profile
@@ -385,28 +391,47 @@ with ngap), both receive `primary`. Run `discover` for the full candidate list.
 
 Legacy profiles are gated against specific evidence:
 
-- `2g3g-isup` requires explicit `isup` protocol evidence — it will not appear
-  for generic SS7 traces that lack ISUP decoding
-- `2g3g-bssap`, `2g3g-geran`, `2g3g-gs`, and `2g3g-ss7-geran` need real
-  `bssap`, `bssmap`, `dtap`, or `gsm_a` evidence to rank strongly — they do
-  not stay near the top for MAP+TCAP+SCCP alone
-- `map + tcap + sccp` combinations boost `2g3g-map-core`, `2g3g-gr`, and
-  `2g3g-sccp-mtp` as the
-  primary SS7 core candidates
+- `2g3g-isup` requires explicit `isup` protocol evidence — without it the profile
+  is fully suppressed regardless of MAP/TCAP/SCCP presence
+- `2g3g-bssap`, `2g3g-geran`, `2g3g-gs`, and `2g3g-ss7-geran` require real
+  `bssap`, `bssmap`, `dtap`, or `gsm_a` evidence — without it they are fully
+  suppressed and do not appear in results at all
+- `map + tcap + sccp` combinations keep `2g3g-map-core`, `2g3g-gr`, and
+  `2g3g-sccp-mtp` as the primary SS7 core candidates without promoting
+  BSSAP/GERAN/Gs side profiles
+
+- `2g3g-gn` and `2g3g-gp` both require GTPv1 (`gtp` or `gtpv1`) to be present
+  and are suppressed when `gtpv2` is the active control plane (that combination
+  means GTP-U / LTE bearer traffic, not legacy Gn/Gp)
 
 ### Voice / IMS subprofile calibration
 
-Within mixed IMS voice traces, Discovery now separates the broad family from the
+Within mixed IMS voice traces, Discovery separates the broad family from the
 specialized subprofiles more aggressively:
 
-- `volte-ims-core` benefits from `diameter` plus IMS/CSCF host hints
+- `volte-ims-core` requires `diameter` or IMS peer hints — SIP alone is insufficient
+  to confirm core infrastructure role
 - `volte-sip-call` rises on SDP or media-style call markers
-- `volte-sip-register` rises on registrar/auth-style IMS context
-- `volte-sbc` rises only when peer naming or topology hints plausibly indicate
-  an SBC boundary
+- `volte-sip-register` rises on registrar/auth-style IMS context; without it the
+  profile is strongly downranked
+- `volte-sbc` rises only when peer naming or topology hints indicate an SBC boundary
+- VoNR profiles (`vonr-*`) require 5G SA context (`ngap` or `nas-5gs`) beyond just
+  IMS/SIP presence — in a pure SIP/SDP trace without 5G signals they stay clearly
+  below their VoLTE equivalents
 
-This keeps `sip + sdp` from flattening the entire VoLTE profile cluster into
-nearly equal candidates.
+This keeps `sip + sdp` from flattening the entire VoLTE/VoNR profile cluster into
+nearly equal candidates and prevents VoNR from falsely rising in LTE IMS traces.
+
+### GTPv2 / EPS candidate fan-out
+
+In a clear EPS/GTPv2 trace the candidate list is intentionally narrowed:
+
+- `2g3g-gn` and `2g3g-gp` are fully suppressed when `gtpv2` is present
+- `5g-n26` is heavily suppressed (score × 0.1) in pure EPS traces without any
+  5GC indicators (`ngap`, `nas-5gs`, `http+json`) or N26-specific peer hints —
+  N26 requires explicit EPC↔5GC interworking context
+- EPS interface candidates (`lte-s5`, `lte-s8`, `lte-s11`, `lte-s10`) remain
+  visible but stay honest about the ambiguity between them
 
 ### Transport-only SCTP / ICMP traces
 

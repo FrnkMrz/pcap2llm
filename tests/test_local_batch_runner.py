@@ -7,6 +7,7 @@ import pytest
 from pcap2llm.local_batch_runner import (
     BatchDefinition,
     BatchCase,
+    _resolve_cli_path,
     build_case_command,
     load_batch_definition,
     resolve_case_output_dir,
@@ -141,3 +142,15 @@ profile = "lte-core"
 
     with pytest.raises(ValueError, match="must not set profile"):
         load_batch_definition(batch_path, tmp_path)
+
+
+def test_resolve_cli_path_prefers_current_working_directory(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    cwd = repo_root / "scripts"
+    cwd.mkdir(parents=True)
+    batch_path = cwd / "demo.toml"
+    batch_path.write_text("", encoding="utf-8")
+
+    resolved = _resolve_cli_path("demo.toml", repo_root, cwd)
+
+    assert resolved == batch_path

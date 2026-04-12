@@ -150,6 +150,19 @@ Notes:
 - `--dry-run` shows the resolved commands without executing them
 - `.gitignore` protects `.local/`, `artifacts/`, common output folders, and optional local batch override files such as `batches/*.local.toml`
 
+If you want the old "just run everything under `.local/`" behavior, use the repo-owned helper:
+
+```bash
+bash scripts/run_all_local_pcaps.sh
+```
+
+Optional:
+
+```bash
+bash scripts/run_all_local_pcaps.sh --quick
+bash scripts/run_all_local_pcaps.sh --force
+```
+
 ## Important Limits
 
 By default `detail.json` contains the first **1,000 packets**. Use

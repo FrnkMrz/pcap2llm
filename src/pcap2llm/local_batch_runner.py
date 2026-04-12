@@ -56,6 +56,16 @@ def _resolve_local_path(value: str, repo_root: Path) -> Path:
     return repo_root / expanded
 
 
+def _resolve_cli_path(value: str, repo_root: Path, cwd: Path) -> Path:
+    expanded = Path(os.path.expandvars(os.path.expanduser(value)))
+    if expanded.is_absolute():
+        return expanded
+    cwd_path = cwd / expanded
+    if cwd_path.exists():
+        return cwd_path
+    return repo_root / expanded
+
+
 def load_batch_definition(path: Path, repo_root: Path) -> BatchDefinition:
     payload = tomllib.loads(path.read_text(encoding="utf-8"))
     batch_cfg = payload.get("batch", {})
@@ -325,7 +335,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_arg_parser()
     args = parser.parse_args(argv)
     repo_root = repo_root_from()
-    batch_path = _resolve_local_path(args.batch, repo_root)
+    cwd = Path.cwd()
+    batch_path = _resolve_cli_path(args.batch, repo_root, cwd)
     batch = load_batch_definition(batch_path, repo_root)
 
     if args.list:
@@ -333,7 +344,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     output_root_override = (
-        _resolve_local_path(args.output_root, repo_root) if args.output_root else None
+        _resolve_cli_path(args.output_root, repo_root, cwd) if args.output_root else None
     )
     cases = select_cases(batch, set(args.cases))
     binary = resolve_pcap2llm_binary(repo_root)

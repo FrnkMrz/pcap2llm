@@ -7,6 +7,28 @@ The human-readable outputs now start with the same four metadata lines across `i
 
 ---
 
+## Repo-Owned Local Batch Runs
+
+For repeatable local regression-style runs, keep the runner and batch definitions in the repo, but keep the captures and outputs local-only.
+
+Example:
+
+```bash
+python3 scripts/run_local_batches.py --batch batches/local_examples.toml --list
+python3 scripts/run_local_batches.py --batch batches/local_examples.toml
+python3 scripts/run_local_batches.py --batch batches/local_examples.toml --case inspect_volte_mixed_trace
+```
+
+Recommended local workflow:
+
+1. store private captures and helper files under ignored paths such as `.local/PCAPs/` and `.local/hosts`
+2. edit the committed batch catalog in `batches/*.toml`
+3. run the repo-owned batch tool from the repo root
+4. review local outputs under `.local/results/`
+5. never commit captures or generated artifacts
+
+---
+
 ## LTE / EPC
 
 **Recommended profiles:** `lte-core`, `lte-s1`, `lte-s1-nas`, `lte-s6a`, `lte-s11`, `lte-s10`, `lte-sgs`, `lte-s5`, `lte-s8`, `lte-dns`, `lte-sbc-cbc`
@@ -41,6 +63,8 @@ pcap2llm analyze trace.pcapng \
   --mapping-file ./mapping.yaml \
   --out ./artifacts
 ```
+
+If `inspect` already shows `trace_shape: single_domain`, `classification_state: confident`, primary domain `lte-eps`, and top candidate `lte-s6a`, treat that as a focused S6a result: the next pass should normally stay on `lte-s6a` rather than broadening back out to `lte-s1` or `lte-s11`.
 
 ### Common display filters
 

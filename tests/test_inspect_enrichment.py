@@ -243,7 +243,47 @@ def test_serialize_inspect_result_adds_explicit_output_metadata() -> None:
     assert payload["run"]["action"] == "inspect"
     assert payload["capture"]["filename"] == "null"
     assert payload["capture"]["first_packet_number"] == 7
+    assert payload["capture"]["packet_count"] == 2
     assert payload["artifact"]["version"] == "V_01"
+    assert "capture_file" not in payload["metadata"]
+    assert "packet_count" not in payload["metadata"]
+    assert "first_packet_number" not in payload["metadata"]
+    assert "first_seen_epoch" not in payload["metadata"]
+    assert "last_seen_epoch" not in payload["metadata"]
+
+
+def test_clear_s6a_candidates_keep_lte_rankings_but_downrank_ims_semantics() -> None:
+    result = _make_result({"diameter": 40, "sctp": 50, "ip": 50}, transport_counts={"sctp": 50})
+    profiles = load_all_profiles()
+    enriched = enrich_inspect_result(result, profiles)
+
+    assert enriched.trace_shape == "single_domain"
+    assert enriched.classification_state == "confident"
+    assert enriched.suspected_domains[0]["domain"] == "lte-eps"
+    assert enriched.candidate_profiles[0]["profile"] == "lte-s6a"
+    assert enriched.candidate_profiles[1]["profile"] == "lte-core"
+
+    ims_fallbacks = [
+        candidate
+        for candidate in enriched.candidate_profiles
+        if candidate["profile"].startswith("volte-")
+        and any("downranked" in reason for reason in candidate.get("reason", []))
+    ]
+    assert ims_fallbacks
+    for candidate in ims_fallbacks:
+        assert candidate["confidence"] == "low"
+        assert candidate["evidence_class"] == "downranked_protocol_match"
+
+
+def test_clear_s6a_hints_focus_on_lte_s6a() -> None:
+    result = _make_result({"diameter": 40, "sctp": 50, "ip": 50}, transport_counts={"sctp": 50})
+    profiles = load_all_profiles()
+    enriched = enrich_inspect_result(result, profiles)
+
+    assert enriched.next_step_hints[0] == "run: pcap2llm analyze <capture> --profile lte-s6a"
+    hints_text = " ".join(enriched.next_step_hints)
+    assert "lte-s1" not in hints_text
+    assert "lte-s11" not in hints_text
 
 
 # ---------------------------------------------------------------------------

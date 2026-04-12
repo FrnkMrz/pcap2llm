@@ -366,11 +366,33 @@ Legacy profiles are gated against specific evidence:
 
 - `2g3g-isup` requires explicit `isup` protocol evidence — it will not appear
   for generic SS7 traces that lack ISUP decoding
-- `2g3g-ss7-geran` and `2g3g-gr` require `bssap` or `dtap` evidence — they
-  will not surface from MAP+TCAP+SCCP alone
-- `2g3g-gs` requires `bssap` evidence
-- `map + tcap + sccp` combinations boost `2g3g-map-core` and `2g3g-gr` as the
+- `2g3g-bssap`, `2g3g-geran`, `2g3g-gs`, and `2g3g-ss7-geran` need real
+  `bssap`, `bssmap`, `dtap`, or `gsm_a` evidence to rank strongly — they do
+  not stay near the top for MAP+TCAP+SCCP alone
+- `map + tcap + sccp` combinations boost `2g3g-map-core`, `2g3g-gr`, and
+  `2g3g-sccp-mtp` as the
   primary SS7 core candidates
+
+### Voice / IMS subprofile calibration
+
+Within mixed IMS voice traces, Discovery now separates the broad family from the
+specialized subprofiles more aggressively:
+
+- `volte-ims-core` benefits from `diameter` plus IMS/CSCF host hints
+- `volte-sip-call` rises on SDP or media-style call markers
+- `volte-sip-register` rises on registrar/auth-style IMS context
+- `volte-sbc` rises only when peer naming or topology hints plausibly indicate
+  an SBC boundary
+
+This keeps `sip + sdp` from flattening the entire VoLTE profile cluster into
+nearly equal candidates.
+
+### Transport-only SCTP / ICMP traces
+
+When Discovery sees SCTP transport plus some ICMP but no decoded upper-layer
+signaling, it now prefers notes/anomalies over a misleading legacy profile
+guess. `icmp` alone is not enough to raise `2g3g-gn`; real `gtpv1` / `gtp`
+evidence is still required for that direction.
 
 ### classification_state
 

@@ -36,6 +36,10 @@ Use this guide when the problem is IMS voice service rather than generic LTE or
 - `volte-dns` vs `vonr-dns`: both are discovery-focused, but `volte-dns` is for LTE / EPS IMS reachability while `vonr-dns` is for voice over 5GS readiness and service setup.
 - `volte-sbc` vs `vonr-sbc`: both target Session Border Controllers, but `vonr-sbc` stays explicit about the 5GS voice context instead of reusing LTE / EPS assumptions.
 - `volte-ims-core` vs `vonr-ims-core`: both are intentionally broad, but `volte-ims-core` mixes SIP, Diameter, and DNS around LTE / EPS IMS service, while `vonr-ims-core` mixes SIP, SBI, DNS, and voice-relevant N1/N2 state in a 5GS context.
+- Discovery separates these subprofiles with a few specific cues: SDP/media-like
+  markers help `*-sip-call`, registrar/auth-style IMS context helps
+  `*-sip-register`, explicit SBC peer hints help `*-sbc`, and Diameter plus
+  IMS/CSCF hints help `*-ims-core`.
 
 ## Selection rule
 

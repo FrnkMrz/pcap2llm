@@ -98,6 +98,10 @@ When you request JSON or Markdown output, inspect now includes explicit ordered 
 
 The Markdown header shows them in exactly that order. Inspect uses `V_01` as the explicit standalone report version.
 
+In inspect JSON, `run`, `capture`, and `artifact` are the canonical top-level metadata blocks. `capture` carries the capture path, packet count, first packet number, and first/last seen timestamps. `metadata` is reserved for inspect-specific context such as display filters, protocol collections, DNS query samples, and hosts/mapping resolution flags.
+
+Candidate `confidence` is intended as match confidence, not just raw protocol presence. Inspect may therefore mark downranked fallback candidates with `confidence: low` and `evidence_class: downranked_protocol_match` when strong generic protocol overlap exists but profile-specific context is missing.
+
 ```bash
 # With display filter
 pcap2llm inspect sample.pcapng --profile lte-core -Y "diameter || gtpv2"

@@ -160,6 +160,7 @@ def _next_step_hints(
     suspected_domains: list[dict[str, Any]],
     candidate_profiles: list[dict[str, Any]],
     packet_count: int,
+    present_protocols: frozenset[str],
 ) -> list[str]:
     """Generate actionable next-step hints for humans and orchestrators."""
     hints: list[str] = []
@@ -173,9 +174,18 @@ def _next_step_hints(
         return hints
 
     top_domain = suspected_domains[0]["domain"] if suspected_domains else None
+    top_score = float(suspected_domains[0].get("score", 0.0)) if suspected_domains else 0.0
+    top_profile = candidate_profiles[0]["profile"] if candidate_profiles else None
+
+    clear_lte_s6a = (
+        trace_shape == "single_domain"
+        and top_domain == "lte-eps"
+        and top_score >= 0.7
+        and top_profile == "lte-s6a"
+        and {"diameter", "sctp"}.issubset(present_protocols)
+    )
 
     if trace_shape == "single_domain" and candidate_profiles:
-        top_profile = candidate_profiles[0]["profile"]
         hints.append(f"run: pcap2llm analyze <capture> --profile {top_profile}")
 
     if trace_shape == "mixed_domain":
@@ -187,9 +197,15 @@ def _next_step_hints(
             )
 
     if packet_count > 5000:
-        hints.append(
-            "large capture — consider narrowing with -Y display filter before full analyze"
-        )
+        if clear_lte_s6a:
+            hints.append('large capture — narrow first with `-Y "diameter && sctp"` before full S6a analyze')
+        else:
+            hints.append(
+                "large capture — consider narrowing with -Y display filter before full analyze"
+            )
+
+    if clear_lte_s6a:
+        return hints
 
     if top_domain in ("5g-sa-core", "5g-sa-core-sbi"):
         hints.append("5G SA Core signals detected — try profiles: 5g-n2, 5g-n1-n2, 5g-nas-5gs, 5g-sbi")
@@ -260,6 +276,51 @@ def _classification_state(
     return "unknown"
 
 
+def _refine_candidate_semantics(
+    trace_shape: str,
+    suspected_domains: list[dict[str, Any]],
+    candidate_profiles: list[dict[str, Any]],
+    present_protocols: frozenset[str],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Resolve inspect-only semantic mismatches for downranked candidates."""
+    if not suspected_domains or not candidate_profiles:
+        return candidate_profiles, []
+
+    top_domain = suspected_domains[0]["domain"]
+    top_score = float(suspected_domains[0].get("score", 0.0))
+    clear_lte_s6a = (
+        trace_shape == "single_domain"
+        and top_domain == "lte-eps"
+        and top_score >= 0.7
+        and candidate_profiles[0].get("profile") == "lte-s6a"
+        and {"diameter", "sctp"}.issubset(present_protocols)
+    )
+    if not clear_lte_s6a:
+        return candidate_profiles, []
+
+    refined: list[dict[str, Any]] = []
+    adjusted = False
+    for candidate in candidate_profiles:
+        updated = dict(candidate)
+        reasons = list(candidate.get("reason", []))
+        is_downranked_ims_fallback = (
+            str(candidate.get("profile", "")).startswith("volte-")
+            and any("downranked" in reason and "IMS" in reason for reason in reasons)
+        )
+        if is_downranked_ims_fallback:
+            updated["confidence"] = "low"
+            updated["evidence_class"] = "downranked_protocol_match"
+            adjusted = True
+        refined.append(updated)
+
+    notes: list[str] = []
+    if adjusted:
+        notes.append(
+            "downranked IMS Diameter candidates remain visible as generic Diameter/SCTP overlaps, not as strong IMS matches"
+        )
+    return refined, notes
+
+
 def enrich_inspect_result(
     result: InspectResult,
     profiles: list[ProfileDefinition],
@@ -285,6 +346,12 @@ def enrich_inspect_result(
 
     # Trace shape
     shape, shape_reasons = _trace_shape(suspected, result.protocol_counts, present_protocols)
+    candidates, semantic_notes = _refine_candidate_semantics(
+        shape,
+        suspected,
+        candidates,
+        present_protocols,
+    )
 
     # Inspect-level anomaly heuristics (appended to existing transport/app anomalies)
     network_anomalies, classification_notes = _inspect_anomalies(
@@ -295,9 +362,16 @@ def enrich_inspect_result(
         present_protocols,
         candidates,
     )
+    classification_notes.extend(semantic_notes)
 
     # Next-step hints
-    hints = _next_step_hints(shape, suspected, candidates, result.metadata.packet_count)
+    hints = _next_step_hints(
+        shape,
+        suspected,
+        candidates,
+        result.metadata.packet_count,
+        present_protocols,
+    )
 
     # Structured classification state — maps the combination of shape and confidence
     # to a machine-readable summary that is easier to act on than reading shape+notes.
@@ -420,6 +494,15 @@ def build_inspect_markdown(result: InspectResult) -> str:
 
 
 def serialize_inspect_result(result: InspectResult, *, artifact_version: str = "V_01") -> dict[str, Any]:
+    metadata = result.metadata.model_dump(
+        exclude={
+            "capture_file",
+            "packet_count",
+            "first_packet_number",
+            "first_seen_epoch",
+            "last_seen_epoch",
+        }
+    )
     payload = {
         "run": build_run_metadata("inspect"),
         "capture": build_capture_metadata(
@@ -430,5 +513,7 @@ def serialize_inspect_result(result: InspectResult, *, artifact_version: str = "
         ),
         "artifact": build_artifact_metadata(artifact_version),
     }
-    payload.update(result.model_dump())
+    payload["capture"]["packet_count"] = result.metadata.packet_count
+    payload.update(result.model_dump(exclude={"metadata"}))
+    payload["metadata"] = metadata
     return payload

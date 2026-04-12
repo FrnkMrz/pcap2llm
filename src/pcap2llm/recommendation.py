@@ -22,6 +22,7 @@ _DOMAIN_BONUS_SCALE = 3.0
 
 _PROTOCOL_EQUIVALENTS: dict[str, tuple[str, ...]] = {
     "bssap": ("bssap", "gsm_a.bssap"),
+    "bssap+": ("bssap+", "bssap", "gsm_a.bssap"),
     "bssmap": ("bssmap", "gsm_a.bssmap"),
     "dtap": ("dtap", "gsm_a.dtap", "gsm_dtap"),
     "http": ("http", "http2"),
@@ -66,6 +67,13 @@ _VOICE_SIP_PROFILES: frozenset[str] = frozenset({
     "vonr-sip-register",
 })
 _VOICE_DNS_PROFILES: frozenset[str] = frozenset({"volte-dns", "vonr-dns"})
+_VOICE_CALL_PROTOCOLS: frozenset[str] = frozenset({"sdp", "rtp", "rtcp"})
+_REGISTER_HINT_TOKENS: frozenset[str] = frozenset({
+    "pcscf", "scscf", "icscf", "registrar", "register", "auth", "aka", "hss",
+})
+_SBC_HINT_TOKENS: frozenset[str] = frozenset({
+    "sbc", "ibcf", "ebcf", "session-border", "border-controller",
+})
 
 # ---------------------------------------------------------------------------
 # core-name-resolution: telecom naming patterns
@@ -347,6 +355,24 @@ def _has_peer_hint(peer_blob: str, hints: frozenset[str]) -> bool:
     return any(hint in peer_blob for hint in hints)
 
 
+def _has_call_context(present: frozenset[str]) -> bool:
+    return any(proto in present for proto in _VOICE_CALL_PROTOCOLS)
+
+
+def _has_registration_context(
+    present: frozenset[str],
+    peer_blob: str,
+    has_ims_peer_hint: bool,
+) -> bool:
+    if _has_peer_hint(peer_blob, _REGISTER_HINT_TOKENS):
+        return True
+    return has_ims_peer_hint and any(proto in present for proto in {"diameter", "dns"})
+
+
+def _has_sbc_context(peer_blob: str, peer_roles: set[str]) -> bool:
+    return "sbc" in peer_roles or _has_peer_hint(peer_blob, _SBC_HINT_TOKENS)
+
+
 def _is_specific_sbi_profile(profile: ProfileDefinition) -> bool:
     if profile.name in _GENERIC_SBI_KEEP_PROFILES or profile.name == "5g-n26":
         return False
@@ -394,6 +420,9 @@ def _apply_profile_gates(
     has_voice_protocol = any(proto in present for proto in _VOICE_INDICATOR_PROTOCOLS)
     has_strong_ims_signal = any(proto in present for proto in {"sip", "sdp", "rtp", "rtcp"})
     has_ims_peer_hint = _has_peer_hint(peer_blob, _IMS_HINT_TOKENS)
+    has_call_context = _has_call_context(present)
+    has_registration_context = _has_registration_context(present, peer_blob, has_ims_peer_hint)
+    has_sbc_context = _has_sbc_context(peer_blob, peer_roles)
 
     if profile.name in _HYBRID_VOICE_PROFILES and not has_voice_protocol:
         score *= 0.35
@@ -420,6 +449,18 @@ def _apply_profile_gates(
     if profile.name in _VOICE_SIP_PROFILES and not ("sip" in present or has_ims_peer_hint):
         score *= 0.12
         reasons.append("SIP voice profile downranked: no SIP or IMS hints")
+
+    if profile.name.endswith("-sip-call") and not has_call_context:
+        score *= 0.4
+        reasons.append("SIP call profile downranked: no SDP/media call markers")
+
+    if profile.name.endswith("-sip-register") and not has_registration_context:
+        score *= 0.4
+        reasons.append("SIP register profile downranked: no registrar/auth-style context")
+
+    if profile.name.endswith("-sbc") and not has_sbc_context:
+        score *= 0.35
+        reasons.append("SBC profile downranked: no SBC peer or topology hints")
 
     if profile.name in _VOICE_DNS_PROFILES and not ("sip" in present or has_ims_peer_hint):
         score *= 0.55
@@ -472,14 +513,28 @@ def _apply_profile_gates(
         score *= 0.2
         reasons.append("ISUP profile requires explicit isup protocol evidence")
 
-    _GERAN_PROFILES: frozenset[str] = frozenset({"2g3g-ss7-geran", "2g3g-gr"})
-    if profile.name in _GERAN_PROFILES and not ("bssap" in present or "dtap" in present):
-        score *= 0.3
-        reasons.append("GERAN profile downranked: no BSSAP/DTAP evidence")
+    has_bssap_evidence = any(proto in present for proto in {"bssap", "bssap+", "bssmap"})
+    has_geran_evidence = has_bssap_evidence or any(proto in present for proto in {"dtap", "gsm_a"})
 
-    if profile.name == "2g3g-gs" and "bssap" not in present:
-        score *= 0.3
-        reasons.append("Gs interface profile downranked: no BSSAP evidence")
+    if profile.name == "2g3g-bssap" and not has_bssap_evidence:
+        score *= 0.12
+        reasons.append("BSSAP profile downranked: no BSSAP/BSSMAP evidence")
+
+    if profile.name == "2g3g-geran" and not has_geran_evidence:
+        score *= 0.12
+        reasons.append("GERAN profile downranked: no BSSAP/DTAP/GSM-A evidence")
+
+    if profile.name == "2g3g-ss7-geran" and not has_geran_evidence:
+        score *= 0.18
+        reasons.append("legacy GERAN bundle downranked: no BSSAP/DTAP/GSM-A evidence")
+
+    if profile.name == "2g3g-gs" and not (has_bssap_evidence or "dtap" in present):
+        score *= 0.12
+        reasons.append("Gs interface profile downranked: no BSSAP/DTAP evidence")
+
+    if profile.name == "2g3g-gn" and not any(proto in present for proto in {"gtpv1", "gtp"}):
+        score = 0.0
+        reasons.append("Gn profile downranked: ICMP without GTPv1 evidence is only a side signal")
 
     if _is_specific_sbi_profile(profile):
         profile_hints = _SBI_PROFILE_HINTS.get(profile.name, frozenset({"amf", "smf", "pcf", "udm", "ausf", "nrf", "nssf", "scp"}))
@@ -503,6 +558,22 @@ def _supporting_context_bonus(
     if profile.name in _IMS_DIAMETER_PROFILES and _has_peer_hint(peer_blob, _IMS_HINT_TOKENS):
         bonus += 0.6
         reasons.append("resolved peer hints reinforce IMS/CSCF Diameter context")
+
+    if profile.name in _IMS_CORE_PROFILES and "diameter" in present and _has_peer_hint(peer_blob, _IMS_HINT_TOKENS):
+        bonus += 1.0
+        reasons.append("Diameter plus IMS peer hints support broad IMS core context")
+
+    if profile.name.endswith("-sip-call") and _has_call_context(present):
+        bonus += 0.9
+        reasons.append("SDP/media markers support call-flow specialization")
+
+    if profile.name.endswith("-sip-register") and _has_registration_context(present, peer_blob, _has_peer_hint(peer_blob, _IMS_HINT_TOKENS)):
+        bonus += 0.8
+        reasons.append("registrar/auth-style hints support registration specialization")
+
+    if profile.name.endswith("-sbc") and _has_sbc_context(peer_blob, peer_roles):
+        bonus += 0.9
+        reasons.append("resolved peer hints support SBC boundary interpretation")
 
     if profile.name == "lte-s6a" and (
         {"mme", "hss"}.issubset(peer_roles) or _has_peer_hint(peer_blob, _LTE_S6A_HINT_TOKENS)

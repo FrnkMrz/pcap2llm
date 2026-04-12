@@ -18,6 +18,7 @@ def _mock_result(
     protocol_counts: dict,
     transport_counts: dict | None = None,
     raw_protocols: list[str] | None = None,
+    resolved_peers: list[dict] | None = None,
 ) -> InspectResult:
     total = sum(protocol_counts.values())
     all_protos = raw_protocols or list(protocol_counts.keys())
@@ -29,6 +30,7 @@ def _mock_result(
             last_seen_epoch="2.0",
             relevant_protocols=all_protos,
             raw_protocols=all_protos,
+            resolved_peers=resolved_peers or [],
         ),
         conversations=[],
         anomalies=[],
@@ -303,6 +305,33 @@ def test_legacy_ss7_trace_prefers_legacy_profiles() -> None:
     assert rec["suspected_domains"][0]["domain"] == "legacy-2g3g"
 
 
+def test_map_tcap_sccp_trace_keeps_bssap_geran_family_below_core_profiles() -> None:
+    result = _mock_result(
+        {"map": 140, "tcap": 110, "sccp": 150, "mtp3": 120, "m2pa": 120},
+        None,
+        ["map", "tcap", "sccp", "mtp3", "m2pa"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=10)
+    scores = {item["profile"]: item["score"] for item in rec["recommended_profiles"]}
+    assert "2g3g-map-core" in scores
+    assert "2g3g-sccp-mtp" in scores
+    for gated in ("2g3g-bssap", "2g3g-geran", "2g3g-gs", "2g3g-ss7-geran"):
+        if gated in scores:
+            assert scores[gated] < scores["2g3g-map-core"]
+            assert scores[gated] < scores["2g3g-sccp-mtp"]
+
+
+def test_bssap_dtap_evidence_raises_geran_side_profiles() -> None:
+    result = _mock_result(
+        {"bssap": 150, "dtap": 120, "sccp": 180, "mtp3": 180},
+        None,
+        ["bssap", "dtap", "sccp", "mtp3"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=8)
+    top = [item["profile"] for item in rec["recommended_profiles"][:5]]
+    assert any(name in top for name in {"2g3g-bssap", "2g3g-geran", "2g3g-gs"})
+
+
 def test_5g_domain_remains_primary_when_nas_eps_side_signal_is_present() -> None:
     result = _mock_result(
         {"ngap": 400, "nas-5gs": 80, "nas-eps": 20, "sctp": 500, "ip": 500},
@@ -436,6 +465,66 @@ def test_lte_voice_mix_prefers_volte_over_vonr_when_primary_domain_is_lte() -> N
     first_volte = next(i for i, name in enumerate(names) if name.startswith("volte-"))
     first_vonr = next(i for i, name in enumerate(names) if name.startswith("vonr-"))
     assert first_volte < first_vonr
+
+
+def test_sip_sdp_call_flow_prefers_call_profile_over_register_profile() -> None:
+    result = _mock_result(
+        {"sip": 220, "sdp": 150, "dns": 40, "tcp": 220, "ip": 220},
+        {"tcp": 220},
+        ["sip", "sdp", "dns", "tcp", "ip"],
+        resolved_peers=[
+            {"name": "pcscf.ims.example.net", "role": "pcscf"},
+            {"name": "scscf.ims.example.net", "role": "scscf"},
+        ],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=10)
+    names = [item["profile"] for item in rec["recommended_profiles"]]
+    assert names.index("volte-sip-call") < names.index("volte-sip-register")
+
+
+def test_registration_flavored_ims_trace_prefers_register_over_call() -> None:
+    result = _mock_result(
+        {"sip": 220, "dns": 120, "diameter": 120, "sctp": 120, "tcp": 220, "ip": 220},
+        {"sctp": 120, "tcp": 220},
+        ["sip", "dns", "diameter", "sctp", "tcp", "ip"],
+        resolved_peers=[
+            {"name": "pcscf.ims.mnc001.mcc262.3gppnetwork.org", "role": "pcscf"},
+            {"name": "ims-hss-01", "role": "hss"},
+        ],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=10)
+    names = [item["profile"] for item in rec["recommended_profiles"]]
+    assert "volte-sip-register" in names
+    if "volte-sip-call" in names:
+        assert names.index("volte-sip-register") < names.index("volte-sip-call")
+    if "volte-sbc" in names:
+        assert names.index("volte-ims-core") < names.index("volte-sbc")
+
+
+def test_sbc_peer_hints_raise_sbc_profile_above_other_specializations() -> None:
+    result = _mock_result(
+        {"sip": 180, "sdp": 120, "dns": 30, "tcp": 180, "ip": 180},
+        {"tcp": 180},
+        ["sip", "sdp", "dns", "tcp", "ip"],
+        resolved_peers=[
+            {"name": "ims-sbc-edge-01", "role": "sbc"},
+            {"name": "pcscf.ims.example.net", "role": "pcscf"},
+        ],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=10)
+    names = [item["profile"] for item in rec["recommended_profiles"]]
+    assert names.index("volte-sbc") < names.index("volte-sip-register")
+
+
+def test_sctp_icmp_transport_trace_does_not_emit_gn_candidate() -> None:
+    result = _mock_result(
+        {"icmp": 20, "ip": 500},
+        {"sctp": 500},
+        ["icmp", "sctp", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=12)
+    names = [item["profile"] for item in rec["recommended_profiles"]]
+    assert "2g3g-gn" not in names
 
 
 def test_lte_candidates_marked_as_side_signals_in_5g_trace() -> None:

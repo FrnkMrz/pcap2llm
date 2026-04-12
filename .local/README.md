@@ -16,44 +16,37 @@ Place your Wireshark-style hosts file at:
 
 The tool loads it automatically if it exists. No CLI argument is required.
 
-## Batch runner for all local traces
+## Repo-owned local batch runner
 
-Use this script when you want one command that runs `discover`, `inspect`, and
-`analyze` for every `.pcap` and `.pcapng` file anywhere under `.local/`:
+The committed runner now lives in the repo, not under `.local/`.
+
+Use it like this from the repo root:
 
 ```bash
-bash .local/run_all_traces.sh
+python3 scripts/run_local_batches.py --batch batches/local_examples.toml --list
+python3 scripts/run_local_batches.py --batch batches/local_examples.toml
 ```
+
+The runner and batch definitions are versioned in the repo:
+
+- `scripts/run_local_batches.py`
+- `batches/local_examples.toml`
+
+But the real inputs and outputs stay local-only:
+
+- captures such as `.local/PCAPs/...`
+- helper files such as `.local/hosts`
+- result directories such as `.local/results/...`
 
 Useful variants:
 
 ```bash
-bash .local/run_all_traces.sh --quick
-bash .local/run_all_traces.sh --force
+python3 scripts/run_local_batches.py --batch batches/local_examples.toml --case inspect_volte_mixed_trace
+python3 scripts/run_local_batches.py --batch batches/local_examples.toml --dry-run
+python3 scripts/run_local_batches.py --batch batches/local_examples.toml --output-root .local/results/tmp
 ```
 
-- `--quick` runs only `discover` + `inspect`
-- `--force` re-runs traces even if a run folder already exists
-
-Results are written to:
-
-```text
-.local/runs/
-```
-
-Each trace gets its own folder with discovery, inspect, and analyze outputs,
-plus a combined overview in:
-
-```text
-.local/runs/RESULTS.md
-```
-
-Notes:
-
-- the script auto-detects the best profile from discovery output
-- `.local/hosts` is passed automatically when present
-- `.local/runs/` is excluded from the scan, so generated outputs are never
-  treated as input traces
+This keeps the run catalog reviewable in Git while preventing local PCAPs and generated artifacts from being tracked.
 
 ## What belongs here
 

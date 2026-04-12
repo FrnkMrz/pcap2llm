@@ -1,0 +1,23 @@
+[batch]
+name = "local_examples"
+description = "Curated local-only runs. The batch file is committed; the referenced captures are not."
+default_output_root = ".local/results/local_examples"
+continue_on_error = true
+
+[[cases]]
+name = "discover_diameter_s6a_orange_pl"
+action = "discover"
+capture = ".local/PCAPs/diameter_s6a_5gnr_roaming_orange_pl.pcapng"
+
+[[cases]]
+name = "inspect_volte_mixed_trace"
+action = "inspect"
+capture = ".local/PCAPs/volte_us_sip_sdp_diameter_gtpv2.pcap"
+profile = "volte-ims-core"
+
+[[cases]]
+name = "analyze_diameter_s6a_orange_pl"
+action = "analyze"
+capture = ".local/PCAPs/diameter_s6a_5gnr_roaming_orange_pl.pcapng"
+profile = "lte-s6a"
+args = ["--privacy-profile", "internal", "--max-packets", "500"]

@@ -6,6 +6,27 @@ The format is intentionally simple and optimized for humans reading repo history
 
 ## Unreleased
 
+### Added — 2026-04-12 (repo-owned local batch runner)
+
+- **Repo-owned local batch execution tooling**:
+  - added `scripts/run_local_batches.py` plus a committed TOML batch catalog at `batches/local_examples.toml`
+  - the runner executes local `discover`, `inspect`, and `analyze` cases while keeping captures and generated outputs outside Git tracking
+  - supports case selection, dry-run mode, output-root override, and concise per-case/end-of-run summaries
+
+- **Local workflow docs and git hygiene were updated**:
+  - README, workflow docs, and `.local/README.md` now describe the repo-owned runner and the intended local-only storage pattern
+  - `.gitignore` now also reserves `batches/*.local.toml` and `batches/*.private.toml` for untracked local overrides
+
+### Changed — 2026-04-12 (inspect cleanup and S6a consistency)
+
+- **Inspect JSON metadata is cleaner and more canonical**:
+  - `run`, `capture`, and `artifact` are now the authoritative top-level metadata blocks for inspect outputs.
+  - redundant capture-path / first-packet / timestamp fields were removed from `metadata`; inspect-specific context stays under `metadata`.
+
+- **Inspect candidate semantics are clearer for clean S6a traces**:
+  - downranked IMS Diameter fallbacks in strong LTE S6a cases now surface as low-confidence fallback matches instead of looking like strong IMS matches.
+  - clearly identified S6a inspect results now keep next-step hints focused on `lte-s6a` instead of presenting unrelated LTE interfaces as equally likely.
+
 ### Changed — 2026-04-12 (semantic artifact filenames)
 
 - **Artifact output filenames now use semantic ordering instead of timestamp-first naming**:

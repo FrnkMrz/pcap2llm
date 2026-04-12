@@ -19,3 +19,5 @@ artifacts/
 output/
 tmp/
 pcap2llm.config.yaml
+batches/*.local.toml
+batches/*.private.toml

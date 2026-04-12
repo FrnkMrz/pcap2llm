@@ -26,6 +26,9 @@ signaling troubleshooting.
 - `2g3g-gr` vs `2g3g-map-core`: use `2g3g-gr` when you know the path is SGSN ↔ HLR; use `2g3g-map-core` when the MAP question spans mixed HLR/VLR/SGSN roles.
 - `2g3g-geran` vs `2g3g-bssap`: use `2g3g-geran` for the broader core-side 2G signaling picture; use `2g3g-bssap` when the technical A-interface mechanics matter more than the broader context.
 - `2g3g-isup` vs `2g3g-sccp-mtp`: use `2g3g-isup` for call sequence and release-cause interpretation; use `2g3g-sccp-mtp` when routing and lower-layer SS7 delivery are the real issue.
+- `2g3g-geran` / `2g3g-bssap` / `2g3g-gs` should only rise when there is direct
+  BSSAP, BSSMAP, DTAP, or GSM-A evidence. Plain MAP/TCAP/SCCP/MTP3 traces
+  should favor `2g3g-map-core`, `2g3g-gr`, or `2g3g-sccp-mtp` instead.
 
 ## Selection rule
 

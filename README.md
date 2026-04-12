@@ -115,6 +115,41 @@ More detail:
 - [`docs/PROFILE_SELECTION.md`](docs/PROFILE_SELECTION.md) for recommendation logic and `selector_metadata`
 - [`docs/SESSIONS.md`](docs/SESSIONS.md) for session manifests and multi-run orchestration
 
+## Repo-Owned Local Batch Runner
+
+The repo now includes a committed local batch runner plus committed batch definitions, while private captures and generated artifacts stay local-only.
+
+Quick path:
+
+```bash
+# 1. Put local captures under ignored storage such as .local/PCAPs/
+# 2. Review or edit the committed batch definition
+python3 scripts/run_local_batches.py --batch batches/local_examples.toml --list
+
+# 3. Run the whole batch
+python3 scripts/run_local_batches.py --batch batches/local_examples.toml
+
+# 4. Or run only one named case
+python3 scripts/run_local_batches.py --batch batches/local_examples.toml --case analyze_diameter_s6a_orange_pl
+```
+
+How it is intended to work:
+
+1. Clone the repo and install `pcap2llm`.
+2. Place private PCAPs, hosts files, and mapping files in ignored local storage such as `.local/`.
+3. Keep the run catalog in versioned files such as [`batches/local_examples.toml`](batches/local_examples.toml).
+4. Run the repo-owned runner from the repo root.
+5. Review local outputs under `.local/results/` and do not commit them.
+
+Notes:
+
+- the runner script lives at [`scripts/run_local_batches.py`](scripts/run_local_batches.py)
+- the batch format is TOML and stays human-editable
+- local result directories default to `.local/results/...` and can be overridden with `--output-root`
+- `--case` selects one or more named cases
+- `--dry-run` shows the resolved commands without executing them
+- `.gitignore` protects `.local/`, `artifacts/`, common output folders, and optional local batch override files such as `batches/*.local.toml`
+
 ## Important Limits
 
 By default `detail.json` contains the first **1,000 packets**. Use

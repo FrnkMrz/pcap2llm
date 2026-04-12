@@ -52,12 +52,15 @@ def test_build_discovery_payload_adds_dominant_signaling_protocols() -> None:
     )
 
     dominant = payload["protocol_summary"]["dominant_signaling_protocols"]
-    assert dominant[0] == {"name": "ngap", "strength": "strong"}
-    assert dominant[1] == {"name": "nas-5gs", "strength": "strong"}
+    # ngap and nas-5gs are raw_protocol entries (count=0 in protocol_counts) — they get
+    # "supporting" strength to distinguish them from packet-counted protocols.
+    assert dominant[0] == {"name": "ngap", "strength": "supporting"}
+    assert dominant[1] == {"name": "nas-5gs", "strength": "supporting"}
     assert not any(item["name"] == "nas-eps" for item in dominant)
     assert not any(item["name"] == "nr-rrc" for item in dominant)
     assert not any(item["name"] in {"eth", "ethertype", "vlan", "ipcp", "pap"} for item in dominant)
     assert any(item["name"] == "sctp" and item["strength"] == "supporting" for item in dominant)
+    # No entry should carry an explicit count of 0 — omit count key entirely for uncounted protocols
     assert all(item.get("count", 1) != 0 for item in dominant)
     assert payload["run"]["action"] == "discover"
     assert payload["capture"]["filename"] == "sample.pcapng"
@@ -118,8 +121,9 @@ def test_build_discovery_markdown_renders_dominant_signaling_first() -> None:
         },
         "protocol_summary": {
             "dominant_signaling_protocols": [
-                {"name": "ngap", "strength": "strong"},
-                {"name": "nas-5gs", "strength": "strong"},
+                # ngap/nas-5gs have no packet count (raw signal only) — strength="supporting"
+                {"name": "ngap", "strength": "supporting"},
+                {"name": "nas-5gs", "strength": "supporting"},
                 {"name": "sctp", "count": 500, "strength": "supporting"},
             ],
             "top_protocols": [{"name": "ip", "count": 497}, {"name": "dtap", "count": 3}],
@@ -141,7 +145,8 @@ def test_build_discovery_markdown_renders_dominant_signaling_first() -> None:
     assert "## Dominant Signaling Protocols" in markdown
     assert "## Capture Context" in markdown
     assert markdown.index("## Dominant Signaling Protocols") < markdown.index("## Top Protocols")
-    assert "`ngap` [strong]" in markdown
+    # ngap has no packet count (raw signal) — rendered with [raw signal] label
+    assert "`ngap` [raw signal]" in markdown
     assert "`ethertype`" in markdown
     assert "`ip`: 497" in markdown
     assert "Raw top-protocol count view" in markdown

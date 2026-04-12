@@ -312,22 +312,28 @@ def _telecom_naming_evidence(dns_blob: str) -> tuple[int, int, list[str]]:
             reasons.append(reason_text)
             seen_reasons.add(reason_text)
 
+    matched_supporting: list[str] = []
     for substring, reason_text in _CORE_NAMING_SUPPORTING:
         if substring in dns_blob:
             supporting_hits += 1
+            if reason_text not in seen_reasons:
+                matched_supporting.append(reason_text)
+                seen_reasons.add(reason_text)
 
     # Interpretive summary — placed first so it is the primary visible reason.
-    # Added only when strong telecom naming evidence is present; explains *meaning*
+    # Added when any telecom naming evidence is present; explains *meaning*
     # rather than just *which pattern matched*.
     summary: list[str] = []
     if strong_hits >= 1:
         summary = ["DNS trace matches telecom core naming — APN/realm/core service resolution support traffic"]
+    elif supporting_hits >= 2:
+        summary = ["DNS naming context suggests telecom core support traffic"]
 
-    # Summarize supporting signal
+    # Summarize supporting signal with actual matched pattern names (up to 3)
     if supporting_hits >= 2 and not reasons:
-        reasons.append("telecom core DNS naming patterns suggest APN/realm/core resolution")
+        reasons.extend(matched_supporting[:3])
     elif supporting_hits >= 1 and reasons:
-        reasons.append("additional telecom core naming context detected")
+        reasons.extend(matched_supporting[:2])
 
     return strong_hits, supporting_hits, list(dict.fromkeys([*summary, *reasons]))
 
@@ -424,7 +430,7 @@ def _apply_profile_gates(
     has_registration_context = _has_registration_context(present, peer_blob, has_ims_peer_hint)
     has_sbc_context = _has_sbc_context(peer_blob, peer_roles)
 
-    if profile.name in _HYBRID_VOICE_PROFILES and not has_voice_protocol:
+    if profile.name in _HYBRID_VOICE_PROFILES and not has_strong_ims_signal:
         score *= 0.35
         reasons.append("voice profile downranked: no SIP/IMS indicators")
 
@@ -532,9 +538,26 @@ def _apply_profile_gates(
         score *= 0.12
         reasons.append("Gs interface profile downranked: no BSSAP/DTAP evidence")
 
-    if profile.name == "2g3g-gn" and not any(proto in present for proto in {"gtpv1", "gtp"}):
-        score = 0.0
-        reasons.append("Gn profile downranked: ICMP without GTPv1 evidence is only a side signal")
+    if profile.name == "2g3g-gn":
+        has_gtp1 = any(proto in present for proto in {"gtpv1", "gtp"})
+        has_gtpv2 = "gtpv2" in present
+        if not has_gtp1:
+            score = 0.0
+            reasons.append("Gn profile not applicable: no GTPv1 evidence detected")
+        elif has_gtpv2:
+            score = 0.0
+            reasons.append("Gn profile not applicable: GTPv2 control plane present — GTP user-plane is LTE-U, not legacy Gn")
+
+    if profile.name in {"lte-s5", "lte-s8"}:
+        _has_gtp1_only = (
+            any(proto in present for proto in {"gtpv1", "gtp"})
+            and "gtpv2" not in present
+        )
+        if _has_gtp1_only:
+            score *= 0.12
+            reasons.append(
+                "lte-s5/s8 downranked: GTP (v1) without GTPv2 control plane — suggests legacy Gn/Gp, not LTE S5/S8"
+            )
 
     if _is_specific_sbi_profile(profile):
         profile_hints = _SBI_PROFILE_HINTS.get(profile.name, frozenset({"amf", "smf", "pcf", "udm", "ausf", "nrf", "nssf", "scp"}))
@@ -743,6 +766,8 @@ def _domain_mismatch_penalty(
         )
         if has_nas_eps and not has_anchor:
             return 0.35, [f"treated as cross-generation side signal; primary domain evidence points to {top['domain']}"]
+        if not has_nas_eps and not has_anchor:
+            return 0.15, [f"LTE profile suppressed: no LTE anchor signal in strongly 5G SA dominated trace"]
 
     if selector.family == "2g3g" and top_family in {"5g", "lte"} and "2g3g" not in present_families:
         return 0.25, [f"strong {top['domain']} evidence outweighs weak legacy side signals"]
@@ -1005,6 +1030,26 @@ def infer_domains(inspect_result: InspectResult) -> list[dict[str, Any]]:
         if score > existing:
             domain_best[domain] = (score, deduped)
 
+    # GTPv1 domain inference for plain "gtp" protocol name.
+    # TShark reports GTPv1 as "gtp" (not "gtpv1"), so the gtpv1+udp combo above may not fire.
+    # Infer legacy-2g3g-gprs from plain "gtp" when gtpv2 is absent — when gtpv2 is present,
+    # "gtp" is GTP-U (LTE user plane), not legacy Gn/Gp.  The "gtpv1" protocol name check
+    # ensures we do not double-count when both names appear.
+    if (
+        "gtp" in present
+        and "udp" in present
+        and "gtpv2" not in present
+        and "gtpv1" not in present
+    ):
+        gtp_ff = _protocol_evidence(inspect_result, "gtp", total_packets, present)[0]
+        gtp_score = 0.65 * gtp_ff
+        existing_gprs = domain_best.get("legacy-2g3g-gprs", (0.0, []))[0]
+        if gtp_score > existing_gprs:
+            domain_best["legacy-2g3g-gprs"] = (
+                gtp_score,
+                ["gtp (GTPv1) + udp = legacy GTPv1 packet-core (Gn/Gp ambiguous — no GTPv2 control plane detected)"],
+            )
+
     # Suppress dns-support when a primary telecom domain is already present.
     # The bare dns rule fires on any trace that has DNS, including IMS, 5G, and
     # LTE captures where DNS is ancillary infrastructure.  When a stronger domain
@@ -1076,7 +1121,7 @@ def _apply_dns_fanout_suppression(
         (s for s, p, _ in scored if p.name == "core-name-resolution"),
         0.0,
     )
-    if core_score < 5.0:
+    if core_score < 4.0:
         return scored  # core-name-resolution not dominant — no suppression
 
     if any(proto in present for proto in _DNS_SUPPRESSION_ANCHORS):
@@ -1084,23 +1129,37 @@ def _apply_dns_fanout_suppression(
 
     _VOICE_DNS_EXEMPT = frozenset({"volte-dns", "vonr-dns"})
     has_ims_peer = _has_peer_hint(peer_blob, _IMS_HINT_TOKENS)
+    # Family-specific non-dns core profiles that add noise in DNS-only support traces.
+    _FAMILY_CORE_SUPPRESS: frozenset[str] = frozenset({"lte-core", "5g-core", "lte-sbc-cbc", "2g3g-ss7-geran"})
 
     result: list[tuple[float, ProfileDefinition, list[str]]] = []
     for score, profile, reasons in scored:
-        if profile.name == "core-name-resolution" or not profile.name.endswith("-dns"):
+        if profile.name == "core-name-resolution":
             result.append((score, profile, reasons))
             continue
         # Voice DNS with IMS peer hint: independent justification — leave intact
         if profile.name in _VOICE_DNS_EXEMPT and has_ims_peer:
             result.append((score, profile, reasons))
             continue
-        # Generic or unjustified DNS family profile: suppress
-        new_score = score * _DNS_SUPPRESSION_FACTOR
-        new_reasons = list(dict.fromkeys([
-            *reasons,
-            "downranked: telecom core naming support profile provides the stronger explanation",
-        ]))
-        result.append((new_score, profile, new_reasons))
+        # DNS family profiles: suppress
+        if profile.name.endswith("-dns"):
+            new_score = score * _DNS_SUPPRESSION_FACTOR
+            new_reasons = list(dict.fromkeys([
+                *reasons,
+                "downranked: telecom core naming support profile provides the stronger explanation",
+            ]))
+            result.append((new_score, profile, new_reasons))
+            continue
+        # Family-specific core profiles without non-DNS signaling anchor: reduce further
+        if profile.name in _FAMILY_CORE_SUPPRESS:
+            new_score = score * 0.55
+            new_reasons = list(dict.fromkeys([
+                *reasons,
+                "downranked: family-specific profile without signaling anchor in DNS support trace",
+            ]))
+            result.append((new_score, profile, new_reasons))
+            continue
+        result.append((score, profile, reasons))
     return result
 
 

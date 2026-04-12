@@ -393,7 +393,10 @@ def test_gtpv2_with_s5s8_host_hints_prefers_s5_s8_profiles() -> None:
     assert any("protocol evidence is partial; resolved peer hints strongly suggest S5/S8 context" in reason for reason in reasons)
 
 
-def test_host_hint_only_gtp_specialization_is_marked_low_confidence() -> None:
+def test_plain_gtp_without_gtpv2_does_not_promote_lte_s5_s8() -> None:
+    """Plain GTPv1 (no GTPv2) with S5/S8 peer hints: lte-s5/s8 must NOT be in top-3.
+    The legacy-2g3g-gprs domain must be inferred; lte-eps must not appear.
+    If lte-s5 appears at all it must be low confidence."""
     result = _mock_result(
         {"gtp": 80, "udp": 80, "ip": 80},
         {"udp": 80},
@@ -404,10 +407,30 @@ def test_host_hint_only_gtp_specialization_is_marked_low_confidence() -> None:
         {"ip": "10.0.0.2", "name": "S5-S8-SGW-01", "role": "sgw"},
     ]
     rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=6)
-    s5 = next(item for item in rec["recommended_profiles"] if item["profile"] == "lte-s5")
-    assert s5["confidence"] == "low"
-    assert s5["evidence_class"] == "protocol_partial_with_host_hints"
-    assert any("protocol evidence is partial" in reason for reason in s5["reason"])
+
+    # Domain inference must favor legacy-2g3g-gprs, not lte-eps
+    domain_names = [d["domain"] for d in rec["suspected_domains"]]
+    assert "legacy-2g3g-gprs" in domain_names, f"Expected legacy-2g3g-gprs domain: {domain_names}"
+    assert "lte-eps" not in domain_names, f"lte-eps must not appear for plain GTPv1: {domain_names}"
+
+    # Legacy GTPv1 profiles must lead — lte-s5/s8 must not be in top-2
+    top2 = [item["profile"] for item in rec["recommended_profiles"][:2]]
+    assert "lte-s5" not in top2, f"lte-s5 must not lead for plain GTPv1: {top2}"
+    assert "lte-s8" not in top2, f"lte-s8 must not lead for plain GTPv1: {top2}"
+    # 2g3g legacy profiles must dominate top-2
+    assert all(n.startswith("2g3g-") for n in top2), (
+        f"Legacy 2g3g profiles must occupy top-2 for plain GTPv1: {top2}"
+    )
+
+    # If lte-s5 appears at all, it must be low confidence (heavily gated) and below legacy
+    lte_s5 = next((item for item in rec["recommended_profiles"] if item["profile"] == "lte-s5"), None)
+    if lte_s5 is not None:
+        assert lte_s5["confidence"] == "low", f"lte-s5 must be low confidence for plain GTPv1: {lte_s5}"
+        # lte-s5 score must be below the leading legacy profile
+        top_score = rec["recommended_profiles"][0]["score"]
+        assert lte_s5["score"] < top_score, (
+            f"lte-s5 ({lte_s5['score']:.2f}) must be below leading legacy ({top_score:.2f})"
+        )
 
 
 def test_generic_sbi_trace_prefers_generic_profiles_over_many_specific_interfaces() -> None:
@@ -588,3 +611,155 @@ def test_suspected_domains_not_empty_for_5g_trace() -> None:
     assert rec["suspected_domains"], "suspected_domains must not be empty for strong 5G signals"
     assert rec["suspected_domains"][0]["domain"] == "5g-sa-core"
     assert rec["suspected_domains"][0]["reason"]
+
+
+# ---------------------------------------------------------------------------
+# GTPv1 modeling tests (Issue 2 + Issue 3)
+# ---------------------------------------------------------------------------
+
+def test_plain_gtp_without_gtpv2_infers_legacy_domain() -> None:
+    """Plain 'gtp' (GTPv1 TShark name) without gtpv2 must infer legacy-2g3g-gprs domain."""
+    result = _mock_result(
+        {"gtp": 200, "udp": 200, "ip": 200},
+        {"udp": 200},
+        ["gtp", "udp", "ip"],
+    )
+    domains = infer_domains(result)
+    domain_names = [d["domain"] for d in domains]
+    assert "legacy-2g3g-gprs" in domain_names, (
+        f"Expected legacy-2g3g-gprs from plain gtp+udp: {domain_names}"
+    )
+    assert "lte-eps" not in domain_names, (
+        f"lte-eps must not appear for plain gtp without gtpv2: {domain_names}"
+    )
+    legacy = next(d for d in domains if d["domain"] == "legacy-2g3g-gprs")
+    assert legacy["score"] >= 0.35, f"legacy-2g3g-gprs score too low: {legacy['score']}"
+
+
+def test_plain_gtp_domain_reason_mentions_no_gtpv2() -> None:
+    """Domain reason for plain gtp must mention the absence of GTPv2 / Gn/Gp ambiguity."""
+    result = _mock_result(
+        {"gtp": 150, "udp": 150, "ip": 150},
+        {"udp": 150},
+    )
+    domains = infer_domains(result)
+    legacy = next((d for d in domains if d["domain"] == "legacy-2g3g-gprs"), None)
+    assert legacy is not None, f"Expected legacy-2g3g-gprs: {domains}"
+    reasons_text = " ".join(legacy["reason"]).lower()
+    assert "gtp" in reasons_text, f"Reason must mention gtp: {legacy['reason']}"
+    assert any(kw in reasons_text for kw in ("legacy", "gn", "gp", "ambiguous", "v1")), (
+        f"Reason must indicate legacy/Gn/Gp context: {legacy['reason']}"
+    )
+
+
+def test_gtpv2_eps_trace_does_not_infer_legacy_domain() -> None:
+    """GTPv2 trace must infer lte-eps, not legacy-2g3g-gprs."""
+    result = _mock_result(
+        {"gtpv2": 120, "udp": 120, "ip": 120},
+        {"udp": 120},
+        ["gtpv2", "udp", "ip"],
+    )
+    domains = infer_domains(result)
+    domain_names = [d["domain"] for d in domains]
+    assert "lte-eps" in domain_names, f"Expected lte-eps from gtpv2+udp: {domain_names}"
+    assert "legacy-2g3g-gprs" not in domain_names, (
+        f"legacy-2g3g-gprs must not appear when gtpv2 is present: {domain_names}"
+    )
+
+
+def test_gtpv2_eps_trace_excludes_2g3g_gn_from_candidates() -> None:
+    """Clear GTPv2/EPS trace must not carry 2g3g-gn in recommended profiles."""
+    result = _mock_result(
+        {"gtpv2": 120, "udp": 120, "gtp": 50, "ip": 120},
+        {"udp": 120},
+        ["gtpv2", "gtp", "udp", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=12)
+    names = [item["profile"] for item in rec["recommended_profiles"]]
+    assert "2g3g-gn" not in names, (
+        f"2g3g-gn must not appear in EPS/GTPv2 Inspect results: {names}"
+    )
+
+
+def test_gtpv2_present_zeros_out_2g3g_gn_even_with_gtp_userplane() -> None:
+    """GTPv2 + GTP user-plane: 2g3g-gn must be suppressed (GTP-U is LTE bearer, not legacy Gn)."""
+    result = _mock_result(
+        {"gtpv2": 100, "gtp": 80, "udp": 180, "ip": 200},
+        {"udp": 180},
+        ["gtpv2", "gtp", "udp", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=12)
+    names = [item["profile"] for item in rec["recommended_profiles"]]
+    assert "2g3g-gn" not in names, (
+        f"2g3g-gn must not appear when gtpv2 is the control plane: {names}"
+    )
+    # lte-eps domain must be recognized
+    domain_names = [d["domain"] for d in rec["suspected_domains"]]
+    assert "lte-eps" in domain_names, f"Expected lte-eps domain: {domain_names}"
+
+
+def test_lte_s5_s8_heavily_downranked_for_gtp_without_gtpv2() -> None:
+    """lte-s5/lte-s8 score must be heavily reduced when gtp is present but gtpv2 is absent."""
+    result = _mock_result(
+        {"gtp": 200, "udp": 200, "ip": 200},
+        {"udp": 200},
+        ["gtp", "udp", "ip"],
+    )
+    profiles = load_all_profiles()
+    rec = recommend_profiles_from_inspect(result, profiles, limit=12)
+    for name in ("lte-s5", "lte-s8"):
+        candidate = next((item for item in rec["recommended_profiles"] if item["profile"] == name), None)
+        if candidate is not None:
+            assert candidate["score"] < 3.0, (
+                f"{name} scored {candidate['score']} for plain GTPv1 — expected < 3.0"
+            )
+
+
+# ---------------------------------------------------------------------------
+# 5G SA side signal tests (Issue 4)
+# ---------------------------------------------------------------------------
+
+def test_vonr_n1_n2_voice_suppressed_in_5g_sa_without_sip() -> None:
+    """5G SA trace with DNS but no SIP/RTP: vonr-n1-n2-voice must be downranked."""
+    result = _mock_result(
+        {"ngap": 400, "nas-5gs": 80, "dns": 50, "sctp": 400, "udp": 50, "ip": 500},
+        {"sctp": 400, "udp": 50},
+        ["ngap", "nas-5gs", "dns", "sctp", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=12)
+    names = [r["profile"] for r in rec["recommended_profiles"]]
+    core_idx = next(i for i, n in enumerate(names) if n.startswith("5g-"))
+    if "vonr-n1-n2-voice" in names:
+        vonr_idx = names.index("vonr-n1-n2-voice")
+        assert core_idx < vonr_idx, (
+            f"vonr-n1-n2-voice must rank below 5G core profiles: {names[:6]}"
+        )
+        vonr = next(r for r in rec["recommended_profiles"] if r["profile"] == "vonr-n1-n2-voice")
+        assert any("voice profile downranked" in reason or "no SIP/IMS" in reason
+                   for reason in vonr["reason"]), (
+            f"vonr-n1-n2-voice must carry a downrank reason: {vonr['reason']}"
+        )
+
+
+def test_lte_s1_suppressed_in_strong_5g_sa_without_lte_anchor() -> None:
+    """5G SA trace without s1ap/diameter/gtpv2: lte-s1 must be heavily penalized."""
+    result = _mock_result(
+        {"ngap": 400, "nas-5gs": 100, "sctp": 500, "ip": 500},
+        {"sctp": 500},
+        ["ngap", "nas-5gs", "sctp", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=12)
+    names = [r["profile"] for r in rec["recommended_profiles"]]
+
+    first_5g = next((i for i, n in enumerate(names) if n.startswith("5g-")), 999)
+    lte_s1_entry = next((r for r in rec["recommended_profiles"] if r["profile"] == "lte-s1"), None)
+
+    if lte_s1_entry is not None:
+        lte_s1_idx = names.index("lte-s1")
+        assert first_5g < lte_s1_idx, (
+            f"lte-s1 must rank below 5G profiles in pure 5G SA trace: {names[:8]}"
+        )
+        assert any(
+            "suppressed" in reason or "5G SA" in reason or "cross-generation" in reason
+            for reason in lte_s1_entry["reason"]
+        ), f"lte-s1 must carry a suppression reason: {lte_s1_entry['reason']}"

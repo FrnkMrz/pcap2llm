@@ -146,7 +146,7 @@ def build_discovery_markdown(discovery: dict[str, Any]) -> str:
             if item.get("count", 0) > 0:
                 lines.append(f"- `{item['name']}` [{item['strength']}]: {item['count']}")
             else:
-                lines.append(f"- `{item['name']}` [{item['strength']}]")
+                lines.append(f"- `{item['name']}` [raw signal]")
     else:
         lines.append("- No dominant signaling protocols detected.")
 

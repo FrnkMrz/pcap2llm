@@ -46,6 +46,48 @@ The format is intentionally simple and optimized for humans reading repo history
   - README, discovery/reference/schema/workflow docs now describe the explicit metadata block and its ordering.
   - Regression coverage now checks JSON presence, Markdown header order, explicit version emission, and selection-range packet numbering.
 
+### Changed — 2026-04-12 (final scoring correction pass)
+
+- **Corrected GTPv1 domain inference**: TShark reports GTPv1 packets as `gtp`
+  (not `gtpv1`). Discovery now correctly detects `gtp + udp` without `gtpv2` as
+  a GTPv1-only packet-core trace and promotes `legacy-2g3g-gprs` as the primary
+  domain. When `gtpv2` is also present, `gtp` is treated as LTE GTP-U
+  (user-plane) and legacy `2g3g-gn` profiles are suppressed.
+
+- **Removed misleading legacy residue in EPS / GTPv2 traces**: `2g3g-gn` is now
+  zeroed out whenever `gtpv2` is present, even if `gtp` (user-plane) also appears.
+  Similarly, `lte-s5` / `lte-s8` are heavily downranked when GTP is present
+  without a GTPv2 control plane — that combination points to legacy Gn/Gp, not
+  LTE S5/S8.
+
+- **Cleaner 5G SA side-signal handling**: LTE profiles in a strongly 5G SA
+  dominated trace are now suppressed more aggressively. Profiles without any
+  LTE anchor signal (`s1ap`, `diameter`, `gtpv2`) are multiplied down to 0.15
+  rather than appearing as near-peers of the 5G candidates.
+
+- **VoNR / hybrid voice gate tightened**: DNS is no longer treated as a voice
+  indicator. `vonr-n1-n2-voice` and `vonr-ims-core` are now only promoted when
+  real IMS/SIP-family signals (`sip`, `sdp`, `rtp`, `rtcp`) are present. This
+  prevents 5G SA + DNS traces from spuriously raising voice profiles.
+
+- **Stronger telecom naming support in DNS discovery**: Supporting evidence
+  patterns (IMS CSCF names, 5G NF hostnames, generic `3gpp` context) now
+  emit explicit summary and per-pattern reasons instead of silently contributing
+  to the score. The fan-out suppression threshold for family-specific DNS profiles
+  was lowered from 5.0 to 4.0 so that single-strong-hit telecom naming traces
+  also benefit. Family-level core profiles (`lte-core`, `5g-core`) are now also
+  downranked alongside the `*-dns` profiles when `core-name-resolution` dominates.
+
+- **Improved protocol count presentation**: `dominant_signaling_protocols` now
+  consistently uses `strength: "supporting"` (not `"strong"`) for protocols
+  recovered only from raw header presence without a decoded packet count. The
+  Markdown report renders these entries as `[raw signal]` to make the distinction
+  visually explicit.
+
+- **Tests and docs updated**: New and updated regression tests for all six
+  correction areas; `docs/DISCOVERY.md` updated for GTPv1 interpretation, fan-out
+  suppression threshold, VoNR gate semantics, and protocol strength labels.
+
 ### Changed — 2026-04-11 (discovery hardening and ranking cleanup)
 
 - **Discovery output is now cleaner and more explicit**:

@@ -101,7 +101,7 @@ The exact payload can evolve, but the core blocks are:
   "protocol_summary": {
     "dominant_signaling_protocols": [
       {"name": "ngap", "count": 120, "strength": "strong"},
-      {"name": "nas-5gs", "strength": "strong"},
+      {"name": "nas-5gs", "strength": "supporting"},
       {"name": "sctp", "count": 200, "strength": "supporting"}
     ],
     "top_protocols": [
@@ -187,9 +187,19 @@ or `s1ap + nas-eps + sctp`.
 
 The discovery payload also exposes `dominant_signaling_protocols` so humans and
 agents can immediately see the primary signaling stack without confusing it with
-generic carrier protocols such as `ip`. If a protocol is only recovered from
-raw presence and there is no trustworthy decoded packet count, discovery omits
-the `count` field instead of emitting misleading `count: 0`.
+generic carrier protocols such as `ip`.
+
+**Strength labels** in `dominant_signaling_protocols`:
+
+| Label | Meaning |
+|---|---|
+| `strong` | Protocol appears in decoded packet counts — directly measured |
+| `supporting` | Protocol inferred from raw protocol headers only — no decoded count available |
+
+When a protocol is only recovered from raw presence (`strength: supporting`),
+the `count` field is omitted entirely rather than emitting `count: 0`.
+In the Markdown report, raw-signal-only entries appear with the label `[raw signal]`
+to make the distinction visually clear.
 
 Low-level link, envelope, and early Layer-3 protocols such as `eth`,
 `ethertype`, `vlan`, `ipcp`, or `pap` are intentionally kept out of
@@ -219,7 +229,15 @@ domain result.
 Legacy signals also need partner protocols. A tiny `dtap` residue on its own is
 treated as a side signal; discovery only promotes 2G/3G domains when partner
 combinations such as `bssap + dtap + sccp`, `map + tcap + sccp`, or
-`gtpv1 + udp` are present.
+`gtp + udp` (GTPv1 packet-core) are present.
+
+> **Note on TShark GTPv1 naming:** TShark reports GTPv1 packets using the
+> protocol name `gtp`, not `gtpv1`. Discovery recognises both spellings
+> internally. When `gtp` appears without `gtpv2`, the trace is treated as
+> a GTPv1-only packet-core (Gn/Gp ambiguous) and `legacy-2g3g-gprs` is
+> promoted as the primary domain candidate. When `gtpv2` is also present,
+> `gtp` is interpreted as LTE GTP-U (user-plane) rather than legacy Gn —
+> legacy `2g3g-gn` profiles are suppressed in that case.
 
 ### Transport protocols alone do not drive recommendations
 
@@ -237,10 +255,13 @@ score ranks first, then receives an extra bonus when it aligns with the top
 `suspected_domains` hypothesis.
 
 Hybrid voice profiles such as VoNR candidates are intentionally downranked when
-no SIP-, SDP-, DNS-, or other IMS-specific indicators are present. LTE / EPS
-profiles also stay visible as side signals in a 5G-dominant trace, but are
-ranked below the primary 5G candidates unless they have their own LTE anchor
-protocols such as `s1ap`, `diameter`, or `gtpv2`.
+no SIP-, SDP-, or other IMS-specific indicators are present. DNS alone is not
+treated as a voice indicator — it is infrastructure traffic, not signaling.
+LTE / EPS profiles also stay visible as side signals in a 5G-dominant trace,
+but are ranked below the primary 5G candidates unless they have their own LTE
+anchor protocols such as `s1ap`, `diameter`, or `gtpv2`. In a strongly 5G SA
+dominated trace with no LTE anchor signal at all, LTE profiles are further
+suppressed rather than shown as near-peers of the 5G candidates.
 
 Generic Diameter-over-SCTP traces stay biased toward LTE/EPS candidates such
 as `lte-s6a` unless additional IMS-specific peer or signaling hints are
@@ -298,7 +319,7 @@ Specific pattern reasons follow (e.g. `3gppnetwork.org naming detected`,
 
 #### DNS family fan-out suppression
 
-When `core-name-resolution` scores ≥ 5.0 and no signaling anchor is present,
+When `core-name-resolution` scores ≥ 4.0 and no signaling anchor is present,
 family-specific `*-dns` profiles (e.g. `lte-dns`, `5g-dns`, `2g3g-dns`) are
 further downranked. This reduces candidate list noise when the support-profile
 explanation is already clearly the best one.

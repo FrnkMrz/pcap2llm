@@ -446,3 +446,210 @@ class TestCoreNameResolution:
             "telecom core naming" in r.lower() or "service resolution" in r.lower()
             for r in reasons
         ), f"Expected interpretive summary reason in: {reasons}"
+
+
+class TestDnsNamingAwareness:
+    """Tests for naming-aware DNS scoring (Issue 1).
+
+    Verifies that telecom naming patterns materially improve core-name-resolution,
+    that reason texts mention the actual matched patterns, and that the fan-out
+    suppression activates at the correct threshold.
+    """
+
+    def test_supporting_evidence_names_in_reasons(self) -> None:
+        """DNS trace with supporting naming patterns (pcscf, amf., nrf.) must mention
+        specific pattern names in core-name-resolution reasons, not just a generic summary."""
+        result = _make_inspect_result(
+            {"dns": 400, "udp": 400},
+            resolved_peers=[
+                {"name": "pcscf.ims.example.com", "role": "cscf"},
+                {"name": "nrf.5gc.example.com", "role": "nrf"},
+                {"name": "amf.5gc.example.com", "role": "amf"},
+            ],
+        )
+        rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=8)
+        core = next((p for p in rec["recommended_profiles"] if p["profile"] == "core-name-resolution"), None)
+        assert core is not None, "core-name-resolution must appear with telecom peer naming"
+        reasons_text = " ".join(core.get("reason", [])).lower()
+        # At least one specific pattern should be mentioned (not just generic summary)
+        assert any(kw in reasons_text for kw in ("pcscf", "nrf", "amf", "5g nrf", "cscf", "naming")), (
+            f"Expected specific pattern names in reasons: {core.get('reason')}"
+        )
+
+    def test_fanout_suppression_activates_with_single_strong_hit(self) -> None:
+        """A single strong telecom naming hit (.gprs) plus good DNS must trigger fan-out suppression.
+
+        Previously the threshold was 5.0 (requiring 2 strong hits or 1 strong + high DNS factor).
+        The corrected threshold is 4.0 so that 1 strong hit with moderate DNS also suppresses
+        family-specific DNS profiles.
+        """
+        result = _make_inspect_result(
+            {"dns": 300, "udp": 300},
+            dns_qry_names=["operator.gprs", "mnc001.mcc262.gprs"],
+        )
+        rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=8)
+        core = next((p for p in rec["recommended_profiles"] if p["profile"] == "core-name-resolution"), None)
+        assert core is not None, "core-name-resolution must appear for .gprs trace"
+        core_score = core["score"]
+        assert core_score >= 4.0, f"core-name-resolution score {core_score} too low for .gprs"
+        # Family-specific DNS profiles must be suppressed below core-name-resolution
+        for prof in rec["recommended_profiles"]:
+            if prof["profile"].endswith("-dns") and prof["profile"] != "core-name-resolution":
+                assert prof["score"] < core_score, (
+                    f"{prof['profile']} ({prof['score']:.2f}) must be below core-name-resolution "
+                    f"({core_score:.2f}) after fan-out suppression"
+                )
+
+    def test_supporting_only_evidence_produces_summary_reason(self) -> None:
+        """DNS trace with only supporting naming evidence (no strong 3gpp/gprs hits) must still
+        produce a summary reason indicating telecom DNS context."""
+        result = _make_inspect_result(
+            {"dns": 400, "udp": 400},
+            resolved_peers=[
+                {"name": "smf.5gc.example.net", "role": "smf"},
+                {"name": "udm.5gc.example.net", "role": "udm"},
+                {"name": "ausf.5gc.example.net", "role": "ausf"},
+            ],
+        )
+        rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=8)
+        core = next((p for p in rec["recommended_profiles"] if p["profile"] == "core-name-resolution"), None)
+        if core is not None:
+            reasons_text = " ".join(core.get("reason", [])).lower()
+            assert any(kw in reasons_text for kw in ("telecom", "core", "naming", "5g", "smf", "udm", "ausf")), (
+                f"Expected telecom context in reasons for supporting-only evidence: {core.get('reason')}"
+            )
+
+    def test_fanout_suppression_does_not_fire_when_anchor_present(self) -> None:
+        """DNS fan-out suppression must NOT fire when a real signaling anchor is present.
+        lte-dns should remain visible alongside core-name-resolution in a combined trace."""
+        result = _make_inspect_result(
+            {"dns": 200, "diameter": 200, "sctp": 200, "udp": 200},
+            dns_qry_names=["epc.mnc001.mcc262.3gppnetwork.org"],
+        )
+        rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=8)
+        lte_dns = next((p for p in rec["recommended_profiles"] if p["profile"] == "lte-dns"), None)
+        assert lte_dns is not None, (
+            "lte-dns must remain visible when diameter (LTE anchor) is present alongside DNS"
+        )
+        # With diameter anchor, lte-dns should not carry the suppression reason
+        if lte_dns is not None:
+            suppressed_reason = "downranked: telecom core naming support profile"
+            assert not any(suppressed_reason in r for r in lte_dns.get("reason", [])), (
+                f"lte-dns must not be fan-out suppressed when LTE anchor present: {lte_dns['reason']}"
+            )
+
+
+class TestProtocolCountPresentation:
+    """Tests for protocol count presentation consistency (Issue 5).
+
+    Verifies that raw-protocol entries in dominant_signaling_protocols
+    get 'supporting' strength (not 'strong'), and that no entry carries
+    an explicit zero count.
+    """
+
+    def test_counted_protocol_gets_strong_label(self) -> None:
+        """Protocols with actual packet counts get 'strong' strength."""
+        from pcap2llm.models import CaptureMetadata, InspectResult
+        from pcap2llm.signaling import dominant_signaling_protocols
+        result = InspectResult(
+            metadata=CaptureMetadata(
+                capture_file="/dev/null",
+                packet_count=200,
+                first_seen_epoch="1.0",
+                last_seen_epoch="2.0",
+                relevant_protocols=["ngap", "sctp"],
+                raw_protocols=["ngap", "sctp"],
+            ),
+            protocol_counts={"ngap": 150, "sctp": 150},
+            transport_counts={"sctp": 150},
+            conversations=[],
+            anomalies=[],
+        )
+        dominant = dominant_signaling_protocols(result)
+        ngap_entry = next((item for item in dominant if item["name"] == "ngap"), None)
+        assert ngap_entry is not None
+        assert ngap_entry["strength"] == "strong", (
+            f"Counted ngap must get 'strong' label, got {ngap_entry['strength']}"
+        )
+        assert ngap_entry.get("count", 0) == 150
+
+    def test_raw_protocol_gets_supporting_label(self) -> None:
+        """Protocols only in raw_protocols (count=0) get 'supporting' strength — not 'strong'."""
+        from pcap2llm.models import CaptureMetadata, InspectResult
+        from pcap2llm.signaling import dominant_signaling_protocols
+        result = InspectResult(
+            metadata=CaptureMetadata(
+                capture_file="/dev/null",
+                packet_count=500,
+                first_seen_epoch="1.0",
+                last_seen_epoch="2.0",
+                relevant_protocols=["ngap", "nas-5gs", "sctp"],
+                raw_protocols=["ngap", "nas-5gs", "sctp"],
+            ),
+            protocol_counts={"ip": 497, "dtap": 3},
+            transport_counts={"sctp": 500},
+            conversations=[],
+            anomalies=[],
+        )
+        dominant = dominant_signaling_protocols(result)
+        for item in dominant:
+            if item["name"] in {"ngap", "nas-5gs", "nr-rrc", "nas-eps"}:
+                assert item["strength"] != "strong", (
+                    f"Raw-protocol '{item['name']}' must not get 'strong' label: {item}"
+                )
+                assert "count" not in item or item["count"] == 0, (
+                    f"Raw-protocol '{item['name']}' must not carry a non-zero count: {item}"
+                )
+
+    def test_no_entry_carries_explicit_zero_count(self) -> None:
+        """No dominant signaling entry may carry an explicit count of 0."""
+        from pcap2llm.models import CaptureMetadata, InspectResult
+        from pcap2llm.signaling import dominant_signaling_protocols
+        result = InspectResult(
+            metadata=CaptureMetadata(
+                capture_file="/dev/null",
+                packet_count=500,
+                first_seen_epoch="1.0",
+                last_seen_epoch="2.0",
+                relevant_protocols=["ngap", "nas-5gs", "nas-eps", "nr-rrc"],
+                raw_protocols=["ngap", "nas-5gs", "nas-eps", "nr-rrc"],
+            ),
+            protocol_counts={"ip": 500},
+            transport_counts={"sctp": 500},
+            conversations=[],
+            anomalies=[],
+        )
+        dominant = dominant_signaling_protocols(result)
+        for item in dominant:
+            assert item.get("count", 1) != 0, (
+                f"Entry {item['name']} must not have explicit count=0: {item}"
+            )
+
+    def test_raw_signal_label_in_discovery_markdown(self) -> None:
+        """Discovery markdown must render raw-protocol entries with [raw signal] label."""
+        from pcap2llm.discovery import build_discovery_markdown
+        discovery = {
+            "run": {"action": "discover"},
+            "capture": {"path": "/tmp/t.pcapng", "filename": "t.pcapng",
+                        "first_packet_number": None, "packet_count": 500},
+            "artifact": {"version": "V_01"},
+            "name_resolution": {"hosts_file_used": False, "mapping_file_used": False, "resolved_peer_count": 0},
+            "resolved_peers": [],
+            "capture_context": {"link_or_envelope_protocols": [], "transport_support_protocols": []},
+            "protocol_summary": {
+                "dominant_signaling_protocols": [
+                    # counted entry
+                    {"name": "ngap", "strength": "strong", "count": 150},
+                    # raw-signal entry (no count)
+                    {"name": "nas-5gs", "strength": "supporting"},
+                ],
+                "top_protocols": [],
+            },
+            "suspected_domains": [],
+            "candidate_profiles": [],
+        }
+        markdown = build_discovery_markdown(discovery)
+        assert "`ngap` [strong]: 150" in markdown, "Counted protocol must show count"
+        assert "`nas-5gs` [raw signal]" in markdown, (
+            "Raw-signal protocol must render with [raw signal] label, not [supporting]"
+        )

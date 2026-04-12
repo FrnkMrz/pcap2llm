@@ -177,7 +177,7 @@ def dominant_signaling_protocols(
             {
                 "name": protocol,
                 "count": count,
-                "strength": "strong",
+                "strength": "strong" if source == "count" else "supporting",
                 "_score": factor,
                 "_priority": _SIGNAL_PRIORITY.get(protocol, 0),
                 "_source": source,

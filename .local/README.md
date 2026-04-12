@@ -16,6 +16,45 @@ Place your Wireshark-style hosts file at:
 
 The tool loads it automatically if it exists. No CLI argument is required.
 
+## Batch runner for all local traces
+
+Use this script when you want one command that runs `discover`, `inspect`, and
+`analyze` for every `.pcap` and `.pcapng` file anywhere under `.local/`:
+
+```bash
+bash .local/run_all_traces.sh
+```
+
+Useful variants:
+
+```bash
+bash .local/run_all_traces.sh --quick
+bash .local/run_all_traces.sh --force
+```
+
+- `--quick` runs only `discover` + `inspect`
+- `--force` re-runs traces even if a run folder already exists
+
+Results are written to:
+
+```text
+.local/runs/
+```
+
+Each trace gets its own folder with discovery, inspect, and analyze outputs,
+plus a combined overview in:
+
+```text
+.local/runs/RESULTS.md
+```
+
+Notes:
+
+- the script auto-detects the best profile from discovery output
+- `.local/hosts` is passed automatically when present
+- `.local/runs/` is excluded from the scan, so generated outputs are never
+  treated as input traces
+
 ## What belongs here
 
 - `.local/hosts` — Wireshark hosts mapping

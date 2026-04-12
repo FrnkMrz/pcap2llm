@@ -46,8 +46,8 @@ Discovery writes two files directly into the output directory — no subdirector
 
 ```text
 artifacts/
-  20260410_173000_discovery.json
-  20260410_173000_discovery.md
+  20260410_173000_discovery_V_01.json
+  20260410_173000_discovery_V_01.md
 ```
 
 The timestamp prefix comes from the first packet in the capture, using the same
@@ -56,8 +56,15 @@ place.
 
 | File | Purpose |
 |---|---|
-| `YYYYMMDD_HHMMSS_discovery.json` | Machine-readable scout result for agents and scripts |
-| `YYYYMMDD_HHMMSS_discovery.md` | Short human summary |
+| `YYYYMMDD_HHMMSS_discovery_V_01.json` | Machine-readable scout result for agents and scripts |
+| `YYYYMMDD_HHMMSS_discovery_V_01.md` | Short human summary |
+
+Both discovery outputs now begin with the same ordered metadata for easier comparison across reruns:
+
+1. `run.action`
+2. `capture.filename`
+3. `capture.first_packet_number`
+4. `artifact.version`
 
 ## Discovery JSON Shape
 
@@ -65,15 +72,23 @@ The exact payload can evolve, but the core blocks are:
 
 ```json
 {
+  "run": {
+    "action": "discover"
+  },
+  "capture": {
+    "filename": "trace.pcapng",
+    "path": "...",
+    "first_packet_number": 1,
+    "first_seen": "...",
+    "last_seen": "...",
+    "sha256": "...",
+    "packet_count": 1234
+  },
+  "artifact": {
+    "version": "V_01"
+  },
   "status": "ok",
   "mode": "discovery",
-  "capture": {
-    "path": "...",
-    "sha256": "...",
-    "packet_count": 1234,
-    "first_seen": "...",
-    "last_seen": "..."
-  },
   "transport_summary": {
     "tcp": 20,
     "udp": 50,
@@ -120,9 +135,16 @@ The exact payload can evolve, but the core blocks are:
 }
 ```
 
+The Markdown header follows the same order:
+
+- `Action`
+- `Capture file`
+- `Start packet`
+- `Artifact version`
+
 ## What Discovery Looks At
 
-- capture path, packet count, first/last timestamps, SHA-256 when readable
+- capture path, capture filename, start packet, packet count, first/last timestamps, SHA-256 when readable
 - transport mix such as TCP, UDP, SCTP
 - low-level capture context such as Ethernet, VLAN, PPP, or similar envelopes
 - dominant signaling protocols derived from decoded counts plus strong raw-protocol hints

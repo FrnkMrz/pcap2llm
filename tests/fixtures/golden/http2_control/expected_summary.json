@@ -1,4 +1,19 @@
 {
+  "run": {
+    "action": "analyze"
+  },
+  "capture": {
+    "path": "<fixture>",
+    "filename": "<fixture>.pcapng",
+    "first_packet_number": 1,
+    "first_seen": "1712390400.0",
+    "last_seen": "1712390400.0"
+  },
+  "artifact": {},
+  "selection": {
+    "start_packet_number": 1,
+    "end_packet_number": 1
+  },
   "schema_version": "1.0",
   "generated_at": "<generated_at>",
   "capture_sha256": "<capture_sha256>",
@@ -7,6 +22,8 @@
   "capture_metadata": {
     "capture_file": "<fixture>",
     "packet_count": 1,
+    "first_packet_number": 1,
+    "last_packet_number": 1,
     "first_seen_epoch": "1712390400.0",
     "last_seen_epoch": "1712390400.0",
     "relevant_protocols": [

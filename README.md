@@ -52,7 +52,16 @@ Every `analyze` run writes a timestamped, versioned file set:
 
 - Timestamp comes from the first packet in the capture.
 - `_V_01` is always present and auto-increments if files already exist.
-- Both JSON files include `schema_version`, `generated_at` (ISO 8601 UTC), and `capture_sha256`.
+- JSON and Markdown outputs now expose ordered run metadata for readability and automation:
+  `run.action`, `capture.filename`, `capture.first_packet_number`, and `artifact.version`.
+- `summary.json` and `detail.json` also include `schema_version`, `generated_at` (ISO 8601 UTC), and `capture_sha256`.
+
+`inspect`, `discover`, and `analyze` all present that metadata in the same human-first order:
+
+1. action
+2. capture file
+3. start packet
+4. artifact version
 
 ## Profiles
 

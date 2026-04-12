@@ -9,6 +9,9 @@
 
 ## Required Top-Level Fields
 
+- `run`: ordered run metadata; includes `action`
+- `capture`: ordered capture metadata; includes `filename`, `path`, and `first_packet_number`
+- `artifact`: artifact metadata; includes explicit `version`
 - `schema_version`: string, currently `1.0`
 - `generated_at`: ISO 8601 UTC timestamp
 - `capture_sha256`: string or `null`
@@ -16,6 +19,10 @@
 - `artifact_role`: always `llm_input`
 - `coverage`: included vs. available packet counts and truncation status
 - `messages`: list of normalized, reduced, protected packet/message objects
+
+## Optional Top-Level Fields
+
+- `selection`: explicit selected packet range for bounded analyze runs
 
 ## Compatibility Field
 

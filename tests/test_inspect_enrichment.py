@@ -6,6 +6,7 @@ from pcap2llm.inspect_enrichment import (
     _classification_state,
     build_inspect_markdown,
     enrich_inspect_result,
+    serialize_inspect_result,
 )
 from pcap2llm.models import CaptureMetadata, InspectResult
 from pcap2llm.profiles import load_all_profiles
@@ -23,6 +24,7 @@ def _make_result(
         metadata=CaptureMetadata(
             capture_file="/dev/null",
             packet_count=total,
+            first_packet_number=7,
             first_seen_epoch="1712390000.0",
             last_seen_epoch="1712390010.0",
             relevant_protocols=list(protocol_counts.keys()),
@@ -225,6 +227,23 @@ def test_markdown_has_useful_content() -> None:
     md = build_inspect_markdown(enriched)
     assert "ngap" in md
     assert "5g" in md.lower()
+
+
+def test_markdown_header_orders_metadata_consistently() -> None:
+    result = _make_result({"ngap": 2})
+    md = build_inspect_markdown(result)
+    assert md.index("- Action: `inspect`") < md.index("- Capture file: `null`")
+    assert md.index("- Capture file: `null`") < md.index("- Start packet: `7`")
+    assert md.index("- Start packet: `7`") < md.index("- Artifact version: `V_01`")
+
+
+def test_serialize_inspect_result_adds_explicit_output_metadata() -> None:
+    result = _make_result({"diameter": 2})
+    payload = serialize_inspect_result(result)
+    assert payload["run"]["action"] == "inspect"
+    assert payload["capture"]["filename"] == "null"
+    assert payload["capture"]["first_packet_number"] == 7
+    assert payload["artifact"]["version"] == "V_01"
 
 
 # ---------------------------------------------------------------------------

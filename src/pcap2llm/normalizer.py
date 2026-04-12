@@ -260,6 +260,8 @@ def inspect_raw_packets(
     transport_counts: Counter[str] = Counter()
     conversations: Counter[tuple[str, str, str, str]] = Counter()
     anomalies: list[str] = []
+    first_packet_number: int | None = None
+    last_packet_number: int | None = None
     first_seen: str | None = None
     last_seen: str | None = None
     relevant_protocols: set[str] = set()
@@ -296,12 +298,20 @@ def inspect_raw_packets(
             _remember_endpoint(resolver.resolve(dst_ip, service_port=transport.dst_port))
             conversations[(transport.proto or "unknown", str(src_ip), str(dst_ip), top_protocol)] += 1
             frame_time = _field(layers, "frame.time_epoch")
+            frame_number = _field(layers, "frame.number")
+            try:
+                packet_number = int(str(frame_number)) if frame_number is not None else None
+            except (TypeError, ValueError):
+                packet_number = None
+            if first_packet_number is None:
+                first_packet_number = packet_number
+            if packet_number is not None:
+                last_packet_number = packet_number
             if first_seen is None:
                 first_seen = str(frame_time) if frame_time is not None else None
             last_seen = str(frame_time) if frame_time is not None else last_seen
             if transport.anomaly:
-                packet_no = _field(layers, "frame.number")
-                anomalies.append(f"Packet {packet_no}: {', '.join(transport.notes) or 'transport anomaly'}")
+                anomalies.append(f"Packet {frame_number}: {', '.join(transport.notes) or 'transport anomaly'}")
         except Exception as exc:  # noqa: BLE001
             logger.warning("Skipping malformed packet during inspection: %s", exc)
 
@@ -325,6 +335,8 @@ def inspect_raw_packets(
     metadata = CaptureMetadata(
         capture_file=str(capture_path),
         packet_count=len(raw_packets),
+        first_packet_number=first_packet_number,
+        last_packet_number=last_packet_number,
         first_seen_epoch=first_seen,
         last_seen_epoch=last_seen,
         relevant_protocols=sorted(relevant_protocols),

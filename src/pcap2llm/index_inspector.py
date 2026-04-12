@@ -120,6 +120,8 @@ def inspect_index_records(
     transport_counts: Counter[str] = Counter()
     conversations: Counter[tuple[str, str, str, str]] = Counter()
     anomalies: list[str] = []
+    first_packet_number: int | None = None
+    last_packet_number: int | None = None
     first_seen: str | None = None
     last_seen: str | None = None
     relevant_protocols: set[str] = set()
@@ -145,6 +147,9 @@ def inspect_index_records(
             dst = record.dst_ip or "unknown"
             conversations[(transport, src, dst, top_protocol)] += 1
 
+            if first_packet_number is None:
+                first_packet_number = record.frame_no
+            last_packet_number = record.frame_no
             if record.time_epoch:
                 if first_seen is None:
                     first_seen = record.time_epoch
@@ -195,6 +200,8 @@ def inspect_index_records(
     metadata = CaptureMetadata(
         capture_file=str(capture_path),
         packet_count=len(records),
+        first_packet_number=first_packet_number,
+        last_packet_number=last_packet_number,
         first_seen_epoch=first_seen,
         last_seen_epoch=last_seen,
         relevant_protocols=sorted(relevant_protocols),

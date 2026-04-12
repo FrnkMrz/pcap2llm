@@ -89,6 +89,15 @@ pcap2llm inspect sample.pcapng --profile lte-core
 
 Shows: packet count, detected protocols, transport distribution, conversations, anomalies. Writes no output files (unless `--out` is given). Use this as a first step to assess an unknown capture before committing to a full `analyze` run.
 
+When you request JSON or Markdown output, inspect now includes explicit ordered metadata:
+
+- `run.action`
+- `capture.filename`
+- `capture.first_packet_number`
+- `artifact.version`
+
+The Markdown header shows them in exactly that order. Inspect uses `V_01` as the explicit standalone report version.
+
 ```bash
 # With display filter
 pcap2llm inspect sample.pcapng --profile lte-core -Y "diameter || gtpv2"
@@ -119,6 +128,15 @@ pcap2llm analyze sample.pcapng --profile lte-core --out ./artifacts
 ```
 
 Runs the complete pipeline and writes the output file set.
+
+`summary.json`, `detail.json`, and `summary.md` now all expose the same ordered run metadata for fast comparison across reruns:
+
+- `run.action`
+- `capture.filename`
+- `capture.first_packet_number`
+- `artifact.version`
+
+For bounded analyze runs, the JSON artifacts also include `selection.start_packet_number` and `selection.end_packet_number` so the detail window is explicit.
 
 **All options:**
 ```
@@ -177,6 +195,13 @@ Runs a low-cost broad inspection profile and writes:
 
 Use this when the interface is still unclear and you want deterministic input
 for a follow-up profile choice.
+
+Discovery JSON and Markdown now expose the same ordered metadata block as the other artifact-producing commands:
+
+- `run.action`
+- `capture.filename`
+- `capture.first_packet_number`
+- `artifact.version`
 
 **Options:**
 ```

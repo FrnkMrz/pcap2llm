@@ -8,6 +8,11 @@ from typing import Any
 
 from pcap2llm.inspector import inspect_capture
 from pcap2llm.models import InspectResult, ProfileDefinition
+from pcap2llm.output_metadata import (
+    build_artifact_metadata,
+    build_capture_metadata,
+    build_run_metadata,
+)
 from pcap2llm.pipeline import artifact_timestamp_prefix
 from pcap2llm.profiles import load_all_profiles
 from pcap2llm.recommendation import recommend_profiles_from_inspect
@@ -86,16 +91,20 @@ def build_discovery_payload(
         "mapping_file_used": inspect_result.metadata.mapping_file_used,
         "resolved_peer_count": len(inspect_result.metadata.resolved_peers),
     }
+    capture = build_capture_metadata(
+        path=capture_path,
+        first_packet_number=inspect_result.metadata.first_packet_number,
+        first_seen=inspect_result.metadata.first_seen_epoch,
+        last_seen=inspect_result.metadata.last_seen_epoch,
+    )
+    capture["sha256"] = _capture_sha256(capture_path)
+    capture["packet_count"] = inspect_result.metadata.packet_count
     return {
+        "run": build_run_metadata("discover"),
+        "capture": capture,
+        "artifact": build_artifact_metadata(None),
         "status": "ok",
         "mode": "discovery",
-        "capture": {
-            "path": str(capture_path),
-            "sha256": _capture_sha256(capture_path),
-            "packet_count": inspect_result.metadata.packet_count,
-            "first_seen": inspect_result.metadata.first_seen_epoch,
-            "last_seen": inspect_result.metadata.last_seen_epoch,
-        },
         "transport_summary": inspect_result.transport_counts,
         "name_resolution": name_resolution,
         "resolved_peers": resolved_peers,
@@ -115,11 +124,20 @@ def build_discovery_payload(
 
 
 def build_discovery_markdown(discovery: dict[str, Any]) -> str:
+    run = discovery.get("run", {"action": "discover"})
+    capture = dict(discovery.get("capture", {}))
+    if "filename" not in capture and capture.get("path"):
+        capture["filename"] = Path(capture["path"]).name
+    artifact = discovery.get("artifact", {})
     lines = [
         "# Discovery Report",
         "",
-        f"- Capture: `{discovery['capture']['path']}`",
-        f"- Packet count: `{discovery['capture']['packet_count']}`",
+        f"- Action: `{run.get('action', 'discover')}`",
+        f"- Capture file: `{capture.get('filename', 'unknown')}`",
+        f"- Start packet: `{capture.get('first_packet_number') or 'unknown'}`",
+        f"- Artifact version: `{artifact.get('version') or 'unknown'}`",
+        f"- Capture path: `{capture.get('path', 'unknown')}`",
+        f"- Packet count: `{capture.get('packet_count', 'unknown')}`",
         "",
         "## Dominant Signaling Protocols",
     ]
@@ -238,7 +256,12 @@ def write_discovery_artifacts(out_dir: Path, discovery: dict[str, Any], markdown
     when the epoch cannot be parsed.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
-    first_seen = discovery.get("capture", {}).get("first_seen") or ""
+    capture = dict(discovery.get("capture", {}))
+    if "filename" not in capture and capture.get("path"):
+        capture["filename"] = Path(capture["path"]).name
+    discovery["run"] = discovery.get("run") or build_run_metadata("discover")
+    discovery["capture"] = capture
+    first_seen = capture.get("first_seen") or ""
     prefix = artifact_timestamp_prefix(first_seen) or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
     version = 1
@@ -250,6 +273,8 @@ def write_discovery_artifacts(out_dir: Path, discovery: dict[str, Any], markdown
             break
         version += 1
 
+    discovery["artifact"] = build_artifact_metadata(v)
+    markdown = build_discovery_markdown(discovery)
     json_path.write_text(json.dumps(discovery, indent=2), encoding="utf-8")
     md_path.write_text(markdown, encoding="utf-8")
     return {

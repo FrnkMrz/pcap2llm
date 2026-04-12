@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from pcap2llm.models import InspectResult, ProfileDefinition
+from pcap2llm.output_metadata import build_artifact_metadata, build_capture_metadata, build_run_metadata
 from pcap2llm.recommendation import infer_domains, recommend_profiles_from_inspect
 from pcap2llm.signaling import TRANSPORT_ONLY as _TRANSPORT_ONLY
 from pcap2llm.signaling import dominant_signaling_names, protocol_presence, protocol_role
@@ -333,7 +334,11 @@ def build_inspect_markdown(result: InspectResult) -> str:
         "",
         "## Capture Overview",
         "",
-        f"- File: `{result.metadata.capture_file}`",
+        "- Action: `inspect`",
+        f"- Capture file: `{build_capture_metadata(path=result.metadata.capture_file, first_packet_number=result.metadata.first_packet_number)['filename']}`",
+        f"- Start packet: `{result.metadata.first_packet_number if result.metadata.first_packet_number is not None else 'unknown'}`",
+        "- Artifact version: `V_01`",
+        f"- Capture path: `{result.metadata.capture_file}`",
         f"- Packets: {result.metadata.packet_count:,}",
         f"- First seen: {_epoch_to_str(result.metadata.first_seen_epoch)}",
         f"- Last seen: {_epoch_to_str(result.metadata.last_seen_epoch)}",
@@ -412,3 +417,18 @@ def build_inspect_markdown(result: InspectResult) -> str:
         lines.append("- Run `pcap2llm analyze` with a focused profile.")
 
     return "\n".join(lines) + "\n"
+
+
+def serialize_inspect_result(result: InspectResult, *, artifact_version: str = "V_01") -> dict[str, Any]:
+    payload = {
+        "run": build_run_metadata("inspect"),
+        "capture": build_capture_metadata(
+            path=result.metadata.capture_file,
+            first_packet_number=result.metadata.first_packet_number,
+            first_seen=result.metadata.first_seen_epoch,
+            last_seen=result.metadata.last_seen_epoch,
+        ),
+        "artifact": build_artifact_metadata(artifact_version),
+    }
+    payload.update(result.model_dump())
+    return payload

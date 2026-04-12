@@ -337,7 +337,9 @@ def inspect_command(
         from pcap2llm.inspect_enrichment import build_inspect_markdown
         text = build_inspect_markdown(result)
     else:
-        text = json.dumps(result.model_dump(), indent=2)
+        from pcap2llm.inspect_enrichment import serialize_inspect_result
+
+        text = json.dumps(serialize_inspect_result(result), indent=2)
     if out:
         out.write_text(text, encoding="utf-8")
         typer.echo(f"Wrote inspect output to {out}")

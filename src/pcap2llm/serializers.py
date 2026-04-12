@@ -11,6 +11,12 @@ from pcap2llm.models import (
     SCHEMA_VERSION,
     SummaryArtifactV1,
 )
+from pcap2llm.output_metadata import (
+    build_artifact_metadata,
+    build_capture_metadata,
+    build_run_metadata,
+    build_selection_metadata,
+)
 
 
 def _generated_at() -> str:
@@ -47,8 +53,23 @@ def serialize_summary_artifact(
     coverage: ArtifactCoverage,
     privacy_policy: dict[str, Any],
     capture_sha256: str | None,
+    artifact_version: str | None = None,
+    selection_start_packet: int | None = None,
+    selection_end_packet: int | None = None,
 ) -> dict[str, Any]:
     artifact = SummaryArtifactV1(
+        run=build_run_metadata("analyze"),
+        capture=build_capture_metadata(
+            path=inspect_result.metadata.capture_file,
+            first_packet_number=inspect_result.metadata.first_packet_number,
+            first_seen=inspect_result.metadata.first_seen_epoch,
+            last_seen=inspect_result.metadata.last_seen_epoch,
+        ),
+        artifact=build_artifact_metadata(artifact_version),
+        selection=build_selection_metadata(
+            start_packet_number=selection_start_packet,
+            end_packet_number=selection_end_packet,
+        ),
         schema_version=SCHEMA_VERSION,
         generated_at=_generated_at(),
         capture_sha256=capture_sha256,
@@ -75,12 +96,28 @@ def serialize_summary_artifact(
 
 def serialize_detail_artifact(
     *,
+    inspect_result: InspectResult,
     profile: ProfileDefinition,
     packets: list[dict[str, Any]],
     coverage: ArtifactCoverage,
     capture_sha256: str | None,
+    artifact_version: str | None = None,
+    selection_start_packet: int | None = None,
+    selection_end_packet: int | None = None,
 ) -> dict[str, Any]:
     artifact = DetailArtifactV1(
+        run=build_run_metadata("analyze"),
+        capture=build_capture_metadata(
+            path=inspect_result.metadata.capture_file,
+            first_packet_number=inspect_result.metadata.first_packet_number,
+            first_seen=inspect_result.metadata.first_seen_epoch,
+            last_seen=inspect_result.metadata.last_seen_epoch,
+        ),
+        artifact=build_artifact_metadata(artifact_version),
+        selection=build_selection_metadata(
+            start_packet_number=selection_start_packet,
+            end_packet_number=selection_end_packet,
+        ),
         schema_version=SCHEMA_VERSION,
         generated_at=_generated_at(),
         capture_sha256=capture_sha256,
@@ -101,6 +138,10 @@ def build_markdown_summary(
     vault_filename: str | None = None,
 ) -> str:
     metadata = summary["capture_metadata"]
+    run = summary.get("run", {})
+    capture = summary.get("capture", {})
+    artifact = summary.get("artifact", {})
+    selection = summary.get("selection", {})
     coverage = summary.get(
         "coverage",
         {
@@ -116,16 +157,23 @@ def build_markdown_summary(
         "This tool does not perform generative analysis itself.",
         "",
         "## Capture Overview",
-        f"- Capture file: `{metadata['capture_file']}`",
+        f"- Action: `{run.get('action', 'analyze')}`",
+        f"- Capture file: `{capture.get('filename') or metadata['capture_file']}`",
+        f"- Start packet: `{selection.get('start_packet_number') or capture.get('first_packet_number') or 'unknown'}`",
+        f"- Artifact version: `{artifact.get('version') or 'unknown'}`",
+        f"- Capture path: `{capture.get('path') or metadata['capture_file']}`",
         f"- Summary packet count: `{metadata['packet_count']}`",
         f"- Detail packets included: `{coverage['detail_packets_included']}`",
         f"- Detail packets available after export: `{coverage['detail_packets_available']}`",
         f"- Detail truncated: `{coverage['detail_truncated']}`",
         f"- Relevant protocols: `{', '.join(metadata['relevant_protocols']) or 'none detected'}`",
         f"- Display filter: `{metadata['display_filter'] or 'none'}`",
-        "",
-        "## Deterministic Findings",
     ]
+    if selection.get("start_packet_number") is not None or selection.get("end_packet_number") is not None:
+        lines.append(
+            f"- Selection range: `{selection.get('start_packet_number', 'unknown')}..{selection.get('end_packet_number', 'unknown')}`"
+        )
+    lines.extend(["", "## Deterministic Findings"])
     findings = summary.get("deterministic_findings") or ["No deterministic high-signal findings generated."]
     for finding in findings:
         lines.append(f"- {finding}")

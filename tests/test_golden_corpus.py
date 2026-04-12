@@ -16,6 +16,9 @@ def _canonicalize(artifact: dict) -> dict:
     payload = json.loads(json.dumps(artifact))
     payload["generated_at"] = "<generated_at>"
     payload["capture_sha256"] = "<capture_sha256>"
+    if "capture" in payload:
+        payload["capture"]["path"] = "<fixture>"
+        payload["capture"]["filename"] = "<fixture>.pcapng"
     if "capture_metadata" in payload:
         payload["capture_metadata"]["capture_file"] = "<fixture>"
     return payload

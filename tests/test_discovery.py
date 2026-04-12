@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pcap2llm.discovery import build_discovery_markdown, build_discovery_payload
+from pcap2llm.discovery import build_discovery_markdown, build_discovery_payload, write_discovery_artifacts
 from pcap2llm.models import CaptureMetadata, InspectResult
 
 
@@ -59,6 +59,9 @@ def test_build_discovery_payload_adds_dominant_signaling_protocols() -> None:
     assert not any(item["name"] in {"eth", "ethertype", "vlan", "ipcp", "pap"} for item in dominant)
     assert any(item["name"] == "sctp" and item["strength"] == "supporting" for item in dominant)
     assert all(item.get("count", 1) != 0 for item in dominant)
+    assert payload["run"]["action"] == "discover"
+    assert payload["capture"]["filename"] == "sample.pcapng"
+    assert payload["capture"]["first_packet_number"] is None
     assert payload["capture_context"]["link_or_envelope_protocols"] == ["eth", "ethertype", "ip", "ipcp", "pap", "vlan"]
     assert payload["capture_context"]["transport_support_protocols"] == ["sctp"]
     assert payload["protocol_summary"]["top_protocols"][0]["name"] == "ip"
@@ -97,7 +100,9 @@ def test_build_discovery_payload_surfaces_name_resolution_transparently() -> Non
 
 def test_build_discovery_markdown_renders_dominant_signaling_first() -> None:
     discovery = {
-        "capture": {"path": "/tmp/sample.pcapng", "packet_count": 503},
+        "run": {"action": "discover"},
+        "capture": {"path": "/tmp/sample.pcapng", "filename": "sample.pcapng", "first_packet_number": None, "packet_count": 503},
+        "artifact": {"version": "V_03"},
         "name_resolution": {
             "hosts_file_used": True,
             "mapping_file_used": False,
@@ -130,6 +135,9 @@ def test_build_discovery_markdown_renders_dominant_signaling_first() -> None:
     }
 
     markdown = build_discovery_markdown(discovery)
+    assert markdown.index("- Action: `discover`") < markdown.index("- Capture file: `sample.pcapng`")
+    assert markdown.index("- Capture file: `sample.pcapng`") < markdown.index("- Start packet: `unknown`")
+    assert markdown.index("- Start packet: `unknown`") < markdown.index("- Artifact version: `V_03`")
     assert "## Dominant Signaling Protocols" in markdown
     assert "## Capture Context" in markdown
     assert markdown.index("## Dominant Signaling Protocols") < markdown.index("## Top Protocols")
@@ -140,3 +148,41 @@ def test_build_discovery_markdown_renders_dominant_signaling_first() -> None:
     assert "Hosts file used" in markdown
     assert "`10.109.182.14 -> AMF-01`" in markdown
     assert "[high/protocol_strong]" in markdown
+
+
+def test_write_discovery_artifacts_adds_explicit_version_metadata(tmp_path: Path) -> None:
+    discovery = {
+        "run": {"action": "discover"},
+        "capture": {
+            "path": "/tmp/sample.pcapng",
+            "filename": "sample.pcapng",
+            "first_packet_number": 42,
+            "first_seen": "1712390000.0",
+            "last_seen": "1712390001.0",
+            "packet_count": 10,
+            "sha256": "abc123",
+        },
+        "artifact": {"version": None},
+        "status": "ok",
+        "mode": "discovery",
+        "name_resolution": {"hosts_file_used": False, "mapping_file_used": False, "resolved_peer_count": 0},
+        "resolved_peers": [],
+        "capture_context": {"link_or_envelope_protocols": [], "transport_support_protocols": []},
+        "transport_summary": {"udp": 10},
+        "protocol_summary": {"dominant_signaling_protocols": [], "top_protocols": [], "relevant_protocols": [], "raw_protocols": []},
+        "conversations": [],
+        "anomalies": [],
+        "suspected_domains": [],
+        "candidate_profiles": [],
+        "suppressed_profiles": [],
+    }
+
+    outputs = write_discovery_artifacts(tmp_path, discovery, "")
+    payload = outputs["discovery_json"].read_text(encoding="utf-8")
+    markdown = outputs["discovery_md"].read_text(encoding="utf-8")
+
+    assert '"version": "V_01"' in payload
+    assert "- Action: `discover`" in markdown
+    assert "- Capture file: `sample.pcapng`" in markdown
+    assert "- Start packet: `42`" in markdown
+    assert "- Artifact version: `V_01`" in markdown

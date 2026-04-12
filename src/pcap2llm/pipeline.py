@@ -11,6 +11,7 @@ from pathlib import Path
 from pcap2llm.index_inspector import inspect_index_records, select_frame_numbers
 from pcap2llm.models import AnalyzeArtifacts, ProfileDefinition
 from pcap2llm.normalizer import normalize_packets
+from pcap2llm.output_metadata import artifact_version_from_filename, build_artifact_metadata
 from pcap2llm.protector import Protector
 from pcap2llm.reducer import reduce_packets
 from pcap2llm.resolver import EndpointResolver
@@ -300,12 +301,17 @@ def analyze_capture(
         coverage=coverage,
         privacy_policy=protector.policy_metadata(),
         capture_sha256=sha256,
+        selection_start_packet=selected_frames.frame_numbers[0] if selected_frames.frame_numbers else None,
+        selection_end_packet=selected_frames.frame_numbers[-1] if selected_frames.frame_numbers else None,
     )
     detail = serialize_detail_artifact(
+        inspect_result=inspect_result,
         profile=profile,
         packets=protected_packets,
         coverage=coverage,
         capture_sha256=sha256,
+        selection_start_packet=selected_frames.frame_numbers[0] if selected_frames.frame_numbers else None,
+        selection_end_packet=selected_frames.frame_numbers[-1] if selected_frames.frame_numbers else None,
     )
     mapping_filename = "pseudonym_mapping.json" if protector.pseudonyms else None
     vault_filename = "vault.json" if protector.vault_metadata() else None
@@ -402,6 +408,9 @@ def write_artifacts(artifacts: AnalyzeArtifacts, out_dir: Path) -> dict[str, Pat
         include_mapping=bool(artifacts.pseudonym_mapping),
         include_vault=bool(artifacts.vault),
     )
+    artifact_version = artifact_version_from_filename(outputs["summary"].name)
+    artifacts.summary["artifact"] = build_artifact_metadata(artifact_version)
+    artifacts.detail["artifact"] = build_artifact_metadata(artifact_version)
     markdown = build_markdown_summary(
         artifacts.summary,
         summary_filename=outputs["summary"].name,

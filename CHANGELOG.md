@@ -6,6 +6,18 @@ The format is intentionally simple and optimized for humans reading repo history
 
 ## Unreleased
 
+### Changed — 2026-04-12 (ordered output metadata across inspect / discover / analyze)
+
+- **Artifact outputs now carry explicit ordered run metadata across all three commands**:
+  - `inspect`, `discover`, and `analyze` now expose `run.action`, `capture.filename`, `capture.first_packet_number`, and `artifact.version` directly in their public outputs.
+  - Human-readable Markdown reports now present those fields in the same fixed order: action, capture file, start packet, artifact version.
+  - `analyze` artifacts now also expose `selection.start_packet_number` / `selection.end_packet_number` when the detail window is a bounded subset.
+  - `capture.path` remains available alongside `capture.filename`, so short human scanning and full-path traceability both stay intact.
+
+- **Docs and tests were updated accordingly**:
+  - README, discovery/reference/schema/workflow docs now describe the explicit metadata block and its ordering.
+  - Regression coverage now checks JSON presence, Markdown header order, explicit version emission, and selection-range packet numbering.
+
 ### Changed — 2026-04-11 (discovery hardening and ranking cleanup)
 
 - **Discovery output is now cleaner and more explicit**:

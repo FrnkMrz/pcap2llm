@@ -3,16 +3,17 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests" / "fixtures" / "golden"
 
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "tests"))
 
 from pcap2llm.pipeline import analyze_capture  # noqa: E402
 from pcap2llm.profiles import load_profile  # noqa: E402
 from pcap2llm.tshark_runner import TSharkRunner  # noqa: E402
+from testutils import mock_runner_two_pass  # noqa: E402
 
 
 def _canonicalize(artifact: dict) -> dict:
@@ -21,6 +22,9 @@ def _canonicalize(artifact: dict) -> dict:
         payload["generated_at"] = "<generated_at>"
     if "capture_sha256" in payload:
         payload["capture_sha256"] = "<capture_sha256>"
+    if "capture" in payload:
+        payload["capture"]["path"] = "<fixture>"
+        payload["capture"]["filename"] = "<fixture>.pcapng"
     if "capture_metadata" in payload:
         payload["capture_metadata"]["capture_file"] = "<fixture>"
     return payload
@@ -33,7 +37,7 @@ def update_fixture(path: Path, *, force: bool) -> None:
     capture.write_bytes(path.name.encode("utf-8"))
 
     runner = TSharkRunner()
-    with patch.object(runner, "export_packets", return_value=raw_packets):
+    with mock_runner_two_pass(runner, raw_packets):
         artifacts = analyze_capture(
             capture,
             out_dir=path,

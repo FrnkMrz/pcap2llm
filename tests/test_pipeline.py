@@ -399,6 +399,18 @@ class TestWriteArtifactsErrorHandling:
         assert f"{_TIMESTAMP_PREFIX}_summary_V_01.json" in markdown
         assert f"{_TIMESTAMP_PREFIX}_detail_V_01.json" in markdown
 
+    def test_write_artifacts_adds_explicit_artifact_version_metadata(self, tmp_path: Path) -> None:
+        outputs = write_artifacts(self._make_artifacts(), tmp_path / "out")
+        summary = json.loads(outputs["summary"].read_text(encoding="utf-8"))
+        detail = json.loads(outputs["detail"].read_text(encoding="utf-8"))
+        markdown = outputs["markdown"].read_text(encoding="utf-8")
+
+        assert summary["artifact"]["version"] == "V_01"
+        assert detail["artifact"]["version"] == "V_01"
+        assert markdown.index("- Action: `analyze`") < markdown.index("- Capture file: `sample.pcapng`")
+        assert markdown.index("- Capture file: `sample.pcapng`") < markdown.index("- Start packet: `unknown`")
+        assert markdown.index("- Start packet: `unknown`") < markdown.index("- Artifact version: `V_01`")
+
     @pytest.mark.skipif(sys.platform == "win32", reason="chmod not reliable on Windows")
     def test_write_artifacts_raises_on_read_only_dir(self, tmp_path: Path) -> None:
         out_dir = tmp_path / "readonly"
@@ -666,6 +678,34 @@ class TestAnalyzeCapturePipeline:
         assert artifacts.summary["coverage"]["detail_truncated"] is True
         assert artifacts.summary["coverage"]["detail_packets_included"] == 5
         assert artifacts.summary["coverage"]["detail_packets_available"] == 20
+
+    def test_selected_range_metadata_uses_actual_packet_numbers(self, tmp_path: Path) -> None:
+        profile = load_profile("lte-core")
+        runner = TSharkRunner()
+        raw_packets = [
+            _make_raw_packet(number="42"),
+            _make_raw_packet(number="45"),
+            _make_raw_packet(number="50"),
+        ]
+
+        with mock_runner_two_pass(runner, raw_packets):
+            artifacts = analyze_capture(
+                tmp_path / "sample.pcapng",
+                out_dir=tmp_path / "out",
+                runner=runner,
+                profile=profile,
+                privacy_modes={},
+                max_packets=2,
+                oversize_factor=0,
+            )
+
+        assert artifacts.summary["run"]["action"] == "analyze"
+        assert artifacts.summary["capture"]["filename"] == "sample.pcapng"
+        assert artifacts.summary["capture"]["first_packet_number"] == 42
+        assert artifacts.summary["selection"]["start_packet_number"] == 42
+        assert artifacts.summary["selection"]["end_packet_number"] == 45
+        assert artifacts.detail["selection"]["start_packet_number"] == 42
+        assert artifacts.detail["selection"]["end_packet_number"] == 45
 
     def test_invalid_vault_key_raises_before_processing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

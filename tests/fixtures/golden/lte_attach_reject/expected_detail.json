@@ -1,4 +1,21 @@
 {
+  "run": {
+    "action": "analyze"
+  },
+  "capture": {
+    "path": "<fixture>",
+    "filename": "<fixture>.pcapng",
+    "first_packet_number": 1,
+    "first_seen": "1712390100.0",
+    "last_seen": "1712390100.0"
+  },
+  "artifact": {
+    "version": null
+  },
+  "selection": {
+    "start_packet_number": 1,
+    "end_packet_number": 1
+  },
   "schema_version": "1.0",
   "generated_at": "<generated_at>",
   "capture_sha256": "<capture_sha256>",

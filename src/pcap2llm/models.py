@@ -79,6 +79,8 @@ class NormalizedPacket(BaseModel):
 class CaptureMetadata(BaseModel):
     capture_file: str
     packet_count: int
+    first_packet_number: int | None = None
+    last_packet_number: int | None = None
     first_seen_epoch: str | None = None
     last_seen_epoch: str | None = None
     relevant_protocols: list[str] = Field(default_factory=list)
@@ -209,9 +211,34 @@ class ArtifactCoverage(BaseModel):
     truncation_note: str | None = None
 
 
+class RunMetadata(BaseModel):
+    action: Literal["discover", "inspect", "analyze"]
+
+
+class ArtifactCaptureReference(BaseModel):
+    path: str
+    filename: str
+    first_packet_number: int | None = None
+    first_seen: str | None = None
+    last_seen: str | None = None
+
+
+class ArtifactMetadata(BaseModel):
+    version: str | None = None
+
+
+class SelectionMetadata(BaseModel):
+    start_packet_number: int | None = None
+    end_packet_number: int | None = None
+
+
 class SummaryArtifactV1(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    run: RunMetadata
+    capture: ArtifactCaptureReference
+    artifact: ArtifactMetadata
+    selection: SelectionMetadata | None = None
     schema_version: str = SCHEMA_VERSION
     generated_at: str
     capture_sha256: str | None = None
@@ -238,6 +265,10 @@ class SummaryArtifactV1(BaseModel):
 class DetailArtifactV1(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    run: RunMetadata
+    capture: ArtifactCaptureReference
+    artifact: ArtifactMetadata
+    selection: SelectionMetadata | None = None
     schema_version: str = SCHEMA_VERSION
     generated_at: str
     capture_sha256: str | None = None

@@ -18,8 +18,10 @@ def _discovery_payload(capture: Path) -> dict:
         "mode": "discovery",
         "capture": {
             "path": str(capture),
+            "filename": capture.name,
             "sha256": "abc123",
             "packet_count": 10,
+            "first_packet_number": 1,
             "first_seen": "1.0",
             "last_seen": "2.0",
         },
@@ -68,8 +70,8 @@ def test_discover_command_writes_discovery_artifacts(tmp_path: Path) -> None:
     md_path = Path(payload["discovery_md"])
     assert json_path.parent == out_dir
     assert md_path.parent == out_dir
-    assert "_discovery_V_" in json_path.name and json_path.name.endswith(".json")
-    assert "_discovery_V_" in md_path.name and md_path.name.endswith(".md")
+    assert json_path.name == "discover_sample_start_1_V_01.json"
+    assert md_path.name == "discover_sample_start_1_V_01.md"
     assert json_path.exists()
     assert md_path.exists()
     # no subdirectory created

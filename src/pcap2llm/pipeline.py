@@ -11,7 +11,12 @@ from pathlib import Path
 from pcap2llm.index_inspector import inspect_index_records, select_frame_numbers
 from pcap2llm.models import AnalyzeArtifacts, ProfileDefinition
 from pcap2llm.normalizer import normalize_packets
-from pcap2llm.output_metadata import artifact_version_from_filename, build_artifact_metadata
+from pcap2llm.output_metadata import (
+    artifact_identity_from_filename,
+    artifact_version_from_filename,
+    build_artifact_metadata,
+    semantic_artifact_filename,
+)
 from pcap2llm.protector import Protector
 from pcap2llm.reducer import reduce_packets
 from pcap2llm.resolver import EndpointResolver
@@ -75,19 +80,15 @@ def _artifact_timestamp_prefix(first_seen_epoch: str | None) -> str | None:
         return None
 
 
-def _artifact_filename(prefix: str | None, stem: str, suffix: str, extension: str) -> str:
-    parts = [part for part in (prefix, stem, suffix) if part]
-    return "_".join(parts) + extension
-
-
 def _resolve_output_paths(
     out_dir: Path,
     *,
-    first_seen_epoch: str | None,
+    action: str,
+    capture_path: str | Path,
+    start_packet_number: int | None,
     include_mapping: bool,
     include_vault: bool,
 ) -> dict[str, Path]:
-    prefix = _artifact_timestamp_prefix(first_seen_epoch)
     stems = {
         "summary": ("summary", ".json"),
         "detail": ("detail", ".json"),
@@ -102,7 +103,14 @@ def _resolve_output_paths(
     while True:
         suffix = f"V_{version:02d}"
         outputs = {
-            key: out_dir / _artifact_filename(prefix, stem, suffix, extension)
+            key: out_dir / semantic_artifact_filename(
+                action=action,
+                capture_path=capture_path,
+                start_packet_number=start_packet_number,
+                version=suffix,
+                extension=extension,
+                artifact_kind=stem,
+            )
             for key, (stem, extension) in stems.items()
         }
         if not any(path.exists() for path in outputs.values()):
@@ -111,18 +119,7 @@ def _resolve_output_paths(
 
 
 def describe_output_paths(outputs: dict[str, Path]) -> dict[str, str | int | None]:
-    summary_name = outputs["summary"].name
-    match = re.fullmatch(
-        r"(?:(?P<prefix>\d{8}_\d{6})_)?summary_V_(?P<version>\d+)\.json",
-        summary_name,
-    )
-    if not match:
-        return {"artifact_prefix": None, "artifact_version": None}
-
-    return {
-        "artifact_prefix": match.group("prefix"),
-        "artifact_version": int(match.group("version")),
-    }
+    return artifact_identity_from_filename(outputs["summary"].name)
 
 
 def analyze_capture(
@@ -404,7 +401,13 @@ def write_artifacts(artifacts: AnalyzeArtifacts, out_dir: Path) -> dict[str, Pat
 
     outputs = _resolve_output_paths(
         out_dir,
-        first_seen_epoch=artifacts.summary.get("capture_metadata", {}).get("first_seen_epoch"),
+        action=artifacts.summary.get("run", {}).get("action", "analyze"),
+        capture_path=artifacts.summary.get("capture", {}).get("path")
+        or artifacts.summary.get("capture_metadata", {}).get("capture_file", "capture"),
+        start_packet_number=(
+            artifacts.summary.get("selection", {}).get("start_packet_number")
+            or artifacts.summary.get("capture", {}).get("first_packet_number")
+        ),
         include_mapping=bool(artifacts.pseudonym_mapping),
         include_vault=bool(artifacts.vault),
     )

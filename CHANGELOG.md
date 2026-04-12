@@ -6,6 +6,13 @@ The format is intentionally simple and optimized for humans reading repo history
 
 ## Unreleased
 
+### Changed — 2026-04-12 (semantic artifact filenames)
+
+- **Artifact output filenames now use semantic ordering instead of timestamp-first naming**:
+  - filenames now lead with action, capture filename, start packet, and artifact version
+  - examples: `discover_trace_start_1_V_01.json`, `analyze_trace_start_120_V_01_summary.json`
+  - this improves readability and makes repeated runs easier to compare at a glance
+
 ### Changed — 2026-04-12 (ordered output metadata across inspect / discover / analyze)
 
 - **Artifact outputs now carry explicit ordered run metadata across all three commands**:

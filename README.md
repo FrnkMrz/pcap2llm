@@ -40,17 +40,17 @@ Requirements: Python 3.11+, `tshark` in PATH (Wireshark package).
 
 ## What It Produces
 
-Every `analyze` run writes a timestamped, versioned file set:
+Every `analyze` run writes a semantically ordered, versioned file set:
 
 | File | Purpose |
 |---|---|
-| `YYYYMMDD_HHMMSS_detail_V_01.json` | **Primary LLM input** — normalized packets, reduced fields, privacy-applied |
-| `YYYYMMDD_HHMMSS_summary_V_01.json` | Sidecar — protocol mix, conversations, anomalies, coverage, timing |
-| `YYYYMMDD_HHMMSS_summary_V_01.md` | Human-readable version of the summary |
-| `YYYYMMDD_HHMMSS_pseudonym_mapping_V_01.json` | Only when pseudonymization is active |
-| `YYYYMMDD_HHMMSS_vault_V_01.json` | Only when encryption is active |
+| `analyze_<capture>_start_<n>_V_01_detail.json` | **Primary LLM input** — normalized packets, reduced fields, privacy-applied |
+| `analyze_<capture>_start_<n>_V_01_summary.json` | Sidecar — protocol mix, conversations, anomalies, coverage, timing |
+| `analyze_<capture>_start_<n>_V_01_summary.md` | Human-readable version of the summary |
+| `analyze_<capture>_start_<n>_V_01_pseudonym_mapping.json` | Only when pseudonymization is active |
+| `analyze_<capture>_start_<n>_V_01_vault.json` | Only when encryption is active |
 
-- Timestamp comes from the first packet in the capture.
+- Filenames lead with semantic context: action, capture filename, start packet, artifact version.
 - `_V_01` is always present and auto-increments if files already exist.
 - JSON and Markdown outputs now expose ordered run metadata for readability and automation:
   `run.action`, `capture.filename`, `capture.first_packet_number`, and `artifact.version`.

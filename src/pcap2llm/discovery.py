@@ -2,18 +2,17 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from pcap2llm.inspector import inspect_capture
 from pcap2llm.models import InspectResult, ProfileDefinition
 from pcap2llm.output_metadata import (
+    semantic_artifact_filename,
     build_artifact_metadata,
     build_capture_metadata,
     build_run_metadata,
 )
-from pcap2llm.pipeline import artifact_timestamp_prefix
 from pcap2llm.profiles import load_all_profiles
 from pcap2llm.recommendation import recommend_profiles_from_inspect
 from pcap2llm.signaling import capture_context, discovery_relevant_protocols, dominant_signaling_protocols
@@ -238,22 +237,16 @@ def discover_capture(
 
 
 def write_discovery_artifacts(out_dir: Path, discovery: dict[str, Any], markdown: str) -> dict[str, Path]:
-    """Write discovery artifacts directly into *out_dir* with a shared timestamp prefix.
+    """Write discovery artifacts directly into *out_dir* with semantic filenames.
 
     Output layout (flat, no subdirectory)::
 
         {out_dir}/
-          YYYYMMDD_HHMMSS_discovery_V_01.json
-          YYYYMMDD_HHMMSS_discovery_V_01.md
+          discover_<capture>_start_<n>_V_01.json
+          discover_<capture>_start_<n>_V_01.md
 
-    The ``_V_NN`` suffix matches the convention used by ``analyze`` artifacts and
-    auto-increments on filename collision (same run, different captures in the same
-    output directory).
-
-    The timestamp prefix is derived from ``capture.first_seen`` in the discovery
-    payload using the same :func:`~pcap2llm.pipeline.artifact_timestamp_prefix`
-    helper used by ``analyze`` runs.  Falls back to the current wall-clock time
-    when the epoch cannot be parsed.
+    The semantic order is action, capture filename, start packet, and version.
+    The ``_V_NN`` suffix auto-increments on filename collision.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     capture = dict(discovery.get("capture", {}))
@@ -261,14 +254,24 @@ def write_discovery_artifacts(out_dir: Path, discovery: dict[str, Any], markdown
         capture["filename"] = Path(capture["path"]).name
     discovery["run"] = discovery.get("run") or build_run_metadata("discover")
     discovery["capture"] = capture
-    first_seen = capture.get("first_seen") or ""
-    prefix = artifact_timestamp_prefix(first_seen) or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
     version = 1
     while True:
         v = f"V_{version:02d}"
-        json_path = out_dir / f"{prefix}_discovery_{v}.json"
-        md_path = out_dir / f"{prefix}_discovery_{v}.md"
+        json_path = out_dir / semantic_artifact_filename(
+            action="discover",
+            capture_path=capture.get("path", capture.get("filename", "capture")),
+            start_packet_number=capture.get("first_packet_number"),
+            version=v,
+            extension=".json",
+        )
+        md_path = out_dir / semantic_artifact_filename(
+            action="discover",
+            capture_path=capture.get("path", capture.get("filename", "capture")),
+            start_packet_number=capture.get("first_packet_number"),
+            version=v,
+            extension=".md",
+        )
         if not json_path.exists() and not md_path.exists():
             break
         version += 1

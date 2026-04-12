@@ -285,16 +285,17 @@ Marks the manifest with the chosen final status and writes
 
 ## Output Files
 
-Every `analyze` run writes a file set named with the timestamp of the first packet and a version number:
+Every `analyze` run writes a semantically ordered file set:
 
 | File | Contents |
 |---|---|
-| `YYYYMMDD_HHMMSS_detail_V_01.json` | **Primary LLM input** — normalized packets, reduced fields, privacy applied |
-| `YYYYMMDD_HHMMSS_summary_V_01.json` | Sidecar — protocol mix, conversations, anomalies, coverage, timing |
-| `YYYYMMDD_HHMMSS_summary_V_01.md` | Human-readable version of the summary |
-| `YYYYMMDD_HHMMSS_pseudonym_mapping_V_01.json` | Only when pseudonymization is active |
-| `YYYYMMDD_HHMMSS_vault_V_01.json` | Only when encryption is active |
+| `analyze_<capture>_start_<n>_V_01_detail.json` | **Primary LLM input** — normalized packets, reduced fields, privacy applied |
+| `analyze_<capture>_start_<n>_V_01_summary.json` | Sidecar — protocol mix, conversations, anomalies, coverage, timing |
+| `analyze_<capture>_start_<n>_V_01_summary.md` | Human-readable version of the summary |
+| `analyze_<capture>_start_<n>_V_01_pseudonym_mapping.json` | Only when pseudonymization is active |
+| `analyze_<capture>_start_<n>_V_01_vault.json` | Only when encryption is active |
 
+- Filenames lead with semantic context: action, capture filename, start packet, artifact version.
 - `_V_01` is always present; auto-increments to `_V_02`, `_V_03` if files already exist in the output directory
 - Both JSON files include `schema_version`, `generated_at` (ISO 8601 UTC), and `capture_sha256`
 - `summary.json` includes a `coverage` block showing how many packets were exported and how many were written to `detail.json`

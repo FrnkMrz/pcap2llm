@@ -50,9 +50,9 @@ pcap2llm analyze sample.pcapng --profile lte-core --out ./artifacts
 
 | Datei | Inhalt |
 |---|---|
-| `YYYYMMDD_HHMMSS_detail_V_01.json` | Normalisierte Pakete — das geht ans LLM |
-| `YYYYMMDD_HHMMSS_summary_V_01.json` | Statistiken, Anomalien, Coverage |
-| `YYYYMMDD_HHMMSS_summary_V_01.md` | Menschenlesbare Zusammenfassung |
+| `analyze_<capture>_start_<n>_V_01_detail.json` | Normalisierte Pakete — das geht ans LLM |
+| `analyze_<capture>_start_<n>_V_01_summary.json` | Statistiken, Anomalien, Coverage |
+| `analyze_<capture>_start_<n>_V_01_summary.md` | Menschenlesbare Zusammenfassung |
 
 ## Welches Profil?
 

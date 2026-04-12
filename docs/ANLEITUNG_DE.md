@@ -100,11 +100,11 @@ Jeder Lauf erzeugt einen Dateinamen-Satz mit Zeitstempel des ersten Pakets und V
 
 | Datei | Inhalt |
 |---|---|
-| `YYYYMMDD_HHMMSS_detail_V_01.json` | Normalisierte Pakete — primaeres LLM-Artefakt |
-| `YYYYMMDD_HHMMSS_summary_V_01.json` | Statistiken, Anomalien, Coverage, Privacy-Metadaten |
-| `YYYYMMDD_HHMMSS_summary_V_01.md` | Menschenlesbare Zusammenfassung |
-| `YYYYMMDD_HHMMSS_pseudonym_mapping_V_01.json` | Nur bei aktiver Pseudonymisierung |
-| `YYYYMMDD_HHMMSS_vault_V_01.json` | Nur bei aktiver Verschluesselung |
+| `analyze_<capture>_start_<n>_V_01_detail.json` | Normalisierte Pakete — primaeres LLM-Artefakt |
+| `analyze_<capture>_start_<n>_V_01_summary.json` | Statistiken, Anomalien, Coverage, Privacy-Metadaten |
+| `analyze_<capture>_start_<n>_V_01_summary.md` | Menschenlesbare Zusammenfassung |
+| `analyze_<capture>_start_<n>_V_01_pseudonym_mapping.json` | Nur bei aktiver Pseudonymisierung |
+| `analyze_<capture>_start_<n>_V_01_vault.json` | Nur bei aktiver Verschluesselung |
 
 - `_V_01` ist immer gesetzt; wird automatisch auf `_V_02`, `_V_03` hochgezaehlt wenn Dateien schon existieren
 - Beide JSON-Dateien enthalten `schema_version`, `generated_at` (ISO 8601 UTC) und `capture_sha256`

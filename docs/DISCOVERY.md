@@ -46,8 +46,8 @@ Discovery writes two files directly into the output directory — no subdirector
 
 ```text
 artifacts/
-  20260410_173000_discovery_V_01.json
-  20260410_173000_discovery_V_01.md
+  discover_trace_start_1_V_01.json
+  discover_trace_start_1_V_01.md
 ```
 
 The timestamp prefix comes from the first packet in the capture, using the same
@@ -56,8 +56,8 @@ place.
 
 | File | Purpose |
 |---|---|
-| `YYYYMMDD_HHMMSS_discovery_V_01.json` | Machine-readable scout result for agents and scripts |
-| `YYYYMMDD_HHMMSS_discovery_V_01.md` | Short human summary |
+| `discover_<capture>_start_<n>_V_01.json` | Machine-readable scout result for agents and scripts |
+| `discover_<capture>_start_<n>_V_01.md` | Short human summary |
 
 Both discovery outputs now begin with the same ordered metadata for easier comparison across reruns:
 

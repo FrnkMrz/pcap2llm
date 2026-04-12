@@ -17,6 +17,7 @@ from pcap2llm.config import build_privacy_modes, load_config_file, normalize_mod
 from pcap2llm.discovery import discover_capture, write_discovery_artifacts
 from pcap2llm.error_codes import map_error
 from pcap2llm.inspector import inspect_capture
+from pcap2llm.output_metadata import semantic_artifact_filename
 from pcap2llm.pipeline import analyze_capture, describe_output_paths, write_artifacts
 from pcap2llm.profiles import load_profile
 from pcap2llm.sessions import (
@@ -33,6 +34,32 @@ from pcap2llm.tshark_runner import TSharkError, TSharkRunner
 app = typer.Typer(help="Convert PCAP/PCAPNG captures into LLM-friendly artifacts.")
 session_app = typer.Typer(help="Structured multi-run session helpers for external orchestrators.")
 logger = logging.getLogger("pcap2llm")
+
+
+def _resolve_inspect_output_path(
+    out: Path,
+    *,
+    capture: Path,
+    first_packet_number: int | None,
+    use_markdown: bool,
+) -> Path:
+    if out.suffix.lower() in {".json", ".md"}:
+        return out
+
+    out.mkdir(parents=True, exist_ok=True)
+    extension = ".md" if use_markdown else ".json"
+    version = 1
+    while True:
+        candidate = out / semantic_artifact_filename(
+            action="inspect",
+            capture_path=capture,
+            start_packet_number=first_packet_number,
+            version=f"V_{version:02d}",
+            extension=extension,
+        )
+        if not candidate.exists():
+            return candidate
+        version += 1
 
 # ---------------------------------------------------------------------------
 # Progress display
@@ -296,7 +323,7 @@ def inspect_command(
     profile_name: str = typer.Option("lte-core", "--profile", help="Protocol profile name."),
     display_filter: str | None = typer.Option(None, "--display-filter", "-Y", help="TShark display filter."),
     config_path: Path | None = typer.Option(None, "--config", help="Optional YAML config file."),
-    out: Path | None = typer.Option(None, "--out", help="Optional path for inspect output (JSON or .md for markdown)."),
+    out: Path | None = typer.Option(None, "--out", help="Optional file path or output directory for inspect artifacts."),
     format: str = typer.Option("json", "--format", help="Output format: json or markdown."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show the planned tshark command without executing."),
     two_pass: bool | None = typer.Option(None, "--two-pass/--no-two-pass", help="Override tshark two-pass mode."),
@@ -341,8 +368,14 @@ def inspect_command(
 
         text = json.dumps(serialize_inspect_result(result), indent=2)
     if out:
-        out.write_text(text, encoding="utf-8")
-        typer.echo(f"Wrote inspect output to {out}")
+        output_path = _resolve_inspect_output_path(
+            out,
+            capture=capture,
+            first_packet_number=result.metadata.first_packet_number,
+            use_markdown=use_markdown,
+        )
+        output_path.write_text(text, encoding="utf-8")
+        typer.echo(f"Wrote inspect output to {output_path}")
         return
     typer.echo(text)
 
@@ -397,7 +430,7 @@ def discover_command(
             hosts_file=effective_hosts,
             mapping_file=mapping_file,
         )
-    # write_discovery_artifacts handles timestamp prefix and flat file layout
+    # write_discovery_artifacts handles semantic filenames and flat file layout
     outputs = write_discovery_artifacts(out_dir, discovery, markdown)
     typer.echo(
         json.dumps(

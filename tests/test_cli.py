@@ -7,6 +7,7 @@ from unittest.mock import patch
 from typer.testing import CliRunner
 
 from pcap2llm.cli import app
+from pcap2llm.models import CaptureMetadata, InspectResult
 
 
 def test_init_config_writes_file(tmp_path: Path) -> None:
@@ -109,9 +110,9 @@ def test_analyze_passes_effective_verbatim_profile_to_pipeline(tmp_path: Path) -
         patch(
             "pcap2llm.cli.write_artifacts",
             return_value={
-                "summary": out_dir / "20240406_075320_summary_V_01.json",
-                "detail": out_dir / "20240406_075320_detail_V_01.json",
-                "markdown": out_dir / "20240406_075320_summary_V_01.md",
+                "summary": out_dir / "analyze_sample_start_1_V_01_summary.json",
+                "detail": out_dir / "analyze_sample_start_1_V_01_detail.json",
+                "markdown": out_dir / "analyze_sample_start_1_V_01_summary.md",
             },
         ),
     ):
@@ -147,9 +148,9 @@ def test_analyze_outputs_artifact_prefix_and_version(tmp_path: Path) -> None:
         patch(
             "pcap2llm.cli.write_artifacts",
             return_value={
-                "summary": out_dir / "20240406_075320_summary_V_01.json",
-                "detail": out_dir / "20240406_075320_detail_V_01.json",
-                "markdown": out_dir / "20240406_075320_summary_V_01.md",
+                "summary": out_dir / "analyze_sample_start_1_V_01_summary.json",
+                "detail": out_dir / "analyze_sample_start_1_V_01_detail.json",
+                "markdown": out_dir / "analyze_sample_start_1_V_01_summary.md",
             },
         ),
     ):
@@ -167,6 +168,78 @@ def test_analyze_outputs_artifact_prefix_and_version(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
-    assert payload["artifact_prefix"] == "20240406_075320"
+    assert payload["artifact_prefix"] == "analyze_sample_start_1"
     assert payload["artifact_version"] == 1
-    assert payload["summary"].endswith("20240406_075320_summary_V_01.json")
+    assert payload["summary"].endswith("analyze_sample_start_1_V_01_summary.json")
+
+
+def _inspect_result(capture: Path) -> InspectResult:
+    return InspectResult(
+        metadata=CaptureMetadata(
+            capture_file=str(capture),
+            packet_count=1,
+            raw_protocols=["diameter"],
+            relevant_protocols=["diameter"],
+            first_seen_epoch="1712390000.0",
+            last_seen_epoch="1712390000.0",
+            first_packet_number=1,
+        ),
+        protocol_counts={"diameter": 1},
+        transport_counts={"sctp": 1},
+        conversations=[
+            {
+                "key": "10.0.0.1->10.0.0.2",
+                "src": "10.0.0.1",
+                "dst": "10.0.0.2",
+                "transport": "sctp",
+                "packet_count": 1,
+                "top_protocol": "diameter",
+            }
+        ],
+        anomalies=[],
+    )
+
+
+def test_inspect_out_directory_generates_semantic_json_filename(tmp_path: Path) -> None:
+    runner = CliRunner()
+    capture = tmp_path / "sample trace.pcapng"
+    capture.write_bytes(b"fake")
+    out_dir = tmp_path / "inspect-artifacts"
+
+    with patch("pcap2llm.cli.inspect_capture", return_value=_inspect_result(capture)):
+        result = runner.invoke(
+            app,
+            ["inspect", str(capture), "--profile", "lte-core", "--out", str(out_dir)],
+        )
+
+    assert result.exit_code == 0
+    output_path = out_dir / "inspect_sample_trace_start_1_V_01.json"
+    assert output_path.exists()
+    assert f"Wrote inspect output to {output_path}" in result.stdout
+
+
+def test_inspect_out_directory_generates_semantic_markdown_filename(tmp_path: Path) -> None:
+    runner = CliRunner()
+    capture = tmp_path / "sample trace.pcapng"
+    capture.write_bytes(b"fake")
+    out_dir = tmp_path / "inspect-artifacts"
+
+    with patch("pcap2llm.cli.inspect_capture", return_value=_inspect_result(capture)):
+        result = runner.invoke(
+            app,
+            [
+                "inspect",
+                str(capture),
+                "--profile",
+                "lte-core",
+                "--format",
+                "markdown",
+                "--out",
+                str(out_dir),
+            ],
+        )
+
+    assert result.exit_code == 0
+    output_path = out_dir / "inspect_sample_trace_start_1_V_01.md"
+    assert output_path.exists()
+    assert f"Wrote inspect output to {output_path}" in result.stdout

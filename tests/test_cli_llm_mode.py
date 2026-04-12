@@ -84,9 +84,9 @@ def test_llm_mode_success_returns_strict_json_and_files(tmp_path: Path) -> None:
     capture.write_bytes(b"fake")
     out_dir = tmp_path / "artifacts"
     outputs = {
-        "summary": out_dir / "20240406_075320_summary_V_01.json",
-        "detail": out_dir / "20240406_075320_detail_V_01.json",
-        "markdown": out_dir / "20240406_075320_summary_V_01.md",
+        "summary": out_dir / "analyze_sample_start_1_V_01_summary.json",
+        "detail": out_dir / "analyze_sample_start_1_V_01_detail.json",
+        "markdown": out_dir / "analyze_sample_start_1_V_01_summary.md",
     }
 
     with (
@@ -99,7 +99,7 @@ def test_llm_mode_success_returns_strict_json_and_files(tmp_path: Path) -> None:
     payload = json.loads(result.stdout)
     assert payload["status"] == "ok"
     assert payload["mode"] == "llm"
-    assert payload["files"]["detail"].endswith("_detail_V_01.json")
+    assert payload["files"]["detail"].endswith("_V_01_detail.json")
     assert payload["artifact_version"] == 1
     assert isinstance(payload["warnings"], list)
 
@@ -109,11 +109,11 @@ def test_llm_mode_includes_mapping_and_vault_sidecars_in_result(tmp_path: Path) 
     capture.write_bytes(b"fake")
     out_dir = tmp_path / "artifacts"
     outputs = {
-        "summary": out_dir / "20240406_075320_summary_V_01.json",
-        "detail": out_dir / "20240406_075320_detail_V_01.json",
-        "markdown": out_dir / "20240406_075320_summary_V_01.md",
-        "mapping": out_dir / "20240406_075320_pseudonym_mapping_V_01.json",
-        "vault": out_dir / "20240406_075320_vault_V_01.json",
+        "summary": out_dir / "analyze_sample_start_1_V_01_summary.json",
+        "detail": out_dir / "analyze_sample_start_1_V_01_detail.json",
+        "markdown": out_dir / "analyze_sample_start_1_V_01_summary.md",
+        "mapping": out_dir / "analyze_sample_start_1_V_01_pseudonym_mapping.json",
+        "vault": out_dir / "analyze_sample_start_1_V_01_vault.json",
     }
 
     with (
@@ -123,8 +123,8 @@ def test_llm_mode_includes_mapping_and_vault_sidecars_in_result(tmp_path: Path) 
         result = runner.invoke(app, ["analyze", str(capture), "--llm-mode", "--profile", "lte-core", "--out", str(out_dir)])
 
     payload = json.loads(result.stdout)
-    assert payload["files"]["mapping"].endswith("pseudonym_mapping_V_01.json")
-    assert payload["files"]["vault"].endswith("vault_V_01.json")
+    assert payload["files"]["mapping"].endswith("_V_01_pseudonym_mapping.json")
+    assert payload["files"]["vault"].endswith("_V_01_vault.json")
     warning_codes = {warning["code"] for warning in payload["warnings"]}
     assert "pseudonym_mapping_created" in warning_codes
     assert "encrypted_output_requires_key_handling" in warning_codes
@@ -135,9 +135,9 @@ def test_llm_mode_reports_truncation_warning(tmp_path: Path) -> None:
     capture.write_bytes(b"fake")
     out_dir = tmp_path / "artifacts"
     outputs = {
-        "summary": out_dir / "20240406_075320_summary_V_01.json",
-        "detail": out_dir / "20240406_075320_detail_V_01.json",
-        "markdown": out_dir / "20240406_075320_summary_V_01.md",
+        "summary": out_dir / "analyze_sample_start_1_V_01_summary.json",
+        "detail": out_dir / "analyze_sample_start_1_V_01_detail.json",
+        "markdown": out_dir / "analyze_sample_start_1_V_01_summary.md",
     }
 
     with (
@@ -156,9 +156,9 @@ def test_llm_mode_all_packets_with_guard_disabled_reports_limits(tmp_path: Path)
     capture.write_bytes(b"fake")
     out_dir = tmp_path / "artifacts"
     outputs = {
-        "summary": out_dir / "20240406_075320_summary_V_01.json",
-        "detail": out_dir / "20240406_075320_detail_V_01.json",
-        "markdown": out_dir / "20240406_075320_summary_V_01.md",
+        "summary": out_dir / "analyze_sample_start_1_V_01_summary.json",
+        "detail": out_dir / "analyze_sample_start_1_V_01_detail.json",
+        "markdown": out_dir / "analyze_sample_start_1_V_01_summary.md",
     }
 
     with (
@@ -249,9 +249,9 @@ def test_llm_mode_full_load_ingestion_warning_always_present(tmp_path: Path) -> 
     capture.write_bytes(b"fake")
     out_dir = tmp_path / "artifacts"
     outputs = {
-        "summary": out_dir / "20240406_075320_summary_V_01.json",
-        "detail": out_dir / "20240406_075320_detail_V_01.json",
-        "markdown": out_dir / "20240406_075320_summary_V_01.md",
+        "summary": out_dir / "analyze_sample_start_1_V_01_summary.json",
+        "detail": out_dir / "analyze_sample_start_1_V_01_detail.json",
+        "markdown": out_dir / "analyze_sample_start_1_V_01_summary.md",
     }
 
     with (
@@ -272,9 +272,9 @@ def test_llm_mode_no_relevant_protocols_warning(tmp_path: Path) -> None:
     capture.write_bytes(b"fake")
     out_dir = tmp_path / "artifacts"
     outputs = {
-        "summary": out_dir / "20240406_075320_summary_V_01.json",
-        "detail": out_dir / "20240406_075320_detail_V_01.json",
-        "markdown": out_dir / "20240406_075320_summary_V_01.md",
+        "summary": out_dir / "analyze_sample_start_1_V_01_summary.json",
+        "detail": out_dir / "analyze_sample_start_1_V_01_detail.json",
+        "markdown": out_dir / "analyze_sample_start_1_V_01_summary.md",
     }
 
     # Build artifacts with no relevant protocols
@@ -300,9 +300,9 @@ def test_llm_mode_success_payload_contains_required_fields(tmp_path: Path) -> No
     capture.write_bytes(b"fake")
     out_dir = tmp_path / "artifacts"
     outputs = {
-        "summary": out_dir / "20240406_075320_summary_V_01.json",
-        "detail": out_dir / "20240406_075320_detail_V_01.json",
-        "markdown": out_dir / "20240406_075320_summary_V_01.md",
+        "summary": out_dir / "analyze_sample_start_1_V_01_summary.json",
+        "detail": out_dir / "analyze_sample_start_1_V_01_detail.json",
+        "markdown": out_dir / "analyze_sample_start_1_V_01_summary.md",
     }
 
     with (
@@ -429,9 +429,9 @@ def test_llm_mode_success_coverage_block_has_required_keys(tmp_path: Path) -> No
     capture.write_bytes(b"fake")
     out_dir = tmp_path / "artifacts"
     outputs = {
-        "summary": out_dir / "20240406_075320_summary_V_01.json",
-        "detail": out_dir / "20240406_075320_detail_V_01.json",
-        "markdown": out_dir / "20240406_075320_summary_V_01.md",
+        "summary": out_dir / "analyze_sample_start_1_V_01_summary.json",
+        "detail": out_dir / "analyze_sample_start_1_V_01_detail.json",
+        "markdown": out_dir / "analyze_sample_start_1_V_01_summary.md",
     }
 
     with (
@@ -455,9 +455,9 @@ def test_llm_mode_success_includes_effective_verbatim_configuration(tmp_path: Pa
     capture.write_bytes(b"fake")
     out_dir = tmp_path / "artifacts"
     outputs = {
-        "summary": out_dir / "20240406_075320_summary_V_01.json",
-        "detail": out_dir / "20240406_075320_detail_V_01.json",
-        "markdown": out_dir / "20240406_075320_summary_V_01.md",
+        "summary": out_dir / "analyze_sample_start_1_V_01_summary.json",
+        "detail": out_dir / "analyze_sample_start_1_V_01_detail.json",
+        "markdown": out_dir / "analyze_sample_start_1_V_01_summary.md",
     }
 
     with (
@@ -492,9 +492,9 @@ def test_llm_mode_oversize_guard_disabled_reports_warning(tmp_path: Path) -> Non
     capture.write_bytes(b"fake")
     out_dir = tmp_path / "artifacts"
     outputs = {
-        "summary": out_dir / "20240406_075320_summary_V_01.json",
-        "detail": out_dir / "20240406_075320_detail_V_01.json",
-        "markdown": out_dir / "20240406_075320_summary_V_01.md",
+        "summary": out_dir / "analyze_sample_start_1_V_01_summary.json",
+        "detail": out_dir / "analyze_sample_start_1_V_01_detail.json",
+        "markdown": out_dir / "analyze_sample_start_1_V_01_summary.md",
     }
 
     with (
@@ -520,9 +520,9 @@ def test_llm_mode_oversize_factor_present_in_limits(tmp_path: Path) -> None:
     capture.write_bytes(b"fake")
     out_dir = tmp_path / "artifacts"
     outputs = {
-        "summary": out_dir / "20240406_075320_summary_V_01.json",
-        "detail": out_dir / "20240406_075320_detail_V_01.json",
-        "markdown": out_dir / "20240406_075320_summary_V_01.md",
+        "summary": out_dir / "analyze_sample_start_1_V_01_summary.json",
+        "detail": out_dir / "analyze_sample_start_1_V_01_detail.json",
+        "markdown": out_dir / "analyze_sample_start_1_V_01_summary.md",
     }
 
     with (

@@ -16,7 +16,7 @@ from pcap2llm.tshark_runner import TSharkError, TSharkRunner
 from testutils import mock_runner_two_pass
 
 
-_TIMESTAMP_PREFIX = "20240406_075320"
+_ARTIFACT_PREFIX = "analyze_sample_start_1"
 
 
 # ---------------------------------------------------------------------------
@@ -329,9 +329,17 @@ class TestWriteArtifactsErrorHandling:
                 "capture_sha256": "<capture_sha256>",
                 "profile": "lte-core",
                 "artifact_role": "summary_sidecar",
+                "run": {"action": "analyze"},
+                "capture": {
+                    "path": "sample.pcapng",
+                    "filename": "sample.pcapng",
+                    "first_packet_number": 1,
+                },
+                "artifact": {"version": None},
                 "capture_metadata": {
                     "capture_file": "sample.pcapng",
                     "packet_count": 0,
+                    "first_packet_number": 1,
                     "first_seen_epoch": "1712390000.0",
                     "last_seen_epoch": "1712390000.0",
                     "relevant_protocols": [],
@@ -360,6 +368,13 @@ class TestWriteArtifactsErrorHandling:
                 "capture_sha256": "<capture_sha256>",
                 "profile": "lte-core",
                 "artifact_role": "llm_input",
+                "run": {"action": "analyze"},
+                "capture": {
+                    "path": "sample.pcapng",
+                    "filename": "sample.pcapng",
+                    "first_packet_number": 1,
+                },
+                "artifact": {"version": None},
                 "coverage": {
                     "detail_packets_included": 0,
                     "detail_packets_available": 0,
@@ -376,28 +391,28 @@ class TestWriteArtifactsErrorHandling:
     def test_write_artifacts_succeeds(self, tmp_path: Path) -> None:
         artifacts = self._make_artifacts()
         outputs = write_artifacts(artifacts, tmp_path / "out")
-        assert (tmp_path / "out" / f"{_TIMESTAMP_PREFIX}_summary_V_01.json").exists()
-        assert (tmp_path / "out" / f"{_TIMESTAMP_PREFIX}_detail_V_01.json").exists()
-        assert (tmp_path / "out" / f"{_TIMESTAMP_PREFIX}_summary_V_01.md").exists()
+        assert (tmp_path / "out" / f"{_ARTIFACT_PREFIX}_V_01_summary.json").exists()
+        assert (tmp_path / "out" / f"{_ARTIFACT_PREFIX}_V_01_detail.json").exists()
+        assert (tmp_path / "out" / f"{_ARTIFACT_PREFIX}_V_01_summary.md").exists()
         assert "summary" in outputs and "detail" in outputs
 
     def test_write_artifacts_adds_version_suffix_on_collision(self, tmp_path: Path) -> None:
         out_dir = tmp_path / "out"
         out_dir.mkdir()
-        (out_dir / f"{_TIMESTAMP_PREFIX}_summary_V_01.json").write_text("{}", encoding="utf-8")
+        (out_dir / f"{_ARTIFACT_PREFIX}_V_01_summary.json").write_text("{}", encoding="utf-8")
 
         outputs = write_artifacts(self._make_artifacts(), out_dir)
 
-        assert outputs["summary"].name == f"{_TIMESTAMP_PREFIX}_summary_V_02.json"
-        assert outputs["detail"].name == f"{_TIMESTAMP_PREFIX}_detail_V_02.json"
-        assert outputs["markdown"].name == f"{_TIMESTAMP_PREFIX}_summary_V_02.md"
+        assert outputs["summary"].name == f"{_ARTIFACT_PREFIX}_V_02_summary.json"
+        assert outputs["detail"].name == f"{_ARTIFACT_PREFIX}_V_02_detail.json"
+        assert outputs["markdown"].name == f"{_ARTIFACT_PREFIX}_V_02_summary.md"
 
     def test_write_artifacts_updates_markdown_file_references(self, tmp_path: Path) -> None:
         outputs = write_artifacts(self._make_artifacts(), tmp_path / "out")
 
         markdown = outputs["markdown"].read_text(encoding="utf-8")
-        assert f"{_TIMESTAMP_PREFIX}_summary_V_01.json" in markdown
-        assert f"{_TIMESTAMP_PREFIX}_detail_V_01.json" in markdown
+        assert f"{_ARTIFACT_PREFIX}_V_01_summary.json" in markdown
+        assert f"{_ARTIFACT_PREFIX}_V_01_detail.json" in markdown
 
     def test_write_artifacts_adds_explicit_artifact_version_metadata(self, tmp_path: Path) -> None:
         outputs = write_artifacts(self._make_artifacts(), tmp_path / "out")
@@ -408,8 +423,8 @@ class TestWriteArtifactsErrorHandling:
         assert summary["artifact"]["version"] == "V_01"
         assert detail["artifact"]["version"] == "V_01"
         assert markdown.index("- Action: `analyze`") < markdown.index("- Capture file: `sample.pcapng`")
-        assert markdown.index("- Capture file: `sample.pcapng`") < markdown.index("- Start packet: `unknown`")
-        assert markdown.index("- Start packet: `unknown`") < markdown.index("- Artifact version: `V_01`")
+        assert markdown.index("- Capture file: `sample.pcapng`") < markdown.index("- Start packet: `1`")
+        assert markdown.index("- Start packet: `1`") < markdown.index("- Artifact version: `V_01`")
 
     @pytest.mark.skipif(sys.platform == "win32", reason="chmod not reliable on Windows")
     def test_write_artifacts_raises_on_read_only_dir(self, tmp_path: Path) -> None:

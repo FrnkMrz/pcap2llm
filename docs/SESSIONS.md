@@ -33,15 +33,15 @@ artifacts/
     session_manifest.json
     session_report.md
     00_discovery/
-      20260410_173000_discovery.json
-      20260410_173000_discovery.md
+      discover_trace_start_1_V_01.json
+      discover_trace_start_1_V_01.md
     01_lte-s11/
-      20260410_102458_summary_V_01.json
-      20260410_102458_detail_V_01.json
-      20260410_102458_summary_V_01.md
+      analyze_trace_start_120_V_01_summary.json
+      analyze_trace_start_120_V_01_detail.json
+      analyze_trace_start_120_V_01_summary.md
 ```
 
-Discovery and profile runs both use timestamped filenames directly inside their
+Discovery and profile runs both use semantically ordered filenames directly inside their
 run directory. No further nesting.
 
 ## Manifest Structure
@@ -76,10 +76,10 @@ Each run records, as applicable:
 `session run-discovery` creates a numbered run directory such as `00_discovery`
 and writes the discovery artifacts directly inside it:
 
-- `YYYYMMDD_HHMMSS_discovery.json`
-- `YYYYMMDD_HHMMSS_discovery.md`
+- `discover_<capture>_start_<n>_V_01.json`
+- `discover_<capture>_start_<n>_V_01.md`
 
-The naming matches the same timestamp-prefix logic used by profile runs and
+The naming matches the same semantic filename logic used by profile runs and
 standalone discovery. The run is appended to `session_manifest.json` with its
 output paths and current state.
 

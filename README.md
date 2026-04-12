@@ -114,6 +114,28 @@ More detail:
 - [`docs/DISCOVERY.md`](docs/DISCOVERY.md) for scout runs and discovery artifacts
 - [`docs/PROFILE_SELECTION.md`](docs/PROFILE_SELECTION.md) for recommendation logic and `selector_metadata`
 - [`docs/SESSIONS.md`](docs/SESSIONS.md) for session manifests and multi-run orchestration
+- [`docs/LLM_TROUBLESHOOTING_WORKFLOW.md`](docs/LLM_TROUBLESHOOTING_WORKFLOW.md) for the documented PCAP -> `pcap2llm` -> external LLM handoff workflow
+
+## LLM Troubleshooting Workflow
+
+When an external LLM should explain or troubleshoot a trace, use the documented workflow in [`docs/LLM_TROUBLESHOOTING_WORKFLOW.md`](docs/LLM_TROUBLESHOOTING_WORKFLOW.md).
+
+In short:
+
+1. run `discover`
+2. choose the focused profile
+3. run `analyze --privacy-profile llm-telecom-safe`
+4. share only the minimum necessary artifact excerpt with the LLM
+5. never share the raw PCAP, `pseudonym_mapping.json`, `vault.json`, or key material
+6. validate the LLM answer against the local artifacts
+
+Direct ChatGPT handoff is also available from the CLI when `OPENAI_API_KEY` is set:
+
+```bash
+pcap2llm ask-chatgpt trace.pcapng \
+  --privacy-profile llm-telecom-safe \
+  --question "Explain the trace and identify the likely failure point"
+```
 
 ## Repo-Owned Local Batch Runner
 

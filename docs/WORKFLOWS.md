@@ -3,6 +3,8 @@
 Step-by-step analysis workflows for the built-in profile families.
 General rule: always run `inspect` first, then narrow with `-Y` before running `analyze`.
 
+For the documented PCAP -> `pcap2llm` -> external LLM handoff flow, see [`LLM_TROUBLESHOOTING_WORKFLOW.md`](LLM_TROUBLESHOOTING_WORKFLOW.md).
+
 The human-readable outputs now start with the same four metadata lines across `inspect`, `discover`, and `analyze`: action, capture file, start packet, and artifact version.
 
 ---

@@ -76,7 +76,21 @@ pcap2llm init-config
 
 **Analysis profiles** (`src/pcap2llm/profiles/*.yaml`) — the authoritative built-in profile path. Profiles define protocol priorities, field extraction rules, `verbatim_protocols`, and TShark options. Built-in families include `lte-core`, the LTE interface profiles (`lte-s1`, `lte-s1-nas`, `lte-s6a`, `lte-s11`, `lte-s10`, `lte-sgs`, `lte-s5`, `lte-s8`, `lte-dns`, `lte-sbc-cbc`), plus `5g-core` and `2g3g-ss7-geran`. Custom profiles: see `docs/PROFILES.md`.
 
-**Privacy profiles** (`src/pcap2llm/privacy_profiles/*.yaml`) — standalone YAML files with per-class privacy modes, fully decoupled from analysis profiles. Built-in: `internal` (all keep), `share` (pseudonymize subscriber IDs), `lab`, `prod-safe` (maximum protection). Referenced via `--privacy-profile` or `privacy_profile:` in config.
+**Privacy profiles** (`src/pcap2llm/privacy_profiles/*.yaml`) — standalone YAML files with per-class privacy modes, fully decoupled from analysis profiles. Built-in: `internal` (all keep), `share` (pseudonymize subscriber IDs), `lab`, `prod-safe` (maximum protection), and `llm-telecom-safe` (external LLM troubleshooting with pseudonymized endpoint relationships). Referenced via `--privacy-profile` or `privacy_profile:` in config.
+
+## Documented Agent Workflow
+
+When the user asks to hand a PCAP-derived result to an external LLM for troubleshooting or explanation, use the documented `LLM-PCAP workflow` from `docs/LLM_TROUBLESHOOTING_WORKFLOW.md`.
+
+Default behavior for that workflow:
+
+1. run `discover`
+2. choose a focused profile from discovery evidence
+3. run `analyze --privacy-profile llm-telecom-safe`
+4. never send the raw PCAP to the LLM
+5. never share `pseudonym_mapping.json`, `vault.json`, or vault key material
+6. send only the minimum necessary artifact excerpt to the LLM
+7. validate the LLM answer against the local artifacts before presenting conclusions
 
 **Data models** (`models.py`) use Pydantic v2. `SCHEMA_VERSION = "1.0"`. Key types:
 - `NormalizedPacket`, `InspectResult`, `CaptureMetadata` — internal pipeline types

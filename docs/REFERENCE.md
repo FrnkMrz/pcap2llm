@@ -59,12 +59,15 @@ pip install -e .[dev,encrypt]
 `pcap2llm` now has three layers of CLI surface:
 
 - core commands for one-shot use: `init-config`, `inspect`, `analyze`
+- direct LLM handoff: `ask-chatgpt`
 - discovery helpers for orchestrators: `discover`, `recommend-profiles`
 - session helpers for multi-run workflows: `session start`, `session run-discovery`, `session run-profile`, `session finalize`
 
 For staged automation guidance, see [`docs/DISCOVERY.md`](DISCOVERY.md),
 [`docs/PROFILE_SELECTION.md`](PROFILE_SELECTION.md), and
 [`docs/SESSIONS.md`](SESSIONS.md).
+
+For the documented PCAP -> `pcap2llm` -> external LLM sharing flow, see [`docs/LLM_TROUBLESHOOTING_WORKFLOW.md`](LLM_TROUBLESHOOTING_WORKFLOW.md).
 
 ## Core Commands
 

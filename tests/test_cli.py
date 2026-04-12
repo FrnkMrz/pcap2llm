@@ -243,3 +243,24 @@ def test_inspect_out_directory_generates_semantic_markdown_filename(tmp_path: Pa
     output_path = out_dir / "inspect_sample_trace_start_1_V_01.md"
     assert output_path.exists()
     assert f"Wrote inspect output to {output_path}" in result.stdout
+
+
+def test_ask_chatgpt_dry_run_outputs_plan(tmp_path: Path) -> None:
+    runner = CliRunner()
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+    result = runner.invoke(
+        app,
+        [
+            "ask-chatgpt",
+            str(capture),
+            "--dry-run",
+            "--model",
+            "gpt-4.1-mini",
+        ],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["mode"] == "chatgpt"
+    assert payload["profile"] == "(auto from discovery)"
+    assert payload["privacy_profile"] == "llm-telecom-safe"

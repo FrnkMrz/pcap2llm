@@ -128,3 +128,35 @@ Required environment variable:
 ```bash
 export OPENAI_API_KEY=...
 ```
+
+## Direct Claude CLI Handoff
+
+When `ANTHROPIC_API_KEY` is available, the workflow can also be executed directly against Claude:
+
+```bash
+pcap2llm ask-claude trace.pcapng \
+  --privacy-profile llm-telecom-safe \
+  --question "Explain the trace and identify the likely failure point"
+```
+
+Required environment variable:
+
+```bash
+export ANTHROPIC_API_KEY=...
+```
+
+## Direct Gemini CLI Handoff
+
+When `GEMINI_API_KEY` is available, the workflow can also be executed directly against Gemini:
+
+```bash
+pcap2llm ask-gemini trace.pcapng \
+  --privacy-profile llm-telecom-safe \
+  --question "Explain the trace and identify the likely failure point"
+```
+
+Required environment variable:
+
+```bash
+export GEMINI_API_KEY=...
+```

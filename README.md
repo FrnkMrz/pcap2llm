@@ -137,6 +137,22 @@ pcap2llm ask-chatgpt trace.pcapng \
   --question "Explain the trace and identify the likely failure point"
 ```
 
+Direct Claude handoff is also available from the CLI when `ANTHROPIC_API_KEY` is set:
+
+```bash
+pcap2llm ask-claude trace.pcapng \
+  --privacy-profile llm-telecom-safe \
+  --question "Explain the trace and identify the likely failure point"
+```
+
+Direct Gemini handoff is also available from the CLI when `GEMINI_API_KEY` is set:
+
+```bash
+pcap2llm ask-gemini trace.pcapng \
+  --privacy-profile llm-telecom-safe \
+  --question "Explain the trace and identify the likely failure point"
+```
+
 ## Repo-Owned Local Batch Runner
 
 The repo now includes a committed local batch runner plus committed batch definitions, while private captures and generated artifacts stay local-only.

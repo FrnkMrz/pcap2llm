@@ -19,6 +19,8 @@ from pcap2llm.chatgpt import (
     request_chatgpt_response,
     write_chatgpt_handoff_files,
 )
+from pcap2llm.claude import request_claude_response, write_claude_handoff_files
+from pcap2llm.gemini import request_gemini_response, write_gemini_handoff_files
 from pcap2llm.config import build_privacy_modes, load_config_file, normalize_mode, sample_config_text
 from pcap2llm.discovery import discover_capture, write_discovery_artifacts
 from pcap2llm.error_codes import map_error
@@ -958,6 +960,305 @@ def ask_chatgpt_command(
             "chatgpt_prompt": str(handoff_outputs["prompt"]),
             "chatgpt_response_markdown": str(handoff_outputs["response_markdown"]),
             "chatgpt_response_json": str(handoff_outputs["response_json"]),
+        },
+        "response": llm_result["text"],
+    }
+    typer.echo(json.dumps(payload, indent=2))
+
+
+@app.command("ask-claude")
+def ask_claude_command(
+    capture: Path = typer.Argument(..., exists=True, readable=True, help="Input .pcap or .pcapng file."),
+    question: str = typer.Option(DEFAULT_CHATGPT_QUESTION, "--question", help="Question sent to Claude together with the generated artifacts."),
+    model: str = typer.Option("claude-3-5-sonnet-latest", "--model", help="Anthropic model name used for the request."),
+    profile_name: str | None = typer.Option(None, "--profile", help="Optional forced analysis profile. If omitted, the best discovery recommendation is used."),
+    privacy_profile_name: str = typer.Option("llm-telecom-safe", "--privacy-profile", help="Privacy profile for the generated LLM handoff artifacts."),
+    display_filter: str | None = typer.Option(None, "--display-filter", "-Y", help="TShark display filter."),
+    config_path: Path | None = typer.Option(None, "--config", help="Optional YAML config file."),
+    mapping_file: Path | None = typer.Option(None, "--mapping-file", help="Custom YAML/JSON alias mapping."),
+    hosts_file: Path | None = typer.Option(None, "--hosts-file", help="Wireshark hosts-style mapping file."),
+    out_dir: Path = typer.Option(Path("artifacts"), "--out", help="Artifact output directory."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show the planned workflow without executing it."),
+    two_pass: bool | None = typer.Option(None, "--two-pass/--no-two-pass", help="Override tshark two-pass mode."),
+    tshark_path: str = typer.Option("tshark", "--tshark-path", help="TShark executable path."),
+    tshark_arg: list[str] = typer.Option(None, "--tshark-arg", help="Extra argument passed to tshark."),
+    max_packets: int = typer.Option(1000, "--max-packets", help="Maximum number of packets written to detail.json before LLM handoff."),
+    all_packets: bool = typer.Option(False, "--all-packets", help="Include every exported packet in detail.json, ignoring --max-packets."),
+    max_capture_size_mb: int = typer.Option(250, "--max-capture-size-mb", help="Fail fast when the input capture exceeds this size in MiB before tshark export."),
+    oversize_factor: float = typer.Option(10.0, "--oversize-factor", help="Fail if the exported packet count exceeds max-packets by this factor."),
+    max_messages: int = typer.Option(300, "--max-messages", help="Maximum number of normalized detail messages included in the Claude prompt."),
+    timeout_seconds: int = typer.Option(120, "--timeout-seconds", help="HTTP timeout for the Anthropic request."),
+    api_key_env: str = typer.Option("ANTHROPIC_API_KEY", "--api-key-env", help="Environment variable that contains the Anthropic API key."),
+    max_tokens: int = typer.Option(2000, "--max-tokens", help="Maximum Claude response tokens."),
+) -> None:
+    config_data = load_config_file(config_path)
+    effective_hosts = _resolve_hosts_file(hosts_file, config_data)
+    effective_mapping = mapping_file or (Path(config_data["mapping_file"]) if config_data.get("mapping_file") else None)
+    effective_filter = display_filter or config_data.get("display_filter")
+    runner = TSharkRunner(binary=tshark_path)
+    extra_args = list(config_data.get("tshark_extra_args", [])) + list(tshark_arg or [])
+    effective_max_packets = 0 if all_packets else max_packets
+
+    if dry_run:
+        typer.echo(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "mode": "claude",
+                    "capture": str(capture),
+                    "question": question,
+                    "model": model,
+                    "profile": profile_name or "(auto from discovery)",
+                    "privacy_profile": privacy_profile_name,
+                    "display_filter": effective_filter,
+                    "max_packets": effective_max_packets,
+                    "all_packets": all_packets,
+                    "max_messages": max_messages,
+                    "api_key_env": api_key_env,
+                    "max_tokens": max_tokens,
+                },
+                indent=2,
+            )
+        )
+        return
+
+    try:
+        with _progress(4) as on_stage:
+            on_stage("Discovery: scouting capture and profile hints…", 1, 4)
+            discovery_payload, discovery_markdown = discover_capture(
+                capture,
+                runner=runner,
+                display_filter=effective_filter,
+                extra_args=extra_args,
+                two_pass=False,
+                hosts_file=effective_hosts,
+                mapping_file=effective_mapping,
+            )
+            discovery_outputs = write_discovery_artifacts(out_dir, discovery_payload, discovery_markdown)
+
+            selected_profile_name = profile_name or _choose_recommended_profile_name(discovery_payload)
+            profile = load_profile(selected_profile_name)
+            effective_two_pass = profile.tshark.get("two_pass", False) if two_pass is None else two_pass
+            base_modes = _resolve_privacy_base(privacy_profile_name, config_data, profile)
+            privacy_modes = _build_modes(base_modes, config_data.get("privacy_modes", {}), {})
+
+            on_stage(f"Analyze: running focused profile {selected_profile_name}…", 2, 4)
+            artifacts = analyze_capture(
+                capture,
+                out_dir=out_dir,
+                runner=runner,
+                profile=profile,
+                privacy_modes=privacy_modes,
+                display_filter=effective_filter,
+                hosts_file=effective_hosts,
+                mapping_file=effective_mapping,
+                extra_args=extra_args,
+                two_pass=effective_two_pass,
+                max_packets=effective_max_packets,
+                max_capture_size_mb=max_capture_size_mb,
+                oversize_factor=oversize_factor,
+            )
+            analysis_outputs = write_artifacts(artifacts, out_dir)
+
+            on_stage("Prompt: building Claude handoff payload…", 3, 4)
+            prompt_text, prompt_metadata = build_chatgpt_prompt(
+                capture=capture,
+                profile_name=selected_profile_name,
+                privacy_profile_name=privacy_profile_name,
+                question=question,
+                artifacts=artifacts,
+                max_messages=max_messages,
+            )
+
+            on_stage(f"Claude: requesting model {model}…", 4, 4)
+            llm_result = request_claude_response(
+                model=model,
+                prompt=prompt_text,
+                api_key_env=api_key_env,
+                timeout_seconds=timeout_seconds,
+                max_tokens=max_tokens,
+            )
+    except Exception as exc:  # noqa: BLE001
+        code, details = map_error(exc)
+        typer.echo(json.dumps(build_error_payload(code=code, message=str(exc), details=details), indent=2))
+        raise typer.Exit(code=1) from exc
+
+    handoff_outputs = write_claude_handoff_files(
+        out_dir=out_dir,
+        capture=capture,
+        first_packet_number=artifacts.summary.get("capture", {}).get("first_packet_number"),
+        prompt_text=prompt_text,
+        response_text=llm_result["text"],
+        response_payload=llm_result["raw"],
+    )
+    payload = {
+        "status": "ok",
+        "mode": "claude",
+        "capture": str(capture),
+        "profile": selected_profile_name,
+        "privacy_profile": privacy_profile_name,
+        "model": model,
+        "question": question,
+        "prompt": prompt_metadata,
+        "files": {
+            "discovery_json": str(discovery_outputs["discovery_json"]),
+            "discovery_md": str(discovery_outputs["discovery_md"]),
+            "summary": str(analysis_outputs["summary"]),
+            "detail": str(analysis_outputs["detail"]),
+            "markdown": str(analysis_outputs["markdown"]),
+            "mapping": str(analysis_outputs["mapping"]) if analysis_outputs.get("mapping") else None,
+            "vault": str(analysis_outputs["vault"]) if analysis_outputs.get("vault") else None,
+            "claude_prompt": str(handoff_outputs["prompt"]),
+            "claude_response_markdown": str(handoff_outputs["response_markdown"]),
+            "claude_response_json": str(handoff_outputs["response_json"]),
+        },
+        "response": llm_result["text"],
+    }
+    typer.echo(json.dumps(payload, indent=2))
+
+
+@app.command("ask-gemini")
+def ask_gemini_command(
+    capture: Path = typer.Argument(..., exists=True, readable=True, help="Input .pcap or .pcapng file."),
+    question: str = typer.Option(DEFAULT_CHATGPT_QUESTION, "--question", help="Question sent to Gemini together with the generated artifacts."),
+    model: str = typer.Option("gemini-2.0-flash", "--model", help="Gemini model name used for the request."),
+    profile_name: str | None = typer.Option(None, "--profile", help="Optional forced analysis profile. If omitted, the best discovery recommendation is used."),
+    privacy_profile_name: str = typer.Option("llm-telecom-safe", "--privacy-profile", help="Privacy profile for the generated LLM handoff artifacts."),
+    display_filter: str | None = typer.Option(None, "--display-filter", "-Y", help="TShark display filter."),
+    config_path: Path | None = typer.Option(None, "--config", help="Optional YAML config file."),
+    mapping_file: Path | None = typer.Option(None, "--mapping-file", help="Custom YAML/JSON alias mapping."),
+    hosts_file: Path | None = typer.Option(None, "--hosts-file", help="Wireshark hosts-style mapping file."),
+    out_dir: Path = typer.Option(Path("artifacts"), "--out", help="Artifact output directory."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show the planned workflow without executing it."),
+    two_pass: bool | None = typer.Option(None, "--two-pass/--no-two-pass", help="Override tshark two-pass mode."),
+    tshark_path: str = typer.Option("tshark", "--tshark-path", help="TShark executable path."),
+    tshark_arg: list[str] = typer.Option(None, "--tshark-arg", help="Extra argument passed to tshark."),
+    max_packets: int = typer.Option(1000, "--max-packets", help="Maximum number of packets written to detail.json before LLM handoff."),
+    all_packets: bool = typer.Option(False, "--all-packets", help="Include every exported packet in detail.json, ignoring --max-packets."),
+    max_capture_size_mb: int = typer.Option(250, "--max-capture-size-mb", help="Fail fast when the input capture exceeds this size in MiB before tshark export."),
+    oversize_factor: float = typer.Option(10.0, "--oversize-factor", help="Fail if the exported packet count exceeds max-packets by this factor."),
+    max_messages: int = typer.Option(300, "--max-messages", help="Maximum number of normalized detail messages included in the Gemini prompt."),
+    timeout_seconds: int = typer.Option(120, "--timeout-seconds", help="HTTP timeout for the Gemini request."),
+    api_key_env: str = typer.Option("GEMINI_API_KEY", "--api-key-env", help="Environment variable that contains the Gemini API key."),
+) -> None:
+    config_data = load_config_file(config_path)
+    effective_hosts = _resolve_hosts_file(hosts_file, config_data)
+    effective_mapping = mapping_file or (Path(config_data["mapping_file"]) if config_data.get("mapping_file") else None)
+    effective_filter = display_filter or config_data.get("display_filter")
+    runner = TSharkRunner(binary=tshark_path)
+    extra_args = list(config_data.get("tshark_extra_args", [])) + list(tshark_arg or [])
+    effective_max_packets = 0 if all_packets else max_packets
+
+    if dry_run:
+        typer.echo(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "mode": "gemini",
+                    "capture": str(capture),
+                    "question": question,
+                    "model": model,
+                    "profile": profile_name or "(auto from discovery)",
+                    "privacy_profile": privacy_profile_name,
+                    "display_filter": effective_filter,
+                    "max_packets": effective_max_packets,
+                    "all_packets": all_packets,
+                    "max_messages": max_messages,
+                    "api_key_env": api_key_env,
+                },
+                indent=2,
+            )
+        )
+        return
+
+    try:
+        with _progress(4) as on_stage:
+            on_stage("Discovery: scouting capture and profile hints…", 1, 4)
+            discovery_payload, discovery_markdown = discover_capture(
+                capture,
+                runner=runner,
+                display_filter=effective_filter,
+                extra_args=extra_args,
+                two_pass=False,
+                hosts_file=effective_hosts,
+                mapping_file=effective_mapping,
+            )
+            discovery_outputs = write_discovery_artifacts(out_dir, discovery_payload, discovery_markdown)
+
+            selected_profile_name = profile_name or _choose_recommended_profile_name(discovery_payload)
+            profile = load_profile(selected_profile_name)
+            effective_two_pass = profile.tshark.get("two_pass", False) if two_pass is None else two_pass
+            base_modes = _resolve_privacy_base(privacy_profile_name, config_data, profile)
+            privacy_modes = _build_modes(base_modes, config_data.get("privacy_modes", {}), {})
+
+            on_stage(f"Analyze: running focused profile {selected_profile_name}…", 2, 4)
+            artifacts = analyze_capture(
+                capture,
+                out_dir=out_dir,
+                runner=runner,
+                profile=profile,
+                privacy_modes=privacy_modes,
+                display_filter=effective_filter,
+                hosts_file=effective_hosts,
+                mapping_file=effective_mapping,
+                extra_args=extra_args,
+                two_pass=effective_two_pass,
+                max_packets=effective_max_packets,
+                max_capture_size_mb=max_capture_size_mb,
+                oversize_factor=oversize_factor,
+            )
+            analysis_outputs = write_artifacts(artifacts, out_dir)
+
+            on_stage("Prompt: building Gemini handoff payload…", 3, 4)
+            prompt_text, prompt_metadata = build_chatgpt_prompt(
+                capture=capture,
+                profile_name=selected_profile_name,
+                privacy_profile_name=privacy_profile_name,
+                question=question,
+                artifacts=artifacts,
+                max_messages=max_messages,
+            )
+
+            on_stage(f"Gemini: requesting model {model}…", 4, 4)
+            llm_result = request_gemini_response(
+                model=model,
+                prompt=prompt_text,
+                api_key_env=api_key_env,
+                timeout_seconds=timeout_seconds,
+            )
+    except Exception as exc:  # noqa: BLE001
+        code, details = map_error(exc)
+        typer.echo(json.dumps(build_error_payload(code=code, message=str(exc), details=details), indent=2))
+        raise typer.Exit(code=1) from exc
+
+    handoff_outputs = write_gemini_handoff_files(
+        out_dir=out_dir,
+        capture=capture,
+        first_packet_number=artifacts.summary.get("capture", {}).get("first_packet_number"),
+        prompt_text=prompt_text,
+        response_text=llm_result["text"],
+        response_payload=llm_result["raw"],
+    )
+    payload = {
+        "status": "ok",
+        "mode": "gemini",
+        "capture": str(capture),
+        "profile": selected_profile_name,
+        "privacy_profile": privacy_profile_name,
+        "model": model,
+        "question": question,
+        "prompt": prompt_metadata,
+        "files": {
+            "discovery_json": str(discovery_outputs["discovery_json"]),
+            "discovery_md": str(discovery_outputs["discovery_md"]),
+            "summary": str(analysis_outputs["summary"]),
+            "detail": str(analysis_outputs["detail"]),
+            "markdown": str(analysis_outputs["markdown"]),
+            "mapping": str(analysis_outputs["mapping"]) if analysis_outputs.get("mapping") else None,
+            "vault": str(analysis_outputs["vault"]) if analysis_outputs.get("vault") else None,
+            "gemini_prompt": str(handoff_outputs["prompt"]),
+            "gemini_response_markdown": str(handoff_outputs["response_markdown"]),
+            "gemini_response_json": str(handoff_outputs["response_json"]),
         },
         "response": llm_result["text"],
     }

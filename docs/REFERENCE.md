@@ -60,6 +60,8 @@ pip install -e .[dev,encrypt]
 
 - core commands for one-shot use: `init-config`, `inspect`, `analyze`
 - direct LLM handoff: `ask-chatgpt`
+- direct LLM handoff: `ask-claude`
+- direct LLM handoff: `ask-gemini`
 - discovery helpers for orchestrators: `discover`, `recommend-profiles`
 - session helpers for multi-run workflows: `session start`, `session run-discovery`, `session run-profile`, `session finalize`
 

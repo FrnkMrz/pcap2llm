@@ -264,3 +264,45 @@ def test_ask_chatgpt_dry_run_outputs_plan(tmp_path: Path) -> None:
     assert payload["mode"] == "chatgpt"
     assert payload["profile"] == "(auto from discovery)"
     assert payload["privacy_profile"] == "llm-telecom-safe"
+
+
+def test_ask_claude_dry_run_outputs_plan(tmp_path: Path) -> None:
+    runner = CliRunner()
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+    result = runner.invoke(
+        app,
+        [
+            "ask-claude",
+            str(capture),
+            "--dry-run",
+            "--model",
+            "claude-3-5-sonnet-latest",
+        ],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["mode"] == "claude"
+    assert payload["profile"] == "(auto from discovery)"
+    assert payload["privacy_profile"] == "llm-telecom-safe"
+
+
+def test_ask_gemini_dry_run_outputs_plan(tmp_path: Path) -> None:
+    runner = CliRunner()
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+    result = runner.invoke(
+        app,
+        [
+            "ask-gemini",
+            str(capture),
+            "--dry-run",
+            "--model",
+            "gemini-2.0-flash",
+        ],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["mode"] == "gemini"
+    assert payload["profile"] == "(auto from discovery)"
+    assert payload["privacy_profile"] == "llm-telecom-safe"

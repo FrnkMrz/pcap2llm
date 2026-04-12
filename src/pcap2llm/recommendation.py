@@ -294,13 +294,20 @@ def _telecom_naming_evidence(dns_blob: str) -> tuple[int, int, list[str]]:
         if substring in dns_blob:
             supporting_hits += 1
 
+    # Interpretive summary — placed first so it is the primary visible reason.
+    # Added only when strong telecom naming evidence is present; explains *meaning*
+    # rather than just *which pattern matched*.
+    summary: list[str] = []
+    if strong_hits >= 1:
+        summary = ["DNS trace matches telecom core naming — APN/realm/core service resolution support traffic"]
+
     # Summarize supporting signal
     if supporting_hits >= 2 and not reasons:
         reasons.append("telecom core DNS naming patterns suggest APN/realm/core resolution")
     elif supporting_hits >= 1 and reasons:
         reasons.append("additional telecom core naming context detected")
 
-    return strong_hits, supporting_hits, list(dict.fromkeys(reasons))
+    return strong_hits, supporting_hits, list(dict.fromkeys([*summary, *reasons]))
 
 
 def _resolved_peer_blob(inspect_result: InspectResult) -> str:
@@ -677,6 +684,9 @@ def _prioritize_reasons(reasons: list[str]) -> list[str]:
             return (2, reason)
         if "outweighs weak" in reason:
             return (3, reason)
+        # Interpretive summary for core-name-resolution — appears before specific patterns
+        if "telecom core naming" in reason or "telecom core DNS naming" in reason:
+            return (5, reason)
         return (10, reason)
 
     unique = list(dict.fromkeys(reasons))
@@ -935,6 +945,72 @@ def infer_domains(inspect_result: InspectResult) -> list[dict[str, Any]]:
     return results
 
 
+# Profiles suppressed further when core-name-resolution clearly dominates a DNS trace.
+# These are family-specific DNS profiles that contribute noise when the better
+# explanation is already "telecom core naming support traffic, generation ambiguous".
+_DNS_SUPPRESSION_FACTOR = 0.45
+
+# Protocols that indicate a real signaling anchor — if any of these are present,
+# the trace is not purely DNS-support and fan-out suppression should not apply.
+_DNS_SUPPRESSION_ANCHORS: frozenset[str] = frozenset({
+    "ngap", "nas-5gs", "s1ap", "nas-eps",
+    "diameter", "sip", "sdp",
+    "gtpv2", "gtpv1",
+    "map", "tcap", "sccp", "isup",
+})
+
+
+def _apply_dns_fanout_suppression(
+    scored: list[tuple[float, ProfileDefinition, list[str]]],
+    present: frozenset[str],
+    peer_blob: str,
+) -> list[tuple[float, ProfileDefinition, list[str]]]:
+    """Suppress family-specific DNS profiles when core-name-resolution clearly dominates.
+
+    Triggered only when:
+    1. core-name-resolution score ≥ 5.0 (strong telecom naming evidence present)
+    2. No real signaling anchor in the trace (the trace is DNS support, not mixed)
+
+    Under those conditions, family-specific *-dns profiles without independent
+    justification are reduced by _DNS_SUPPRESSION_FACTOR.  They remain in the
+    candidate list but move clearly into the background.
+
+    Exception: voice DNS profiles (volte-dns, vonr-dns) with a genuine IMS peer hint
+    are NOT suppressed — the peer hint is independent evidence that justifies their
+    presence and they should remain visible alongside core-name-resolution.
+    """
+    core_score = next(
+        (s for s, p, _ in scored if p.name == "core-name-resolution"),
+        0.0,
+    )
+    if core_score < 5.0:
+        return scored  # core-name-resolution not dominant — no suppression
+
+    if any(proto in present for proto in _DNS_SUPPRESSION_ANCHORS):
+        return scored  # real signaling anchor present — leave fan-out intact
+
+    _VOICE_DNS_EXEMPT = frozenset({"volte-dns", "vonr-dns"})
+    has_ims_peer = _has_peer_hint(peer_blob, _IMS_HINT_TOKENS)
+
+    result: list[tuple[float, ProfileDefinition, list[str]]] = []
+    for score, profile, reasons in scored:
+        if profile.name == "core-name-resolution" or not profile.name.endswith("-dns"):
+            result.append((score, profile, reasons))
+            continue
+        # Voice DNS with IMS peer hint: independent justification — leave intact
+        if profile.name in _VOICE_DNS_EXEMPT and has_ims_peer:
+            result.append((score, profile, reasons))
+            continue
+        # Generic or unjustified DNS family profile: suppress
+        new_score = score * _DNS_SUPPRESSION_FACTOR
+        new_reasons = list(dict.fromkeys([
+            *reasons,
+            "downranked: telecom core naming support profile provides the stronger explanation",
+        ]))
+        result.append((new_score, profile, new_reasons))
+    return result
+
+
 def recommend_profiles_from_inspect(
     inspect_result: InspectResult,
     profiles: list[ProfileDefinition],
@@ -964,6 +1040,11 @@ def recommend_profiles_from_inspect(
             scored.append((score, profile, reasons))
         else:
             suppressed.append((score, profile, reasons or ["no matching protocol evidence"]))
+
+    # Post-scoring DNS fan-out suppression: when core-name-resolution clearly
+    # dominates a DNS-support trace, push family-specific *-dns profiles further
+    # into the background.  Must run after all scores are final.
+    scored = _apply_dns_fanout_suppression(scored, present, peer_blob)
 
     scored.sort(key=lambda item: (-item[0], item[1].name))
     suppressed.sort(key=lambda item: (item[0], item[1].name))

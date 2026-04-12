@@ -84,8 +84,18 @@ selector_metadata:
   # that evaluates dns.qry.name samples and resolved peer names — not signaling counts.
   # The fields below are populated so discovery JSON output is not metadata-empty
   # and _candidate_evidence() can derive a meaningful confidence/evidence_class.
+  # Telecom naming indicators — each entry represents one evidence category that
+  # drives scoring via _score_profile's dedicated core-name-resolution path.
+  # These appear in discovery JSON output so the purpose of the profile is obvious.
+  # Note: scoring does NOT use these as protocol lookups — it uses _CORE_NAMING_STRONG
+  # patterns and _MCC_MNC_RE regex in recommendation.py.
   strong_indicators:
     - dns
+    - "3gppnetwork.org — 3GPP standard operator domain (EPC, IMS, 5GC)"
+    - ".gprs — GPRS/APN operator domain naming"
+    - "mnc<N>.mcc<N>.* — MCC/MNC-based operator FQDN"
+    - "epc.mnc / ims.mnc / 5gc.mnc — generation-specific 3GPP sub-domains"
+    - "APN / Diameter realm / IMS / NF service endpoint naming"
 
   weak_indicators:
     - udp

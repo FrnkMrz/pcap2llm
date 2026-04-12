@@ -264,6 +264,27 @@ A DNS trace with only `www.example.com` or similar generic names scores at
 baseline (2.5) and does not dominate the candidate list. The score is meaningful
 only when real telecom naming evidence is present.
 
+#### Interpretive summary in reason text
+
+When strong telecom naming evidence is detected, the first reason entry explains
+the operational meaning rather than just listing pattern matches:
+
+> `DNS trace matches telecom core naming — APN/realm/core service resolution support traffic`
+
+Specific pattern reasons follow (e.g. `3gppnetwork.org naming detected`,
+`MCC/MNC operator naming pattern detected`).
+
+#### DNS family fan-out suppression
+
+When `core-name-resolution` scores ≥ 5.0 and no signaling anchor is present,
+family-specific `*-dns` profiles (e.g. `lte-dns`, `5g-dns`, `2g3g-dns`) are
+further downranked. This reduces candidate list noise when the support-profile
+explanation is already clearly the best one.
+
+**Exception:** `volte-dns` and `vonr-dns` with a genuine IMS peer hint (resolved
+P-CSCF/CSCF hostname) are NOT suppressed — the peer hint is independent evidence
+that justifies their presence alongside `core-name-resolution`.
+
 Use this profile when the DNS trace is about telecom core naming and no single
 generation is clearly dominant. It is not a replacement for specific interface
 profiles (`lte-s6a`, `5g-n2`, `volte-sip`, etc.) — it sits alongside them as

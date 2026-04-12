@@ -238,6 +238,11 @@ class TestCoreNameResolution:
         assert any("3gppnetwork" in r.lower() for r in top.get("reason", [])), (
             f"Expected 3gppnetwork.org in reasons: {top.get('reason')}"
         )
+        # Interpretive summary must be present as the primary reason
+        assert any(
+            "telecom core naming" in r.lower() or "service resolution" in r.lower()
+            for r in top.get("reason", [])
+        ), f"Expected interpretive summary in reasons: {top.get('reason')}"
 
     def test_b_gprs_domain_raises_core_name_resolution(self) -> None:
         """DNS trace with .gprs operator domains must raise core-name-resolution prominently."""
@@ -301,8 +306,41 @@ class TestCoreNameResolution:
         # It should be in top-6
         assert core_pos < 6, f"core-name-resolution too low at position {core_pos}: {profiles_ranked}"
 
-    def test_f_apn_ims_naming_raises_core_name_resolution(self) -> None:
-        """DNS trace with APN/IMS/EPC MCC/MNC naming must raise core-name-resolution prominently."""
+    def test_f_strong_naming_suppresses_dns_family_fanout(self) -> None:
+        """When core-name-resolution dominates, family-specific *-dns profiles are clearly suppressed.
+
+        The fan-out suppression activates when core-name-resolution scores >= 5.0
+        and no signaling anchor (ngap, s1ap, diameter, sip ...) is present.
+        Family-specific DNS profiles should score well below core-name-resolution.
+        """
+        result = _make_inspect_result(
+            {"dns": 400, "udp": 400},
+            dns_qry_names=[
+                "epc.mnc001.mcc262.3gppnetwork.org",
+                "ims.mnc001.mcc262.3gppnetwork.org",
+            ],
+        )
+        enriched = enrich_inspect_result(result, load_all_profiles())
+        # core-name-resolution must lead
+        assert enriched.candidate_profiles[0]["profile"] == "core-name-resolution", (
+            f"Expected core-name-resolution at top: {[p['profile'] for p in enriched.candidate_profiles[:4]]}"
+        )
+        core_score = enriched.candidate_profiles[0]["score"]
+        assert core_score >= 5.0, f"core-name-resolution score too low: {core_score}"
+        # All family-specific DNS profiles must be clearly suppressed
+        for prof in enriched.candidate_profiles:
+            if prof["profile"].endswith("-dns") and prof["profile"] != "core-name-resolution":
+                assert prof["score"] < 2.0, (
+                    f"{prof['profile']} scored {prof['score']} — should be suppressed below 2.0 "
+                    f"when core-name-resolution={core_score}"
+                )
+
+    def test_g_apn_ims_naming_raises_core_name_resolution(self) -> None:
+        """DNS trace with APN/IMS/EPC MCC/MNC naming must raise core-name-resolution prominently.
+
+        Also verifies that the interpretive summary reason is present — the output
+        should explain 'telecom core naming support traffic', not just list matched strings.
+        """
         result = _make_inspect_result(
             {"dns": 400, "udp": 400},
             dns_qry_names=[
@@ -328,3 +366,8 @@ class TestCoreNameResolution:
         assert core.get("evidence_class") != "weak", (
             f"evidence_class 'weak' unexpected for APN/IMS naming trace: {core}"
         )
+        # The interpretive summary reason must be present — not just pattern labels
+        assert any(
+            "telecom core naming" in r.lower() or "service resolution" in r.lower()
+            for r in reasons
+        ), f"Expected interpretive summary reason in: {reasons}"

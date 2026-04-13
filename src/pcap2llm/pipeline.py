@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 
 from pcap2llm.index_inspector import inspect_index_records, select_frame_numbers

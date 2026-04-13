@@ -44,13 +44,13 @@ Every `analyze` run writes a semantically ordered, versioned file set:
 
 | File | Purpose |
 |---|---|
-| `analyze_<capture>_start_<n>_V_01_detail.json` | **Primary LLM input** — normalized packets, reduced fields, privacy-applied |
-| `analyze_<capture>_start_<n>_V_01_summary.json` | Sidecar — protocol mix, conversations, anomalies, coverage, timing |
-| `analyze_<capture>_start_<n>_V_01_summary.md` | Human-readable version of the summary |
-| `analyze_<capture>_start_<n>_V_01_pseudonym_mapping.json` | Only when pseudonymization is active |
-| `analyze_<capture>_start_<n>_V_01_vault.json` | Only when encryption is active |
+| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_detail.json` | **Primary LLM input** — normalized packets, reduced fields, privacy-applied |
+| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_summary.json` | Sidecar — protocol mix, conversations, anomalies, coverage, timing |
+| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_summary.md` | Human-readable version of the summary |
+| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_pseudonym_mapping.json` | Only when pseudonymization is active |
+| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_vault.json` | Only when encryption is active |
 
-- Filenames lead with semantic context: action, capture filename, start packet, artifact version.
+- Filenames lead with semantic context: action, capture filename, first-packet timestamp, artifact version.
 - `_V_01` is always present and auto-increments if files already exist.
 - JSON and Markdown outputs now expose ordered run metadata for readability and automation:
   `run.action`, `capture.filename`, `capture.first_packet_number`, and `artifact.version`.
@@ -60,7 +60,7 @@ Every `analyze` run writes a semantically ordered, versioned file set:
 
 1. action
 2. capture file
-3. start packet
+3. first-packet timestamp
 4. artifact version
 
 ## Profiles

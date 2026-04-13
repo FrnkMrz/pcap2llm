@@ -16,7 +16,7 @@ from pcap2llm.tshark_runner import TSharkError, TSharkRunner
 from testutils import mock_runner_two_pass
 
 
-_ARTIFACT_PREFIX = "analyze_sample_start_1"
+_ARTIFACT_PREFIX = "analyze_sample_20240406_075320"
 
 
 # ---------------------------------------------------------------------------
@@ -334,6 +334,7 @@ class TestWriteArtifactsErrorHandling:
                     "path": "sample.pcapng",
                     "filename": "sample.pcapng",
                     "first_packet_number": 1,
+                    "first_seen": "1712390000.0",
                 },
                 "artifact": {"version": None},
                 "capture_metadata": {
@@ -373,6 +374,7 @@ class TestWriteArtifactsErrorHandling:
                     "path": "sample.pcapng",
                     "filename": "sample.pcapng",
                     "first_packet_number": 1,
+                    "first_seen": "1712390000.0",
                 },
                 "artifact": {"version": None},
                 "coverage": {

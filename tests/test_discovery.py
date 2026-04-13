@@ -13,6 +13,8 @@ def _make_result(
     resolved_peers: list[dict[str, str]] | None = None,
     hosts_file_used: bool = False,
     mapping_file_used: bool = False,
+    subnets_file_used: bool = False,
+    ss7pcs_file_used: bool = False,
 ) -> InspectResult:
     total = sum(protocol_counts.values())
     raw = raw_protocols or list(protocol_counts.keys())
@@ -26,6 +28,8 @@ def _make_result(
             raw_protocols=raw,
             hosts_file_used=hosts_file_used,
             mapping_file_used=mapping_file_used,
+            subnets_file_used=subnets_file_used,
+            ss7pcs_file_used=ss7pcs_file_used,
             resolved_peers=resolved_peers or [],
         ),
         protocol_counts=protocol_counts,
@@ -96,9 +100,38 @@ def test_build_discovery_payload_surfaces_name_resolution_transparently() -> Non
     assert payload["name_resolution"] == {
         "hosts_file_used": True,
         "mapping_file_used": False,
+        "subnets_file_used": False,
+        "ss7pcs_file_used": False,
         "resolved_peer_count": 2,
     }
     assert payload["resolved_peers"][0] == {"ip": "10.109.182.14", "name": "AMF-01"}
+
+
+def test_build_discovery_markdown_renders_ss7_point_code_examples_explicitly() -> None:
+    discovery = {
+        "run": {"action": "discover"},
+        "capture": {"path": "/tmp/sample.pcapng", "filename": "sample.pcapng", "first_packet_number": None, "packet_count": 2},
+        "artifact": {"version": "V_01"},
+        "name_resolution": {
+            "hosts_file_used": False,
+            "mapping_file_used": False,
+            "subnets_file_used": False,
+            "ss7pcs_file_used": True,
+            "resolved_peer_count": 2,
+        },
+        "resolved_peers": [
+            {"ip": "10.0.0.1", "name": "VZB", "ss7_point_code": "0-5093", "ss7_point_code_alias": "VZB"},
+            {"ip": "10.0.0.2", "name": "VZA", "ss7_point_code": "0-5091", "ss7_point_code_alias": "VZA"},
+        ],
+        "capture_context": {"link_or_envelope_protocols": [], "transport_support_protocols": []},
+        "protocol_summary": {"dominant_signaling_protocols": [], "top_protocols": []},
+        "suspected_domains": [],
+        "candidate_profiles": [],
+    }
+
+    markdown = build_discovery_markdown(discovery)
+    assert "SS7 point-code file used" in markdown
+    assert "SS7 PC `0-5093` -> `VZB`" in markdown
 
 
 def test_build_discovery_markdown_renders_dominant_signaling_first() -> None:

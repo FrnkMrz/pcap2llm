@@ -70,6 +70,8 @@ def sample_config_text() -> str:
         "display_filter:",
         "hosts_file: examples/wireshark_hosts.sample",
         "mapping_file: examples/mapping.sample.yaml",
+        "# subnets_file: .local/Subnets",
+        "# ss7pcs_file: .local/ss7pcs",
         "two_pass: false",
         "tshark_extra_args: []",
         "",

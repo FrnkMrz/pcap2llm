@@ -92,6 +92,89 @@ def _read_mapping_file(
     return by_ip, by_hostname, cidr_entries
 
 
+def _read_subnets_file(path: Path) -> list[tuple[Any, dict[str, Any]]]:
+    """Parse a local tabular subnet file into CIDR resolver entries.
+
+    Expected format per non-comment line::
+
+        <cidr> <alias>
+
+    Whitespace between both columns may be spaces or tabs. Additional text after
+    the first whitespace is treated as part of the alias.
+    """
+    cidr_entries: list[tuple[Any, dict[str, Any]]] = []
+    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split(None, 1)
+        if len(parts) < 2:
+            logger.warning("Invalid subnet line in %s:%d; expected '<cidr> <alias>'", path, line_number)
+            continue
+        cidr, alias = parts[0], parts[1].strip()
+        if not alias:
+            logger.warning("Invalid subnet line in %s:%d; alias is empty", path, line_number)
+            continue
+        try:
+            net = ipaddress.ip_network(cidr, strict=False)
+        except ValueError:
+            logger.warning("Invalid CIDR in subnet file %s:%d: %s", path, line_number, cidr)
+            continue
+        cidr_entries.append(
+            (
+                net,
+                {
+                    "ip": None,
+                    "hostname": None,
+                    "alias": alias,
+                    "role": None,
+                    "site": None,
+                    "labels": {},
+                },
+            )
+        )
+    return cidr_entries
+
+
+def _normalize_point_code(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    normalized = str(value).strip().upper()
+    return normalized or None
+
+
+def _read_ss7pcs_file(path: Path) -> dict[str, dict[str, Any]]:
+    """Parse a local point-code mapping file.
+
+    Expected format per non-comment line::
+
+        <point-code> <alias>
+    """
+    by_point_code: dict[str, dict[str, Any]] = {}
+    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split(None, 1)
+        if len(parts) < 2:
+            logger.warning("Invalid SS7 point-code line in %s:%d; expected '<point-code> <alias>'", path, line_number)
+            continue
+        point_code = _normalize_point_code(parts[0])
+        alias = parts[1].strip()
+        if not point_code or not alias:
+            logger.warning("Invalid SS7 point-code line in %s:%d; missing point code or alias", path, line_number)
+            continue
+        by_point_code[point_code] = {
+            "ip": None,
+            "hostname": None,
+            "alias": alias,
+            "role": "ss7",
+            "site": None,
+            "labels": {"ss7_point_code": point_code},
+        }
+    return by_point_code
+
+
 # ---------------------------------------------------------------------------
 # EndpointResolver
 # ---------------------------------------------------------------------------
@@ -106,10 +189,17 @@ class EndpointResolver:
     4. Port-based role inference using well-known telecom service ports
     """
 
-    def __init__(self, hosts_file: Path | None = None, mapping_file: Path | None = None) -> None:
+    def __init__(
+        self,
+        hosts_file: Path | None = None,
+        mapping_file: Path | None = None,
+        subnets_file: Path | None = None,
+        ss7pcs_file: Path | None = None,
+    ) -> None:
         self._by_ip: dict[str, dict[str, Any]] = {}
         self._by_hostname: dict[str, dict[str, Any]] = {}  # keys are lowercase
         self._cidr_entries: list[tuple[Any, dict[str, Any]]] = []
+        self._by_point_code: dict[str, dict[str, Any]] = {}
 
         if hosts_file:
             for ip, entry in _read_hosts_file(hosts_file).items():
@@ -122,6 +212,18 @@ class EndpointResolver:
             self._by_ip.update(by_ip)
             self._by_hostname.update(by_hostname)
             self._cidr_entries.extend(cidr_entries)
+
+        if subnets_file:
+            self._cidr_entries.extend(_read_subnets_file(subnets_file))
+
+        if ss7pcs_file:
+            self._by_point_code.update(_read_ss7pcs_file(ss7pcs_file))
+
+    def _match_point_code(self, point_code: Any) -> dict[str, Any] | None:
+        normalized = _normalize_point_code(point_code)
+        if not normalized:
+            return None
+        return self._by_point_code.get(normalized)
 
     def _match_cidr(self, ip: str) -> dict[str, Any] | None:
         """Return the first CIDR entry whose network contains *ip*, or ``None``."""
@@ -145,6 +247,7 @@ class EndpointResolver:
         ip: str | None,
         hostname: str | None = None,
         service_port: int | None = None,
+        point_code: Any = None,
     ) -> ResolvedEndpoint:
         """Resolve *ip* (and optionally *hostname*) to a :class:`ResolvedEndpoint`.
 
@@ -153,8 +256,11 @@ class EndpointResolver:
             hostname: Optional DNS hostname for the endpoint.
             service_port: Well-known port for this endpoint (used for role
                 inference when no mapping entry is found).
+            point_code: Optional SS7 point code for MTP3/SCCP signaling context.
         """
         entry: dict[str, Any] = {}
+        point_code_entry = self._match_point_code(point_code)
+        normalized_point_code = _normalize_point_code(point_code)
 
         if ip and ip in self._by_ip:
             entry = self._by_ip[ip]
@@ -162,9 +268,16 @@ class EndpointResolver:
             entry = self._by_hostname[hostname.lower()]
         elif ip:
             entry = self._match_cidr(ip) or {}
+        if not entry and point_code_entry:
+            entry = point_code_entry
 
         # Port-based role inference as final fallback
         role = entry.get("role") or self._infer_role_from_port(service_port)
+        labels = dict(entry.get("labels", {}))
+        if normalized_point_code:
+            labels.setdefault("ss7_point_code", normalized_point_code)
+        if point_code_entry and point_code_entry.get("alias"):
+            labels.setdefault("ss7_point_code_alias", point_code_entry["alias"])
 
         return ResolvedEndpoint(
             ip=ip,
@@ -172,5 +285,5 @@ class EndpointResolver:
             alias=entry.get("alias"),
             role=role,
             site=entry.get("site"),
-            labels=entry.get("labels", {}),
+            labels=labels,
         )

@@ -88,6 +88,8 @@ class CaptureMetadata(BaseModel):
     display_filter: str | None = None
     hosts_file_used: bool = False
     mapping_file_used: bool = False
+    subnets_file_used: bool = False
+    ss7pcs_file_used: bool = False
     resolved_peers: list[dict[str, Any]] = Field(default_factory=list)
     # Sampled DNS query names from pass-1 (max 30 unique; empty for non-DNS traces).
     # Used for telecom naming pattern detection (core-name-resolution profile scoring).
@@ -99,6 +101,8 @@ class CaptureMetadata(BaseModel):
             exclude={
                 "hosts_file_used",
                 "mapping_file_used",
+                "subnets_file_used",
+                "ss7pcs_file_used",
                 "resolved_peers",
             }
         )

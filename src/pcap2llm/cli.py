@@ -49,6 +49,7 @@ def _resolve_inspect_output_path(
     *,
     capture: Path,
     first_packet_number: int | None,
+    first_seen: str | None,
     use_markdown: bool,
 ) -> Path:
     if out.suffix.lower() in {".json", ".md"}:
@@ -62,6 +63,7 @@ def _resolve_inspect_output_path(
             action="inspect",
             capture_path=capture,
             start_packet_number=first_packet_number,
+            first_seen=first_seen,
             version=f"V_{version:02d}",
             extension=extension,
         )
@@ -277,6 +279,8 @@ def _merge_verbatim_protocols(
 
 
 _LOCAL_HOSTS_DEFAULT = Path(".local/hosts")
+_LOCAL_SUBNETS_DEFAULT = Path(".local/Subnets")
+_LOCAL_SS7PCS_DEFAULT = Path(".local/ss7pcs")
 
 
 def _resolve_hosts_file(
@@ -288,7 +292,7 @@ def _resolve_hosts_file(
     Lookup order (first match wins):
     1. Explicit CLI ``--hosts-file`` argument
     2. ``hosts_file`` key in config file
-    3. Auto-discovered default at ``.local/hosts/wireshark_hosts.txt``
+    3. Auto-discovered default at ``.local/hosts``
     4. None — no hosts file, continue without mapping
     """
     if cli_arg is not None:
@@ -299,6 +303,56 @@ def _resolve_hosts_file(
         logger.info("Using local hosts file from %s", _LOCAL_HOSTS_DEFAULT)
         return _LOCAL_HOSTS_DEFAULT
     logger.debug("No local hosts file found at default path %s; continuing without hosts mapping", _LOCAL_HOSTS_DEFAULT)
+    return None
+
+
+def _resolve_mapping_file(
+    cli_arg: Path | None,
+    config_data: dict,
+) -> Path | None:
+    if cli_arg is not None:
+        return cli_arg
+    if config_data.get("mapping_file"):
+        return Path(config_data["mapping_file"])
+    return None
+
+
+def _resolve_subnets_file(
+    cli_arg: Path | None,
+    config_data: dict,
+) -> Path | None:
+    """Return the effective subnet fallback file path.
+
+    Lookup order (first match wins):
+    1. Explicit CLI ``--subnets-file`` argument
+    2. ``subnets_file`` key in config file
+    3. Auto-discovered default at ``.local/Subnets``
+    4. None — no subnet fallback file, continue without CIDR fallback
+    """
+    if cli_arg is not None:
+        return cli_arg
+    if config_data.get("subnets_file"):
+        return Path(config_data["subnets_file"])
+    if _LOCAL_SUBNETS_DEFAULT.exists():
+        logger.info("Using local subnets file from %s", _LOCAL_SUBNETS_DEFAULT)
+        return _LOCAL_SUBNETS_DEFAULT
+    logger.debug("No local subnets file found at default path %s; continuing without subnet fallback", _LOCAL_SUBNETS_DEFAULT)
+    return None
+
+
+def _resolve_ss7pcs_file(
+    cli_arg: Path | None,
+    config_data: dict,
+) -> Path | None:
+    """Return the effective SS7 point-code mapping file path."""
+    if cli_arg is not None:
+        return cli_arg
+    if config_data.get("ss7pcs_file"):
+        return Path(config_data["ss7pcs_file"])
+    if _LOCAL_SS7PCS_DEFAULT.exists():
+        logger.info("Using local SS7 point-code file from %s", _LOCAL_SS7PCS_DEFAULT)
+        return _LOCAL_SS7PCS_DEFAULT
+    logger.debug("No local SS7 point-code file found at default path %s; continuing without SS7 point-code mapping", _LOCAL_SS7PCS_DEFAULT)
     return None
 
 
@@ -342,6 +396,10 @@ def inspect_command(
     profile_name: str = typer.Option("lte-core", "--profile", help="Protocol profile name."),
     display_filter: str | None = typer.Option(None, "--display-filter", "-Y", help="TShark display filter."),
     config_path: Path | None = typer.Option(None, "--config", help="Optional YAML config file."),
+    mapping_file: Path | None = typer.Option(None, "--mapping-file", help="Custom YAML/JSON alias mapping."),
+    hosts_file: Path | None = typer.Option(None, "--hosts-file", help="Wireshark hosts-style mapping file."),
+    subnets_file: Path | None = typer.Option(None, "--subnets-file", help="Whitespace-delimited CIDR fallback file."),
+    ss7pcs_file: Path | None = typer.Option(None, "--ss7pcs-file", help="Whitespace-delimited SS7 point-code alias file."),
     out: Path | None = typer.Option(None, "--out", help="Optional file path or output directory for inspect artifacts."),
     format: str = typer.Option("json", "--format", help="Output format: json or markdown."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show the planned tshark command without executing."),
@@ -354,6 +412,10 @@ def inspect_command(
     runner = TSharkRunner(binary=tshark_path)
     effective_two_pass = profile.tshark.get("two_pass", False) if two_pass is None else two_pass
     extra_args = list(config_data.get("tshark_extra_args", [])) + list(tshark_arg or [])
+    effective_hosts = _resolve_hosts_file(hosts_file, config_data)
+    effective_mapping = _resolve_mapping_file(mapping_file, config_data)
+    effective_subnets = _resolve_subnets_file(subnets_file, config_data)
+    effective_ss7pcs = _resolve_ss7pcs_file(ss7pcs_file, config_data)
     if dry_run:
         command = runner.build_export_command(
             capture,
@@ -361,7 +423,19 @@ def inspect_command(
             extra_args=extra_args,
             two_pass=effective_two_pass,
         )
-        typer.echo(json.dumps({"command": command, "profile": profile.name}, indent=2))
+        typer.echo(
+            json.dumps(
+                {
+                    "command": command,
+                    "profile": profile.name,
+                    "hosts_file": str(effective_hosts) if effective_hosts else None,
+                    "mapping_file": str(effective_mapping) if effective_mapping else None,
+                    "subnets_file": str(effective_subnets) if effective_subnets else None,
+                    "ss7pcs_file": str(effective_ss7pcs) if effective_ss7pcs else None,
+                },
+                indent=2,
+            )
+        )
         return
     try:
         from pcap2llm.inspector import _INSPECT_STEPS
@@ -374,6 +448,10 @@ def inspect_command(
                 extra_args=extra_args,
                 two_pass=effective_two_pass,
                 on_stage=on_stage,
+                hosts_file=effective_hosts,
+                mapping_file=effective_mapping,
+                subnets_file=effective_subnets,
+                ss7pcs_file=effective_ss7pcs,
             )
     except TSharkError as exc:
         typer.echo(f"Error: {exc}", err=True)
@@ -391,6 +469,7 @@ def inspect_command(
             out,
             capture=capture,
             first_packet_number=result.metadata.first_packet_number,
+            first_seen=result.metadata.first_seen_epoch,
             use_markdown=use_markdown,
         )
         output_path.write_text(text, encoding="utf-8")
@@ -407,6 +486,8 @@ def discover_command(
     config_path: Path | None = typer.Option(None, "--config", help="Optional YAML config file."),
     mapping_file: Path | None = typer.Option(None, "--mapping-file", help="Custom YAML/JSON alias mapping."),
     hosts_file: Path | None = typer.Option(None, "--hosts-file", help="Wireshark hosts-style mapping file."),
+    subnets_file: Path | None = typer.Option(None, "--subnets-file", help="Whitespace-delimited CIDR fallback file."),
+    ss7pcs_file: Path | None = typer.Option(None, "--ss7pcs-file", help="Whitespace-delimited SS7 point-code alias file."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Validate options and print the discovery plan only."),
     two_pass: bool = typer.Option(False, "--two-pass/--no-two-pass", help="Override TShark two-pass mode for discovery."),
     tshark_path: str = typer.Option("tshark", "--tshark-path", help="TShark executable path."),
@@ -414,6 +495,9 @@ def discover_command(
 ) -> None:
     config_data = load_config_file(config_path)
     effective_hosts = _resolve_hosts_file(hosts_file, config_data)
+    effective_mapping = _resolve_mapping_file(mapping_file, config_data)
+    effective_subnets = _resolve_subnets_file(subnets_file, config_data)
+    effective_ss7pcs = _resolve_ss7pcs_file(ss7pcs_file, config_data)
     runner = TSharkRunner(binary=tshark_path)
     extra_args = list(config_data.get("tshark_extra_args", [])) + list(tshark_arg or [])
     if dry_run:
@@ -425,7 +509,9 @@ def discover_command(
                     "out_dir": str(out_dir),
                     "display_filter": display_filter or config_data.get("display_filter"),
                     "hosts_file": str(effective_hosts) if effective_hosts else None,
-                    "mapping_file": str(mapping_file) if mapping_file else None,
+                    "mapping_file": str(effective_mapping) if effective_mapping else None,
+                    "subnets_file": str(effective_subnets) if effective_subnets else None,
+                    "ss7pcs_file": str(effective_ss7pcs) if effective_ss7pcs else None,
                     "two_pass": two_pass,
                     "command": runner.build_export_command(
                         capture,
@@ -447,7 +533,9 @@ def discover_command(
             two_pass=two_pass,
             on_stage=on_stage,
             hosts_file=effective_hosts,
-            mapping_file=mapping_file,
+            mapping_file=effective_mapping,
+            subnets_file=effective_subnets,
+            ss7pcs_file=effective_ss7pcs,
         )
     # write_discovery_artifacts handles semantic filenames and flat file layout
     outputs = write_discovery_artifacts(out_dir, discovery, markdown)
@@ -520,6 +608,8 @@ def analyze_command(
     config_path: Path | None = typer.Option(None, "--config", help="Optional YAML config file."),
     mapping_file: Path | None = typer.Option(None, "--mapping-file", help="Custom YAML/JSON alias mapping."),
     hosts_file: Path | None = typer.Option(None, "--hosts-file", help="Wireshark hosts-style mapping file."),
+    subnets_file: Path | None = typer.Option(None, "--subnets-file", help="Whitespace-delimited CIDR fallback file."),
+    ss7pcs_file: Path | None = typer.Option(None, "--ss7pcs-file", help="Whitespace-delimited SS7 point-code alias file."),
     out_dir: Path = typer.Option(Path("artifacts"), "--out", help="Artifact output directory."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Validate options and print the plan only."),
     two_pass: bool | None = typer.Option(None, "--two-pass/--no-two-pass", help="Override tshark two-pass mode."),
@@ -638,7 +728,9 @@ def analyze_command(
     base_modes = _resolve_privacy_base(privacy_profile_name, config_data, profile)
     privacy_modes = _build_modes(base_modes, config_data.get("privacy_modes", {}), overrides)
     effective_hosts = _resolve_hosts_file(hosts_file, config_data)
-    effective_mapping = mapping_file or (Path(config_data["mapping_file"]) if config_data.get("mapping_file") else None)
+    effective_mapping = _resolve_mapping_file(mapping_file, config_data)
+    effective_subnets = _resolve_subnets_file(subnets_file, config_data)
+    effective_ss7pcs = _resolve_ss7pcs_file(ss7pcs_file, config_data)
     effective_filter = display_filter or config_data.get("display_filter")
     effective_max_packets = 0 if all_packets else max_packets
 
@@ -657,6 +749,8 @@ def analyze_command(
                 privacy_modes=privacy_modes,
                 hosts_file=effective_hosts,
                 mapping_file=effective_mapping,
+                subnets_file=effective_subnets,
+                ss7pcs_file=effective_ss7pcs,
                 command=runner.build_export_command(
                     capture,
                     display_filter=effective_filter,
@@ -682,6 +776,8 @@ def analyze_command(
                 "effective_profile_overrides": effective_profile_overrides,
                 "hosts_file": str(effective_hosts) if effective_hosts else None,
                 "mapping_file": str(effective_mapping) if effective_mapping else None,
+                "subnets_file": str(effective_subnets) if effective_subnets else None,
+                "ss7pcs_file": str(effective_ss7pcs) if effective_ss7pcs else None,
                 "command": runner.build_export_command(
                     capture,
                     display_filter=effective_filter,
@@ -704,6 +800,8 @@ def analyze_command(
                 display_filter=effective_filter,
                 hosts_file=effective_hosts,
                 mapping_file=effective_mapping,
+                subnets_file=effective_subnets,
+                ss7pcs_file=effective_ss7pcs,
                 extra_args=extra_args,
                 two_pass=effective_two_pass,
                 max_packets=effective_max_packets,
@@ -830,6 +928,8 @@ def ask_chatgpt_command(
     config_path: Path | None = typer.Option(None, "--config", help="Optional YAML config file."),
     mapping_file: Path | None = typer.Option(None, "--mapping-file", help="Custom YAML/JSON alias mapping."),
     hosts_file: Path | None = typer.Option(None, "--hosts-file", help="Wireshark hosts-style mapping file."),
+    subnets_file: Path | None = typer.Option(None, "--subnets-file", help="Whitespace-delimited CIDR fallback file."),
+    ss7pcs_file: Path | None = typer.Option(None, "--ss7pcs-file", help="Whitespace-delimited SS7 point-code alias file."),
     out_dir: Path = typer.Option(Path("artifacts"), "--out", help="Artifact output directory."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show the planned workflow without executing it."),
     two_pass: bool | None = typer.Option(None, "--two-pass/--no-two-pass", help="Override tshark two-pass mode."),
@@ -845,7 +945,9 @@ def ask_chatgpt_command(
 ) -> None:
     config_data = load_config_file(config_path)
     effective_hosts = _resolve_hosts_file(hosts_file, config_data)
-    effective_mapping = mapping_file or (Path(config_data["mapping_file"]) if config_data.get("mapping_file") else None)
+    effective_mapping = _resolve_mapping_file(mapping_file, config_data)
+    effective_subnets = _resolve_subnets_file(subnets_file, config_data)
+    effective_ss7pcs = _resolve_ss7pcs_file(ss7pcs_file, config_data)
     effective_filter = display_filter or config_data.get("display_filter")
     runner = TSharkRunner(binary=tshark_path)
     extra_args = list(config_data.get("tshark_extra_args", [])) + list(tshark_arg or [])
@@ -884,6 +986,8 @@ def ask_chatgpt_command(
                 two_pass=False,
                 hosts_file=effective_hosts,
                 mapping_file=effective_mapping,
+                subnets_file=effective_subnets,
+                ss7pcs_file=effective_ss7pcs,
             )
             discovery_outputs = write_discovery_artifacts(out_dir, discovery_payload, discovery_markdown)
 
@@ -903,6 +1007,8 @@ def ask_chatgpt_command(
                 display_filter=effective_filter,
                 hosts_file=effective_hosts,
                 mapping_file=effective_mapping,
+                subnets_file=effective_subnets,
+                ss7pcs_file=effective_ss7pcs,
                 extra_args=extra_args,
                 two_pass=effective_two_pass,
                 max_packets=effective_max_packets,
@@ -936,6 +1042,7 @@ def ask_chatgpt_command(
         out_dir=out_dir,
         capture=capture,
         first_packet_number=artifacts.summary.get("capture", {}).get("first_packet_number"),
+        first_seen=artifacts.summary.get("capture", {}).get("first_seen"),
         prompt_text=prompt_text,
         response_text=llm_result["text"],
         response_payload=llm_result["raw"],
@@ -977,6 +1084,8 @@ def ask_claude_command(
     config_path: Path | None = typer.Option(None, "--config", help="Optional YAML config file."),
     mapping_file: Path | None = typer.Option(None, "--mapping-file", help="Custom YAML/JSON alias mapping."),
     hosts_file: Path | None = typer.Option(None, "--hosts-file", help="Wireshark hosts-style mapping file."),
+    subnets_file: Path | None = typer.Option(None, "--subnets-file", help="Whitespace-delimited CIDR fallback file."),
+    ss7pcs_file: Path | None = typer.Option(None, "--ss7pcs-file", help="Whitespace-delimited SS7 point-code alias file."),
     out_dir: Path = typer.Option(Path("artifacts"), "--out", help="Artifact output directory."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show the planned workflow without executing it."),
     two_pass: bool | None = typer.Option(None, "--two-pass/--no-two-pass", help="Override tshark two-pass mode."),
@@ -993,7 +1102,9 @@ def ask_claude_command(
 ) -> None:
     config_data = load_config_file(config_path)
     effective_hosts = _resolve_hosts_file(hosts_file, config_data)
-    effective_mapping = mapping_file or (Path(config_data["mapping_file"]) if config_data.get("mapping_file") else None)
+    effective_mapping = _resolve_mapping_file(mapping_file, config_data)
+    effective_subnets = _resolve_subnets_file(subnets_file, config_data)
+    effective_ss7pcs = _resolve_ss7pcs_file(ss7pcs_file, config_data)
     effective_filter = display_filter or config_data.get("display_filter")
     runner = TSharkRunner(binary=tshark_path)
     extra_args = list(config_data.get("tshark_extra_args", [])) + list(tshark_arg or [])
@@ -1033,6 +1144,8 @@ def ask_claude_command(
                 two_pass=False,
                 hosts_file=effective_hosts,
                 mapping_file=effective_mapping,
+                subnets_file=effective_subnets,
+                ss7pcs_file=effective_ss7pcs,
             )
             discovery_outputs = write_discovery_artifacts(out_dir, discovery_payload, discovery_markdown)
 
@@ -1052,6 +1165,8 @@ def ask_claude_command(
                 display_filter=effective_filter,
                 hosts_file=effective_hosts,
                 mapping_file=effective_mapping,
+                subnets_file=effective_subnets,
+                ss7pcs_file=effective_ss7pcs,
                 extra_args=extra_args,
                 two_pass=effective_two_pass,
                 max_packets=effective_max_packets,
@@ -1087,6 +1202,7 @@ def ask_claude_command(
         out_dir=out_dir,
         capture=capture,
         first_packet_number=artifacts.summary.get("capture", {}).get("first_packet_number"),
+        first_seen=artifacts.summary.get("capture", {}).get("first_seen"),
         prompt_text=prompt_text,
         response_text=llm_result["text"],
         response_payload=llm_result["raw"],
@@ -1128,6 +1244,8 @@ def ask_gemini_command(
     config_path: Path | None = typer.Option(None, "--config", help="Optional YAML config file."),
     mapping_file: Path | None = typer.Option(None, "--mapping-file", help="Custom YAML/JSON alias mapping."),
     hosts_file: Path | None = typer.Option(None, "--hosts-file", help="Wireshark hosts-style mapping file."),
+    subnets_file: Path | None = typer.Option(None, "--subnets-file", help="Whitespace-delimited CIDR fallback file."),
+    ss7pcs_file: Path | None = typer.Option(None, "--ss7pcs-file", help="Whitespace-delimited SS7 point-code alias file."),
     out_dir: Path = typer.Option(Path("artifacts"), "--out", help="Artifact output directory."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show the planned workflow without executing it."),
     two_pass: bool | None = typer.Option(None, "--two-pass/--no-two-pass", help="Override tshark two-pass mode."),
@@ -1143,7 +1261,9 @@ def ask_gemini_command(
 ) -> None:
     config_data = load_config_file(config_path)
     effective_hosts = _resolve_hosts_file(hosts_file, config_data)
-    effective_mapping = mapping_file or (Path(config_data["mapping_file"]) if config_data.get("mapping_file") else None)
+    effective_mapping = _resolve_mapping_file(mapping_file, config_data)
+    effective_subnets = _resolve_subnets_file(subnets_file, config_data)
+    effective_ss7pcs = _resolve_ss7pcs_file(ss7pcs_file, config_data)
     effective_filter = display_filter or config_data.get("display_filter")
     runner = TSharkRunner(binary=tshark_path)
     extra_args = list(config_data.get("tshark_extra_args", [])) + list(tshark_arg or [])
@@ -1182,6 +1302,8 @@ def ask_gemini_command(
                 two_pass=False,
                 hosts_file=effective_hosts,
                 mapping_file=effective_mapping,
+                subnets_file=effective_subnets,
+                ss7pcs_file=effective_ss7pcs,
             )
             discovery_outputs = write_discovery_artifacts(out_dir, discovery_payload, discovery_markdown)
 
@@ -1201,6 +1323,8 @@ def ask_gemini_command(
                 display_filter=effective_filter,
                 hosts_file=effective_hosts,
                 mapping_file=effective_mapping,
+                subnets_file=effective_subnets,
+                ss7pcs_file=effective_ss7pcs,
                 extra_args=extra_args,
                 two_pass=effective_two_pass,
                 max_packets=effective_max_packets,
@@ -1235,6 +1359,7 @@ def ask_gemini_command(
         out_dir=out_dir,
         capture=capture,
         first_packet_number=artifacts.summary.get("capture", {}).get("first_packet_number"),
+        first_seen=artifacts.summary.get("capture", {}).get("first_seen"),
         prompt_text=prompt_text,
         response_text=llm_result["text"],
         response_payload=llm_result["raw"],
@@ -1291,6 +1416,8 @@ def session_run_discovery_command(
     config_path: Path | None = typer.Option(None, "--config", help="Optional YAML config file."),
     mapping_file: Path | None = typer.Option(None, "--mapping-file", help="Custom YAML/JSON alias mapping."),
     hosts_file: Path | None = typer.Option(None, "--hosts-file", help="Wireshark hosts-style mapping file."),
+    subnets_file: Path | None = typer.Option(None, "--subnets-file", help="Whitespace-delimited CIDR fallback file."),
+    ss7pcs_file: Path | None = typer.Option(None, "--ss7pcs-file", help="Whitespace-delimited SS7 point-code alias file."),
     tshark_path: str = typer.Option("tshark", "--tshark-path", help="TShark executable path."),
     tshark_arg: list[str] = typer.Option(None, "--tshark-arg", help="Extra argument passed to tshark."),
 ) -> None:
@@ -1300,6 +1427,9 @@ def session_run_discovery_command(
     run_dir = session / run_id
     config_data = load_config_file(config_path)
     effective_hosts = _resolve_hosts_file(hosts_file, config_data)
+    effective_mapping = _resolve_mapping_file(mapping_file, config_data)
+    effective_subnets = _resolve_subnets_file(subnets_file, config_data)
+    effective_ss7pcs = _resolve_ss7pcs_file(ss7pcs_file, config_data)
     runner = TSharkRunner(binary=tshark_path)
     run = {
         "run_id": run_id,
@@ -1317,7 +1447,9 @@ def session_run_discovery_command(
             extra_args=list(config_data.get("tshark_extra_args", [])) + list(tshark_arg or []),
             two_pass=False,
             hosts_file=effective_hosts,
-            mapping_file=mapping_file,
+            mapping_file=effective_mapping,
+            subnets_file=effective_subnets,
+            ss7pcs_file=effective_ss7pcs,
         )
         outputs = write_discovery_artifacts(run_dir, discovery, markdown)
         run.update(

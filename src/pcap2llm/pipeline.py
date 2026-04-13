@@ -12,6 +12,7 @@ from pcap2llm.index_inspector import inspect_index_records, select_frame_numbers
 from pcap2llm.models import AnalyzeArtifacts, ProfileDefinition
 from pcap2llm.normalizer import normalize_packets
 from pcap2llm.output_metadata import (
+    artifact_timestamp_prefix as output_artifact_timestamp_prefix,
     artifact_identity_from_filename,
     artifact_version_from_filename,
     build_artifact_metadata,
@@ -58,26 +59,7 @@ def artifact_timestamp_prefix(first_seen_epoch: str | None) -> str | None:
 
 
 def _artifact_timestamp_prefix(first_seen_epoch: str | None) -> str | None:
-    if not first_seen_epoch:
-        return None
-
-    # Standard TShark output: Unix epoch as a decimal string, e.g. "1712390000.123456"
-    try:
-        packet_time = datetime.fromtimestamp(float(first_seen_epoch), tz=timezone.utc)
-        return packet_time.strftime("%Y%m%d_%H%M%S")
-    except (OverflowError, ValueError):
-        pass
-
-    # TShark ≥ 4.6 emits frame.time_epoch as ISO 8601 with nanoseconds,
-    # e.g. "2025-10-14T10:44:16.046652117Z".  Truncate to microseconds and parse.
-    try:
-        s = re.sub(r"(\.\d{6})\d+", r"\1", first_seen_epoch)
-        if s.endswith("Z"):
-            s = s[:-1] + "+00:00"
-        packet_time = datetime.fromisoformat(s)
-        return packet_time.strftime("%Y%m%d_%H%M%S")
-    except (ValueError, AttributeError):
-        return None
+    return output_artifact_timestamp_prefix(first_seen_epoch)
 
 
 def _resolve_output_paths(
@@ -86,6 +68,7 @@ def _resolve_output_paths(
     action: str,
     capture_path: str | Path,
     start_packet_number: int | None,
+    first_seen: str | None,
     include_mapping: bool,
     include_vault: bool,
 ) -> dict[str, Path]:
@@ -107,6 +90,7 @@ def _resolve_output_paths(
                 action=action,
                 capture_path=capture_path,
                 start_packet_number=start_packet_number,
+                first_seen=first_seen,
                 version=suffix,
                 extension=extension,
                 artifact_kind=stem,
@@ -132,6 +116,8 @@ def analyze_capture(
     display_filter: str | None = None,
     hosts_file: Path | None = None,
     mapping_file: Path | None = None,
+    subnets_file: Path | None = None,
+    ss7pcs_file: Path | None = None,
     extra_args: list[str] | None = None,
     two_pass: bool = False,
     max_packets: int = _DEFAULT_MAX_PACKETS,
@@ -183,7 +169,12 @@ def analyze_capture(
         display_filter=display_filter,
         profile=profile,
     )
-    resolver = EndpointResolver(hosts_file=hosts_file, mapping_file=mapping_file)
+    resolver = EndpointResolver(
+        hosts_file=hosts_file,
+        mapping_file=mapping_file,
+        subnets_file=subnets_file,
+        ss7pcs_file=ss7pcs_file,
+    )
 
     # Normalise privacy_modes so the rest of the pipeline always sees a dict.
     privacy_modes = privacy_modes or {}
@@ -408,6 +399,7 @@ def write_artifacts(artifacts: AnalyzeArtifacts, out_dir: Path) -> dict[str, Pat
             artifacts.summary.get("selection", {}).get("start_packet_number")
             or artifacts.summary.get("capture", {}).get("first_packet_number")
         ),
+        first_seen=artifacts.summary.get("capture", {}).get("first_seen"),
         include_mapping=bool(artifacts.pseudonym_mapping),
         include_vault=bool(artifacts.vault),
     )

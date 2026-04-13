@@ -46,8 +46,8 @@ Discovery writes two files directly into the output directory — no subdirector
 
 ```text
 artifacts/
-  discover_trace_start_1_V_01.json
-  discover_trace_start_1_V_01.md
+  discover_trace_20251014_104416_V_01.json
+  discover_trace_20251014_104416_V_01.md
 ```
 
 The timestamp prefix comes from the first packet in the capture, using the same
@@ -56,8 +56,8 @@ place.
 
 | File | Purpose |
 |---|---|
-| `discover_<capture>_start_<n>_V_01.json` | Machine-readable scout result for agents and scripts |
-| `discover_<capture>_start_<n>_V_01.md` | Short human summary |
+| `discover_<capture>_<YYYYMMDD_HHMMSS>_V_01.json` | Machine-readable scout result for agents and scripts |
+| `discover_<capture>_<YYYYMMDD_HHMMSS>_V_01.md` | Short human summary |
 
 Both discovery outputs now begin with the same ordered metadata for easier comparison across reruns:
 
@@ -139,12 +139,12 @@ The Markdown header follows the same order:
 
 - `Action`
 - `Capture file`
-- `Start packet`
+- `First packet timestamp`
 - `Artifact version`
 
 ## What Discovery Looks At
 
-- capture path, capture filename, start packet, packet count, first/last timestamps, SHA-256 when readable
+- capture path, capture filename, first packet timestamp, packet count, first/last timestamps, SHA-256 when readable
 - transport mix such as TCP, UDP, SCTP
 - low-level capture context such as Ethernet, VLAN, PPP, or similar envelopes
 - dominant signaling protocols derived from decoded counts plus strong raw-protocol hints

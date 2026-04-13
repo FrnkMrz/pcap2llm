@@ -100,11 +100,11 @@ Jeder Lauf erzeugt einen Dateinamen-Satz mit Zeitstempel des ersten Pakets und V
 
 | Datei | Inhalt |
 |---|---|
-| `analyze_<capture>_start_<n>_V_01_detail.json` | Normalisierte Pakete — primaeres LLM-Artefakt |
-| `analyze_<capture>_start_<n>_V_01_summary.json` | Statistiken, Anomalien, Coverage, Privacy-Metadaten |
-| `analyze_<capture>_start_<n>_V_01_summary.md` | Menschenlesbare Zusammenfassung |
-| `analyze_<capture>_start_<n>_V_01_pseudonym_mapping.json` | Nur bei aktiver Pseudonymisierung |
-| `analyze_<capture>_start_<n>_V_01_vault.json` | Nur bei aktiver Verschluesselung |
+| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_detail.json` | Normalisierte Pakete — primaeres LLM-Artefakt |
+| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_summary.json` | Statistiken, Anomalien, Coverage, Privacy-Metadaten |
+| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_summary.md` | Menschenlesbare Zusammenfassung |
+| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_pseudonym_mapping.json` | Nur bei aktiver Pseudonymisierung |
+| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_vault.json` | Nur bei aktiver Verschluesselung |
 
 - `_V_01` ist immer gesetzt; wird automatisch auf `_V_02`, `_V_03` hochgezaehlt wenn Dateien schon existieren
 - Beide JSON-Dateien enthalten `schema_version`, `generated_at` (ISO 8601 UTC) und `capture_sha256`
@@ -255,7 +255,53 @@ pcap2llm analyze sample.pcapng --profile lte-core \
   --mapping-file ./examples/mapping.sample.yaml
 ```
 
-**Vorrang:** Explizites Mapping hat Vorrang vor der Hosts-Datei. Wenn keine Zuordnung gefunden wird, wird anhand des Ports auf eine Rolle geschlossen (Port 3868 → `diameter`, Port 2123 → `gtpc`, Port 8805 → `pfcp`).
+### C. Lokale Subnet-Fallback-Datei
+
+Fuer groessere Roaming-Partner- oder Infrastruktur-Netze kann zusaetzlich eine lokale Fallback-Datei unter folgendem Standardpfad abgelegt werden:
+
+```text
+.local/Subnets
+```
+
+Format: pro Zeile ein CIDR und ein Alias, getrennt durch Leerzeichen oder Tab.
+
+```text
+10.10.0.0/16 EPC_CORE
+198.51.100.0/24 ROAMING_PARTNER_A
+```
+
+Optional kann der Pfad auch explizit angegeben werden:
+
+```bash
+pcap2llm analyze sample.pcapng --profile lte-core \
+  --subnets-file ./Subnets
+```
+
+**Vorrang:** Exakte Treffer haben immer Vorrang. Exakte IP- oder Hostname-Zuordnungen aus Mapping-Datei oder Hosts-Datei werden zuerst verwendet. Die lokale Subnet-Datei wird nur dann als CIDR-Fallback herangezogen, wenn kein exakter Treffer existiert. Wenn danach weiterhin keine Zuordnung gefunden wird, wird anhand des Ports auf eine Rolle geschlossen (Port 3868 → `diameter`, Port 2123 → `gtpc`, Port 8805 → `pfcp`).
+
+### D. Lokale SS7-Point-Code-Datei
+
+Fuer SS7- und MTP3-Traces kann zusaetzlich eine lokale Point-Code-Datei unter folgendem Standardpfad abgelegt werden:
+
+```text
+.local/ss7pcs
+```
+
+Format: pro Zeile ein Point Code und ein Alias, getrennt durch Leerzeichen oder Tab.
+
+```text
+0-5093 VZB
+INAT0-6316 Verizon_WestOrange_INAT0
+```
+
+Optional kann der Pfad explizit angegeben werden:
+
+```bash
+pcap2llm analyze sample.pcapng --profile 2g3g-sccp-mtp \
+  --ss7pcs-file ./ss7pcs
+```
+
+Die Datei wird fuer MTP3-Point-Codes aus `mtp3.opc` und `mtp3.dpc` als Fallback genutzt. Exakte IP-, Hostname- und Subnet-Zuordnungen behalten weiterhin Vorrang.
 
 ---
 

@@ -180,6 +180,59 @@ nodes:
     assert result.conversations[0]["dst_name"] == "HSS_CORE_1"
 
 
+def test_inspect_marks_subnets_file_usage_and_resolves_fallback(tmp_path: Path) -> None:
+    profile = load_profile("lte-core")
+    subnets = tmp_path / "Subnets"
+    subnets.write_text("10.0.0.0/24 EPC_CORE\n", encoding="utf-8")
+    result = inspect_raw_packets(
+        [_make_packet()],
+        capture_path=tmp_path / "resolved-subnets.pcapng",
+        display_filter=None,
+        profile=profile,
+        resolver=EndpointResolver(subnets_file=subnets),
+        subnets_file_used=True,
+    )
+
+    assert result.metadata.subnets_file_used is True
+    mappings = {(item["ip"], item["name"]) for item in result.metadata.resolved_peers}
+    assert mappings == {
+        ("10.0.0.1", "EPC_CORE"),
+        ("10.0.0.2", "EPC_CORE"),
+    }
+
+
+def test_inspect_marks_ss7pcs_usage_and_resolves_point_code_fallback(tmp_path: Path) -> None:
+    profile = load_profile("2g3g-sccp-mtp")
+    ss7pcs = tmp_path / "ss7pcs"
+    ss7pcs.write_text("0-5093 VZB\n0-5091 VZA\n", encoding="utf-8")
+    packet = _make_packet(
+        protocols="eth:ip:sctp:m3ua:mtp3:sccp",
+        extra_layers={
+            "mtp3": {
+                "mtp3.opc": "0-5093",
+                "mtp3.dpc": "0-5091",
+            },
+            "sccp": {"sccp.message_type": "9"},
+        },
+    )
+    result = inspect_raw_packets(
+        [packet],
+        capture_path=tmp_path / "resolved-ss7pcs.pcapng",
+        display_filter=None,
+        profile=profile,
+        resolver=EndpointResolver(ss7pcs_file=ss7pcs),
+        ss7pcs_file_used=True,
+    )
+
+    assert result.metadata.ss7pcs_file_used is True
+    mappings = {(item["ip"], item["name"]) for item in result.metadata.resolved_peers}
+    assert mappings == {
+        ("10.0.0.1", "VZB"),
+        ("10.0.0.2", "VZA"),
+    }
+    assert result.metadata.resolved_peers[0]["ss7_point_code"] in {"0-5091", "0-5093"}
+
+
 def test_inspect_malformed_packet_is_skipped(tmp_path: Path) -> None:
     """A packet with unexpected structure must not crash inspect_raw_packets."""
     profile = load_profile("lte-core")

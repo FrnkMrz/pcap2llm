@@ -16,6 +16,28 @@ Place your Wireshark-style hosts file at:
 
 The tool loads it automatically if it exists. No CLI argument is required.
 
+## Default subnet fallback file
+
+Place your whitespace-delimited subnet fallback file at:
+
+```
+.local/Subnets
+```
+
+The tool loads it automatically if it exists. It is used only when no exact
+IP or hostname match was found from hosts or mapping files.
+
+## Default SS7 point-code file
+
+Place your whitespace-delimited SS7 point-code alias file at:
+
+```
+.local/ss7pcs
+```
+
+The tool loads it automatically if it exists. It is used as an SS7 fallback
+for MTP3 OPC/DPC values when no higher-priority IP or hostname mapping exists.
+
 ## Repo-owned local batch runner
 
 The committed runner now lives in the repo, not under `.local/`.
@@ -57,6 +79,8 @@ Use `run_local_batches.py` when you want a curated, versioned set of named cases
 ## What belongs here
 
 - `.local/hosts` — Wireshark hosts mapping
+- `.local/Subnets` — CIDR fallback mappings for roaming partner or cluster IP ranges
+- `.local/ss7pcs` — SS7 point-code aliases for OPC/DPC-based peer naming
 - local mapping tables (YAML/JSON)
 - anonymization dictionaries
 - raw trace files used for local testing

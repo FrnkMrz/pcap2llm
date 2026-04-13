@@ -22,6 +22,8 @@ def build_dry_run_payload(
     privacy_modes: dict[str, str],
     hosts_file: Path | None,
     mapping_file: Path | None,
+    subnets_file: Path | None,
+    ss7pcs_file: Path | None,
     command: list[str],
     llm_mode: bool,
     effective_verbatim_protocols: list[str],
@@ -48,6 +50,8 @@ def build_dry_run_payload(
         "files_would_be_written": True,
         "hosts_file": str(hosts_file) if hosts_file else None,
         "mapping_file": str(mapping_file) if mapping_file else None,
+        "subnets_file": str(subnets_file) if subnets_file else None,
+        "ss7pcs_file": str(ss7pcs_file) if ss7pcs_file else None,
         "command": command,
     }
 

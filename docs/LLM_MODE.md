@@ -30,7 +30,7 @@ Typical success payload:
     "path": "sample.pcapng",
     "sha256": "..."
   },
-  "artifact_prefix": "analyze_sample_start_1",
+  "artifact_prefix": "analyze_sample_20240406_075320",
   "artifact_version": 1,
   "files": {
     "summary": "artifacts/...summary...",
@@ -125,9 +125,9 @@ pcap2llm analyze trace.pcapng \
   "privacy_profile": "share",
   "capture": { "path": "trace.pcapng", "sha256": "..." },
   "files": {
-    "detail": "artifacts/analyze_trace_start_1_V_01_detail.json",
-    "summary": "artifacts/analyze_trace_start_1_V_01_summary.json",
-    "markdown": "artifacts/analyze_trace_start_1_V_01_summary.md"
+    "detail": "artifacts/analyze_trace_20240406_075320_V_01_detail.json",
+    "summary": "artifacts/analyze_trace_20240406_075320_V_01_summary.json",
+    "markdown": "artifacts/analyze_trace_20240406_075320_V_01_summary.md"
   },
   "coverage": {
     "detail_packets_included": 312,
@@ -147,7 +147,7 @@ pcap2llm analyze trace.pcapng \
 3. `warnings` — check for `no_relevant_protocols_detected` (wrong profile or filter too strict) or `pseudonym_mapping_created` (keep the mapping file separate).
 4. `files.detail` — this is the primary artifact to pass to the downstream LLM.
 
-`artifact_prefix` is now the semantic filename prefix, not a timestamp. It reflects action, capture name, and start packet.
+`artifact_prefix` is the semantic filename prefix. It reflects action, capture name, and the first-packet timestamp used for artifact naming.
 
 ### On error
 

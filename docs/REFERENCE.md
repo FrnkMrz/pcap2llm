@@ -298,13 +298,13 @@ Every `analyze` run writes a semantically ordered file set:
 
 | File | Contents |
 |---|---|
-| `analyze_<capture>_start_<n>_V_01_detail.json` | **Primary LLM input** — normalized packets, reduced fields, privacy applied |
-| `analyze_<capture>_start_<n>_V_01_summary.json` | Sidecar — protocol mix, conversations, anomalies, coverage, timing |
-| `analyze_<capture>_start_<n>_V_01_summary.md` | Human-readable version of the summary |
-| `analyze_<capture>_start_<n>_V_01_pseudonym_mapping.json` | Only when pseudonymization is active |
-| `analyze_<capture>_start_<n>_V_01_vault.json` | Only when encryption is active |
+| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_detail.json` | **Primary LLM input** — normalized packets, reduced fields, privacy applied |
+| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_summary.json` | Sidecar — protocol mix, conversations, anomalies, coverage, timing |
+| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_summary.md` | Human-readable version of the summary |
+| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_pseudonym_mapping.json` | Only when pseudonymization is active |
+| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_vault.json` | Only when encryption is active |
 
-- Filenames lead with semantic context: action, capture filename, start packet, artifact version.
+- Filenames lead with semantic context: action, capture filename, first-packet timestamp, artifact version.
 - `_V_01` is always present; auto-increments to `_V_02`, `_V_03` if files already exist in the output directory
 - Both JSON files include `schema_version`, `generated_at` (ISO 8601 UTC), and `capture_sha256`
 - `summary.json` includes a `coverage` block showing how many packets were exported and how many were written to `detail.json`
@@ -496,7 +496,53 @@ pcap2llm analyze sample.pcapng --profile lte-core \
   --mapping-file ./examples/mapping.sample.yaml
 ```
 
-**Precedence:** mapping file overrides hosts file for the same IP. If no mapping is found, the resolver infers a role from the port number (port 3868 → `diameter`, port 2123 → `gtpc`, port 8805 → `pfcp`).
+### C. Local subnet fallback file
+
+For large roaming-partner or infrastructure ranges, place a local fallback file at:
+
+```text
+.local/Subnets
+```
+
+Format: one CIDR and one alias per line, separated by whitespace.
+
+```text
+10.10.0.0/16 EPC_CORE
+198.51.100.0/24 ROAMING_PARTNER_A
+```
+
+You can also override the path explicitly:
+
+```bash
+pcap2llm analyze sample.pcapng --profile lte-core \
+  --subnets-file ./Subnets
+```
+
+**Precedence:** exact matches win first. Exact IP/hostname matches from the mapping file or hosts file are used before any CIDR fallback is considered. The local subnet file is only consulted when no exact match exists. If still nothing matches, the resolver infers a role from the port number (port 3868 → `diameter`, port 2123 → `gtpc`, port 8805 → `pfcp`).
+
+### D. Local SS7 point-code file
+
+For SS7 and MTP3 traces, place a local point-code alias file at:
+
+```text
+.local/ss7pcs
+```
+
+Format: one point code and one alias per line, separated by whitespace.
+
+```text
+0-5093 VZB
+INAT0-6316 Verizon_WestOrange_INAT0
+```
+
+You can also override the path explicitly:
+
+```bash
+pcap2llm analyze sample.pcapng --profile 2g3g-sccp-mtp \
+  --ss7pcs-file ./ss7pcs
+```
+
+This file is used for MTP3 point-code fallback based on `mtp3.opc` and `mtp3.dpc`. Exact IP, hostname, and CIDR matches still take precedence.
 
 ---
 

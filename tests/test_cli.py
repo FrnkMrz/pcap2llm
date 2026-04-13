@@ -10,6 +10,57 @@ from pcap2llm.cli import app
 from pcap2llm.models import CaptureMetadata, InspectResult
 
 
+_ARTIFACT_PREFIX = "analyze_sample_20240406_075320"
+
+
+def test_analyze_dry_run_outputs_local_subnets_file(tmp_path: Path) -> None:
+    runner = CliRunner()
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+    local_subnets = tmp_path / "Subnets"
+    local_subnets.write_text("10.0.0.0/24 EPC_CORE\n", encoding="utf-8")
+
+    with patch("pcap2llm.cli._LOCAL_SUBNETS_DEFAULT", local_subnets):
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                str(capture),
+                "--dry-run",
+                "--profile",
+                "lte-core",
+            ],
+        )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["subnets_file"] == str(local_subnets)
+
+
+def test_analyze_dry_run_outputs_local_ss7pcs_file(tmp_path: Path) -> None:
+    runner = CliRunner()
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+    local_ss7pcs = tmp_path / "ss7pcs"
+    local_ss7pcs.write_text("0-5093 VZB\n", encoding="utf-8")
+
+    with patch("pcap2llm.cli._LOCAL_SS7PCS_DEFAULT", local_ss7pcs):
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                str(capture),
+                "--dry-run",
+                "--profile",
+                "2g3g-sccp-mtp",
+            ],
+        )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["ss7pcs_file"] == str(local_ss7pcs)
+
+
 def test_init_config_writes_file(tmp_path: Path) -> None:
     runner = CliRunner()
     config_path = tmp_path / "pcap2llm.config.yaml"
@@ -110,9 +161,9 @@ def test_analyze_passes_effective_verbatim_profile_to_pipeline(tmp_path: Path) -
         patch(
             "pcap2llm.cli.write_artifacts",
             return_value={
-                "summary": out_dir / "analyze_sample_start_1_V_01_summary.json",
-                "detail": out_dir / "analyze_sample_start_1_V_01_detail.json",
-                "markdown": out_dir / "analyze_sample_start_1_V_01_summary.md",
+                "summary": out_dir / f"{_ARTIFACT_PREFIX}_V_01_summary.json",
+                "detail": out_dir / f"{_ARTIFACT_PREFIX}_V_01_detail.json",
+                "markdown": out_dir / f"{_ARTIFACT_PREFIX}_V_01_summary.md",
             },
         ),
     ):
@@ -148,9 +199,9 @@ def test_analyze_outputs_artifact_prefix_and_version(tmp_path: Path) -> None:
         patch(
             "pcap2llm.cli.write_artifacts",
             return_value={
-                "summary": out_dir / "analyze_sample_start_1_V_01_summary.json",
-                "detail": out_dir / "analyze_sample_start_1_V_01_detail.json",
-                "markdown": out_dir / "analyze_sample_start_1_V_01_summary.md",
+                "summary": out_dir / f"{_ARTIFACT_PREFIX}_V_01_summary.json",
+                "detail": out_dir / f"{_ARTIFACT_PREFIX}_V_01_detail.json",
+                "markdown": out_dir / f"{_ARTIFACT_PREFIX}_V_01_summary.md",
             },
         ),
     ):
@@ -168,9 +219,9 @@ def test_analyze_outputs_artifact_prefix_and_version(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
-    assert payload["artifact_prefix"] == "analyze_sample_start_1"
+    assert payload["artifact_prefix"] == _ARTIFACT_PREFIX
     assert payload["artifact_version"] == 1
-    assert payload["summary"].endswith("analyze_sample_start_1_V_01_summary.json")
+    assert payload["summary"].endswith(f"{_ARTIFACT_PREFIX}_V_01_summary.json")
 
 
 def _inspect_result(capture: Path) -> InspectResult:
@@ -213,7 +264,7 @@ def test_inspect_out_directory_generates_semantic_json_filename(tmp_path: Path) 
         )
 
     assert result.exit_code == 0
-    output_path = out_dir / "inspect_sample_trace_start_1_V_01.json"
+    output_path = out_dir / "inspect_sample_trace_20240406_075320_V_01.json"
     assert output_path.exists()
     assert f"Wrote inspect output to {output_path}" in result.stdout
 
@@ -240,7 +291,7 @@ def test_inspect_out_directory_generates_semantic_markdown_filename(tmp_path: Pa
         )
 
     assert result.exit_code == 0
-    output_path = out_dir / "inspect_sample_trace_start_1_V_01.md"
+    output_path = out_dir / "inspect_sample_trace_20240406_075320_V_01.md"
     assert output_path.exists()
     assert f"Wrote inspect output to {output_path}" in result.stdout
 

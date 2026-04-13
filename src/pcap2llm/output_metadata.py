@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -20,13 +21,37 @@ def sanitize_filename_segment(value: str) -> str:
     return sanitized or "capture"
 
 
+def artifact_timestamp_prefix(first_seen: str | None) -> str | None:
+    if not first_seen:
+        return None
+
+    try:
+        packet_time = datetime.fromtimestamp(float(first_seen), tz=timezone.utc)
+        return packet_time.strftime("%Y%m%d_%H%M%S")
+    except (OverflowError, ValueError):
+        pass
+
+    try:
+        normalized = re.sub(r"(\.\d{6})\d+", r"\1", first_seen)
+        if normalized.endswith("Z"):
+            normalized = normalized[:-1] + "+00:00"
+        packet_time = datetime.fromisoformat(normalized)
+        return packet_time.strftime("%Y%m%d_%H%M%S")
+    except (ValueError, AttributeError):
+        return None
+
+
 def semantic_artifact_prefix(
     *,
     action: str,
     capture_path: str | Path,
     start_packet_number: int | None,
+    first_seen: str | None = None,
 ) -> str:
     capture_segment = sanitize_filename_segment(capture_stem(capture_path))
+    timestamp_segment = artifact_timestamp_prefix(first_seen)
+    if timestamp_segment:
+        return f"{action}_{capture_segment}_{timestamp_segment}"
     start_segment = str(start_packet_number) if start_packet_number is not None else "unknown"
     return f"{action}_{capture_segment}_start_{start_segment}"
 
@@ -36,6 +61,7 @@ def semantic_artifact_filename(
     action: str,
     capture_path: str | Path,
     start_packet_number: int | None,
+    first_seen: str | None = None,
     version: str,
     extension: str,
     artifact_kind: str | None = None,
@@ -44,6 +70,7 @@ def semantic_artifact_filename(
         action=action,
         capture_path=capture_path,
         start_packet_number=start_packet_number,
+        first_seen=first_seen,
     )
     if artifact_kind:
         return f"{prefix}_{version}_{artifact_kind}{extension}"

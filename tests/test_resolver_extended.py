@@ -91,6 +91,55 @@ nodes:
         ep = resolver.resolve("2001:db8::1")
         assert ep.alias == "IPV6_CORE"
 
+    def test_subnets_file_resolves_ip_in_subnet(self, tmp_path: Path) -> None:
+        subnets = tmp_path / "Subnets"
+        subnets.write_text(
+            "10.10.0.0/16 EPC_CORE\n",
+            encoding="utf-8",
+        )
+        resolver = EndpointResolver(subnets_file=subnets)
+        ep = resolver.resolve("10.10.5.20")
+        assert ep.alias == "EPC_CORE"
+        assert ep.ip == "10.10.5.20"
+
+    def test_hosts_exact_ip_takes_priority_over_subnets_file(self, tmp_path: Path) -> None:
+        hosts = tmp_path / "hosts"
+        hosts.write_text("10.10.5.20 mme-exact\n", encoding="utf-8")
+        subnets = tmp_path / "Subnets"
+        subnets.write_text("10.10.0.0/16 EPC_CORE\n", encoding="utf-8")
+        resolver = EndpointResolver(hosts_file=hosts, subnets_file=subnets)
+        ep = resolver.resolve("10.10.5.20")
+        assert ep.alias == "mme-exact"
+
+    def test_invalid_subnets_line_is_skipped_without_crash(self, tmp_path: Path) -> None:
+        subnets = tmp_path / "Subnets"
+        subnets.write_text(
+            "not-a-cidr BROKEN\n10.10.0.0/16 EPC_CORE\n",
+            encoding="utf-8",
+        )
+        resolver = EndpointResolver(subnets_file=subnets)
+        ep = resolver.resolve("10.10.1.1")
+        assert ep.alias == "EPC_CORE"
+
+    def test_ss7_point_code_fallback_resolves_alias(self, tmp_path: Path) -> None:
+        ss7pcs = tmp_path / "ss7pcs"
+        ss7pcs.write_text("0-5093 VZB\n", encoding="utf-8")
+        resolver = EndpointResolver(ss7pcs_file=ss7pcs)
+        ep = resolver.resolve("10.10.5.20", point_code="0-5093")
+        assert ep.alias == "VZB"
+        assert ep.role == "ss7"
+        assert ep.labels["ss7_point_code"] == "0-5093"
+
+    def test_exact_ip_takes_priority_over_ss7_point_code_fallback(self, tmp_path: Path) -> None:
+        hosts = tmp_path / "hosts"
+        hosts.write_text("10.10.5.20 mme-exact\n", encoding="utf-8")
+        ss7pcs = tmp_path / "ss7pcs"
+        ss7pcs.write_text("0-5093 VZB\n", encoding="utf-8")
+        resolver = EndpointResolver(hosts_file=hosts, ss7pcs_file=ss7pcs)
+        ep = resolver.resolve("10.10.5.20", point_code="0-5093")
+        assert ep.alias == "mme-exact"
+        assert ep.labels["ss7_point_code_alias"] == "VZB"
+
 
 class TestCaseInsensitiveHostname:
     def test_hostname_lookup_is_case_insensitive(self, tmp_path: Path) -> None:

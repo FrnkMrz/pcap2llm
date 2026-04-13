@@ -88,6 +88,8 @@ def build_discovery_payload(
     name_resolution = {
         "hosts_file_used": inspect_result.metadata.hosts_file_used,
         "mapping_file_used": inspect_result.metadata.mapping_file_used,
+        "subnets_file_used": inspect_result.metadata.subnets_file_used,
+        "ss7pcs_file_used": inspect_result.metadata.ss7pcs_file_used,
         "resolved_peer_count": len(inspect_result.metadata.resolved_peers),
     }
     capture = build_capture_metadata(
@@ -155,13 +157,20 @@ def build_discovery_markdown(discovery: dict[str, Any]) -> str:
         "## Capture Context",
     ])
     name_resolution = discovery.get("name_resolution", {})
-    if name_resolution.get("hosts_file_used") or name_resolution.get("mapping_file_used"):
+    if (
+        name_resolution.get("hosts_file_used")
+        or name_resolution.get("mapping_file_used")
+        or name_resolution.get("subnets_file_used")
+        or name_resolution.get("ss7pcs_file_used")
+    ):
         lines.append(f"- Hosts file used: `{'yes' if name_resolution.get('hosts_file_used') else 'no'}`")
         lines.append(f"- Mapping file used: `{'yes' if name_resolution.get('mapping_file_used') else 'no'}`")
+        lines.append(f"- Subnets file used: `{'yes' if name_resolution.get('subnets_file_used') else 'no'}`")
+        lines.append(f"- SS7 point-code file used: `{'yes' if name_resolution.get('ss7pcs_file_used') else 'no'}`")
         lines.append(f"- Resolved peers: `{name_resolution.get('resolved_peer_count', 0)}`")
         examples = discovery.get("resolved_peers", [])[:3]
         if examples:
-            rendered = ", ".join(f"`{item['ip']} -> {item['name']}`" for item in examples)
+            rendered = ", ".join(_render_resolved_peer_example(item) for item in examples)
             lines.append(f"- Example mappings: {rendered}")
     context = discovery.get("capture_context", {})
     link_context = context.get("link_or_envelope_protocols", [])
@@ -203,6 +212,14 @@ def build_discovery_markdown(discovery: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _render_resolved_peer_example(item: dict[str, Any]) -> str:
+    rendered = f"`{item['ip']} -> {item['name']}`"
+    if item.get("ss7_point_code"):
+        point_code_alias = item.get("ss7_point_code_alias") or item["name"]
+        rendered += f" (SS7 PC `{item['ss7_point_code']}` -> `{point_code_alias}`)"
+    return rendered
+
+
 def discover_capture(
     capture_path: Path,
     *,
@@ -213,6 +230,8 @@ def discover_capture(
     on_stage=None,
     hosts_file: Path | None = None,
     mapping_file: Path | None = None,
+    subnets_file: Path | None = None,
+    ss7pcs_file: Path | None = None,
 ) -> tuple[dict[str, Any], str]:
     profile = build_discovery_profile()
     inspect_result = inspect_capture(
@@ -226,6 +245,8 @@ def discover_capture(
         enrich=True,
         hosts_file=hosts_file,
         mapping_file=mapping_file,
+        subnets_file=subnets_file,
+        ss7pcs_file=ss7pcs_file,
     )
     recommendations = recommend_profiles_from_inspect(inspect_result, load_all_profiles())
     discovery = build_discovery_payload(
@@ -262,6 +283,7 @@ def write_discovery_artifacts(out_dir: Path, discovery: dict[str, Any], markdown
             action="discover",
             capture_path=capture.get("path", capture.get("filename", "capture")),
             start_packet_number=capture.get("first_packet_number"),
+            first_seen=capture.get("first_seen"),
             version=v,
             extension=".json",
         )
@@ -269,6 +291,7 @@ def write_discovery_artifacts(out_dir: Path, discovery: dict[str, Any], markdown
             action="discover",
             capture_path=capture.get("path", capture.get("filename", "capture")),
             start_packet_number=capture.get("first_packet_number"),
+            first_seen=capture.get("first_seen"),
             version=v,
             extension=".md",
         )

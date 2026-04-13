@@ -202,6 +202,15 @@ def _extract_transport(layers: dict[str, Any]) -> TransportContext:
     return TransportContext(proto="ip")
 
 
+def _extract_ss7_point_codes(layers: dict[str, Any]) -> tuple[str | None, str | None]:
+    src_point_code = _field(layers, "mtp3.opc") or _field(layers, "mtp3mg.opc")
+    dst_point_code = _field(layers, "mtp3.dpc") or _field(layers, "mtp3mg.dpc")
+    return (
+        str(src_point_code) if src_point_code not in (None, "") else None,
+        str(dst_point_code) if dst_point_code not in (None, "") else None,
+    )
+
+
 def _retain_message_fields(
     layers: dict[str, Any], profile: ProfileDefinition, top_protocol: str
 ) -> dict[str, Any]:
@@ -255,6 +264,8 @@ def inspect_raw_packets(
     resolver: EndpointResolver | None = None,
     hosts_file_used: bool = False,
     mapping_file_used: bool = False,
+    subnets_file_used: bool = False,
+    ss7pcs_file_used: bool = False,
 ) -> InspectResult:
     protocol_counts: Counter[str] = Counter()
     transport_counts: Counter[str] = Counter()
@@ -280,6 +291,10 @@ def inspect_raw_packets(
             row["hostname"] = endpoint.hostname
         if endpoint.role:
             row["role"] = endpoint.role
+        if endpoint.labels.get("ss7_point_code"):
+            row["ss7_point_code"] = endpoint.labels["ss7_point_code"]
+        if endpoint.labels.get("ss7_point_code_alias"):
+            row["ss7_point_code_alias"] = endpoint.labels["ss7_point_code_alias"]
         resolved_peers[endpoint.ip] = row
 
     for packet in raw_packets:
@@ -294,8 +309,13 @@ def inspect_raw_packets(
             transport = _extract_transport(layers)
             transport_counts[transport.proto or "unknown"] += 1
             src_ip, dst_ip = _extract_ip_pair(layers)
-            _remember_endpoint(resolver.resolve(src_ip, service_port=transport.src_port))
-            _remember_endpoint(resolver.resolve(dst_ip, service_port=transport.dst_port))
+            src_point_code, dst_point_code = _extract_ss7_point_codes(layers)
+            _remember_endpoint(
+                resolver.resolve(src_ip, service_port=transport.src_port, point_code=src_point_code)
+            )
+            _remember_endpoint(
+                resolver.resolve(dst_ip, service_port=transport.dst_port, point_code=dst_point_code)
+            )
             conversations[(transport.proto or "unknown", str(src_ip), str(dst_ip), top_protocol)] += 1
             frame_time = _field(layers, "frame.time_epoch")
             frame_number = _field(layers, "frame.number")
@@ -344,6 +364,8 @@ def inspect_raw_packets(
         display_filter=display_filter,
         hosts_file_used=hosts_file_used,
         mapping_file_used=mapping_file_used,
+        subnets_file_used=subnets_file_used,
+        ss7pcs_file_used=ss7pcs_file_used,
         resolved_peers=sorted(resolved_peers.values(), key=lambda item: (item["name"], item["ip"])),
     )
     return InspectResult(
@@ -377,6 +399,7 @@ def normalize_packets(
             top_protocol = pick_top_protocol(layers, profile)
             src_ip, dst_ip = _extract_ip_pair(layers)
             transport = _extract_transport(layers)
+            src_point_code, dst_point_code = _extract_ss7_point_codes(layers)
             normalized.append(
                 NormalizedPacket(
                     packet_no=_maybe_int(_field(layers, "frame.number")) or 0,
@@ -384,8 +407,8 @@ def normalize_packets(
                     time_epoch=str(_field(layers, "frame.time_epoch") or ""),
                     top_protocol=top_protocol,
                     frame_protocols=_frame_protocols(layers),
-                    src=resolver.resolve(src_ip, service_port=transport.src_port),
-                    dst=resolver.resolve(dst_ip, service_port=transport.dst_port),
+                    src=resolver.resolve(src_ip, service_port=transport.src_port, point_code=src_point_code),
+                    dst=resolver.resolve(dst_ip, service_port=transport.dst_port, point_code=dst_point_code),
                     transport=transport,
                     privacy=PrivacySummary(modes=privacy_modes or {}),
                     anomalies=transport.notes,

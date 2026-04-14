@@ -1,5 +1,8 @@
 # Privacy Modes And Safe Sharing
 
+Use this page when you need to choose a privacy profile or decide which
+artifacts can safely leave the trusted boundary.
+
 Related docs:
 
 - [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)

@@ -1,5 +1,8 @@
 # Release Checklist
 
+Use this checklist to verify that a release is consistent across packaging,
+tests, schemas, corpus snapshots, and user-facing documentation.
+
 Related docs:
 
 - [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)

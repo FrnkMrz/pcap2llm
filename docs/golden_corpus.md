@@ -1,5 +1,8 @@
 # Golden Corpus
 
+This page defines the reviewable regression surface for stable public artifact
+behavior.
+
 Related docs:
 
 - [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)

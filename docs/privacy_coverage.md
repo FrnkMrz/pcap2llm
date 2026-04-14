@@ -1,5 +1,8 @@
 # Privacy Coverage
 
+This page maps the user-facing privacy controls onto the broader internal
+coverage model.
+
 Related docs:
 
 - [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)

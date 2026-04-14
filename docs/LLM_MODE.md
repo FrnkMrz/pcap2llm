@@ -37,7 +37,7 @@ Typical success payload:
     "path": "sample.pcapng",
     "sha256": "..."
   },
-  "artifact_prefix": "analyze_sample_20240406_075320",
+  "artifact_prefix": "analyze_sample_start_1",
   "artifact_version": 1,
   "files": {
     "summary": "artifacts/...summary...",
@@ -132,9 +132,9 @@ pcap2llm analyze trace.pcapng \
   "privacy_profile": "share",
   "capture": { "path": "trace.pcapng", "sha256": "..." },
   "files": {
-    "detail": "artifacts/analyze_trace_20240406_075320_V_01_detail.json",
-    "summary": "artifacts/analyze_trace_20240406_075320_V_01_summary.json",
-    "markdown": "artifacts/analyze_trace_20240406_075320_V_01_summary.md"
+    "detail": "artifacts/analyze_trace_start_1_V_01_detail.json",
+    "summary": "artifacts/analyze_trace_start_1_V_01_summary.json",
+    "markdown": "artifacts/analyze_trace_start_1_V_01_summary.md"
   },
   "coverage": {
     "detail_packets_included": 312,
@@ -147,14 +147,16 @@ pcap2llm analyze trace.pcapng \
 }
 ```
 
-**What to check first:**
+**What To Check First:**
 
 1. `status` — `"ok"` or `"error"`. On error, read `error.code` for a machine-actionable response.
 2. `coverage.detail_truncated` — if `true`, the detail artifact is a slice. Consider refining the filter before passing to an LLM.
 3. `warnings` — check for `no_relevant_protocols_detected` (wrong profile or filter too strict) or `pseudonym_mapping_created` (keep the mapping file separate).
 4. `files.detail` — this is the primary artifact to pass to the downstream LLM.
 
-`artifact_prefix` is the semantic filename prefix. It reflects action, capture name, and the first-packet timestamp used for artifact naming.
+`artifact_prefix` is the semantic filename prefix. It reflects action, capture
+name, and start packet. `artifact_version` carries the explicit `V_01`, `V_02`,
+and later revision number separately.
 
 ### On error
 

@@ -1,5 +1,8 @@
 # Current Pipeline
 
+This page explains the current internal stage model behind `inspect`,
+`discover`, and `analyze`.
+
 Related docs:
 
 - [`../DOCUMENTATION_MAP.md`](../DOCUMENTATION_MAP.md)

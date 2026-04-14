@@ -32,9 +32,9 @@ Related docs:
 - `lte-s5` vs `lte-s8`: both are GTP-heavy, but `lte-s8` is intentionally documented for roaming and inter-PLMN interpretation rather than pure intra-EPC handling.
 - `lte-sbc-cbc` means Cell Broadcast SBc, not Session Border Controller traffic.
 
-## Selection rule
+## Selection Rule
 
 - Start with `lte-core` if the failing LTE interface is not yet clear.
 - Move to the narrower interface profile once the capture is known to be S1, S6a, S11, S10, SGs, S5/S8, or IMS-adjacent DNS.
 
-Back to the overview: [`docs/PROFILES.md`](PROFILES.md)
+Family overview: [`PROFILES.md`](PROFILES.md)

@@ -1,5 +1,8 @@
 # Encryption Model
 
+This page documents the current encryption behavior and the expected
+key-handling model.
+
 Related docs:
 
 - [`../DOCUMENTATION_MAP.md`](../DOCUMENTATION_MAP.md)

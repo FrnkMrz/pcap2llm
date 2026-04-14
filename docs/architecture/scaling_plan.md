@@ -1,5 +1,8 @@
 # Scaling Plan
 
+This page explains how the current two-pass pipeline behaves for large or
+bounded captures and where the remaining scaling limits still are.
+
 Related docs:
 
 - [`../DOCUMENTATION_MAP.md`](../DOCUMENTATION_MAP.md)

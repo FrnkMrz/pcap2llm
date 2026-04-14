@@ -1,5 +1,7 @@
 # LTE/EPC Quickstart
 
+Use this page for the shortest LTE / EPC-oriented starting pattern.
+
 Related docs:
 
 - [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)

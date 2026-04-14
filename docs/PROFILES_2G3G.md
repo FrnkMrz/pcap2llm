@@ -37,9 +37,9 @@ Related docs:
   BSSAP, BSSMAP, DTAP, or GSM-A evidence. Plain MAP/TCAP/SCCP/MTP3 traces
   should favor `2g3g-map-core`, `2g3g-gr`, or `2g3g-sccp-mtp` instead.
 
-## Selection rule
+## Selection Rule
 
 - Start with `2g3g-ss7-geran` if the legacy interface is still unclear.
 - Move to the narrower profile once you know whether the problem sits on Gn/Gp, Gr, Gs, MAP-core, GERAN/A-interface, CAP, ISUP, or lower-layer SCCP/MTP routing.
 
-Back to the overview: [`docs/PROFILES.md`](PROFILES.md)
+Family overview: [`PROFILES.md`](PROFILES.md)

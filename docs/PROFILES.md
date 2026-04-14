@@ -14,16 +14,16 @@ Related docs:
 - [`PROFILE_SELECTION.md`](PROFILE_SELECTION.md)
 - [`REFERENCE.md`](REFERENCE.md)
 
-## Choose a Built-In Profile Family
+## Choose A Built-In Profile Family
 
 Use the family guide that matches the network domain you are troubleshooting:
 
 | Family | Covers | Guide |
 |---|---|---|
-| LTE / EPC | EPC overview, S1, S6a, S11, S10, SGs, S5/S8, DNS, Cell Broadcast SBc | [`docs/PROFILES_LTE.md`](PROFILES_LTE.md) |
-| 5G SA Core | 5GC overview, N1/N2, SBI, UDM/AUSF/UDR, policy, charging, DNS, public warning | [`docs/PROFILES_5G.md`](PROFILES_5G.md) |
-| VoLTE / VoNR / IMS | SIP, Diameter, IMS DNS, Session Border Controller, 5GS voice state, auth/policy SBI | [`docs/PROFILES_VOICE.md`](PROFILES_VOICE.md) |
-| 2G/3G Core / GERAN | Gn/Gp, Gr, Gs, GERAN, MAP, CAP, ISUP, SCCP/MTP, legacy DNS | [`docs/PROFILES_2G3G.md`](PROFILES_2G3G.md) |
+| LTE / EPC | EPC overview, S1, S6a, S11, S10, SGs, S5/S8, DNS, Cell Broadcast SBc | [`PROFILES_LTE.md`](PROFILES_LTE.md) |
+| 5G SA Core | 5GC overview, N1/N2, SBI, UDM/AUSF/UDR, policy, charging, DNS, public warning | [`PROFILES_5G.md`](PROFILES_5G.md) |
+| VoLTE / VoNR / IMS | SIP, Diameter, IMS DNS, Session Border Controller, 5GS voice state, auth/policy SBI | [`PROFILES_VOICE.md`](PROFILES_VOICE.md) |
+| 2G/3G Core / GERAN | Gn/Gp, Gr, Gs, GERAN, MAP, CAP, ISUP, SCCP/MTP, legacy DNS | [`PROFILES_2G3G.md`](PROFILES_2G3G.md) |
 
 Quick rule:
 

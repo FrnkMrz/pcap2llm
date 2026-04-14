@@ -1,5 +1,8 @@
 # Supported Environments
 
+This page records the tested baseline for Python and TShark around the current
+release line.
+
 Related docs:
 
 - [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)

@@ -3,15 +3,15 @@
 This is the authoritative English reference for `pcap2llm` commands, options,
 artifacts, privacy controls, automation features, and advanced workflows.
 
-If you are new to the project, start with:
+Use this file when you need exact syntax, option names, or the technical shape
+of outputs.
+
+Related docs:
 
 - [`../README.md`](../README.md) for the entrypoint and document map
 - [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md) for the full inventory of all documentation pages
 - [`QUICKSTART_DE.md`](QUICKSTART_DE.md) for a short German quick start
 - [`ANLEITUNG_DE.md`](ANLEITUNG_DE.md) for a German practical guide
-
-Use this file when you need exact syntax, option names, or the technical shape
-of outputs.
 
 ## What Is This Tool?
 
@@ -402,13 +402,13 @@ Every `analyze` run writes a semantically ordered file set:
 
 | File | Contents |
 |---|---|
-| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_detail.json` | **Primary LLM input** — normalized packets, reduced fields, privacy applied |
-| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_summary.json` | Sidecar — protocol mix, conversations, anomalies, coverage, timing |
-| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_summary.md` | Human-readable version of the summary |
-| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_pseudonym_mapping.json` | Only when pseudonymization is active |
-| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_vault.json` | Only when encryption is active |
+| `analyze_<capture>_start_<n>_V_01_detail.json` | **Primary LLM input** — normalized packets, reduced fields, privacy applied |
+| `analyze_<capture>_start_<n>_V_01_summary.json` | Sidecar — protocol mix, conversations, anomalies, coverage, timing |
+| `analyze_<capture>_start_<n>_V_01_summary.md` | Human-readable version of the summary |
+| `analyze_<capture>_start_<n>_V_01_pseudonym_mapping.json` | Only when pseudonymization is active |
+| `analyze_<capture>_start_<n>_V_01_vault.json` | Only when encryption is active |
 
-- Filenames lead with semantic context: action, capture filename, first-packet timestamp, artifact version.
+- Filenames lead with semantic context: action, capture filename, start packet, artifact version.
 - `_V_01` is always present; auto-increments to `_V_02`, `_V_03` if files already exist in the output directory
 - Both JSON files include `schema_version`, `generated_at` (ISO 8601 UTC), and `capture_sha256`
 - `summary.json` includes a `coverage` block showing how many packets were exported and how many were written to `detail.json`

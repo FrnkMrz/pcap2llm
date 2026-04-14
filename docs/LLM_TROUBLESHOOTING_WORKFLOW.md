@@ -33,7 +33,7 @@ Recommended default:
 pcap2llm discover trace.pcapng
 
 # 2. Recommend focused profiles from the discovery result
-pcap2llm recommend-profiles artifacts/discover_trace_20251014_104416_V_01.json
+pcap2llm recommend-profiles artifacts/discover_trace_start_1_V_01.json
 
 # 3. Run focused analysis with the dedicated LLM-sharing privacy profile
 pcap2llm analyze trace.pcapng \

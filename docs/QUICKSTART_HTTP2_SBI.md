@@ -1,5 +1,7 @@
 # HTTP/2 / SBI Quickstart
 
+Use this page for the shortest HTTP/2 and SBI-focused command pattern.
+
 Related docs:
 
 - [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)

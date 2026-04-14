@@ -40,12 +40,12 @@ artifacts/
     session_manifest.json
     session_report.md
     00_discovery/
-      discover_trace_20251014_104416_V_01.json
-      discover_trace_20251014_104416_V_01.md
+      discover_trace_start_1_V_01.json
+      discover_trace_start_1_V_01.md
     01_lte-s11/
-      analyze_trace_20251014_104416_V_01_summary.json
-      analyze_trace_20251014_104416_V_01_detail.json
-      analyze_trace_20251014_104416_V_01_summary.md
+      analyze_trace_start_1_V_01_summary.json
+      analyze_trace_start_1_V_01_detail.json
+      analyze_trace_start_1_V_01_summary.md
 ```
 
 Discovery and profile runs both use semantically ordered filenames directly inside their
@@ -83,8 +83,8 @@ Each run records, as applicable:
 `session run-discovery` creates a numbered run directory such as `00_discovery`
 and writes the discovery artifacts directly inside it:
 
-- `discover_<capture>_<YYYYMMDD_HHMMSS>_V_01.json`
-- `discover_<capture>_<YYYYMMDD_HHMMSS>_V_01.md`
+- `discover_<capture>_start_<n>_V_01.json`
+- `discover_<capture>_start_<n>_V_01.md`
 
 The naming matches the same semantic filename logic used by profile runs and
 standalone discovery. The run is appended to `session_manifest.json` with its

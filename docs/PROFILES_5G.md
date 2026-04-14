@@ -44,9 +44,9 @@ Related docs:
 - `5g-n11` / `5g-n15` / `5g-n16` / `5g-n40`: these center on SMF/PCF/CHF policy, session, and charging decisions rather than generic HTTP/2 traffic.
 - `5g-n22` vs `5g-n26`: `5g-n22` remains SBI-oriented around slicing/selection context, while `5g-n26` is intentionally hybrid because EPC/5GC interworking often mixes 4G and 5G evidence.
 
-## Selection rule
+## Selection Rule
 
 - Start with `5g-core` if the failing 5GC path is not yet isolated.
 - Move to the interface profile as soon as you know whether the problem is NGAP, NAS-5GS, generic SBI, auth, policy, charging, DNS, or mixed N26 interworking.
 
-Back to the overview: [`docs/PROFILES.md`](PROFILES.md)
+Family overview: [`PROFILES.md`](PROFILES.md)

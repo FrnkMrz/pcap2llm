@@ -1,5 +1,7 @@
 # 5G Core Quickstart
 
+Use this page for the shortest 5G SA core-oriented starting pattern.
+
 Related docs:
 
 - [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)

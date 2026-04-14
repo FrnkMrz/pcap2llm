@@ -48,10 +48,10 @@ Related docs:
   `*-sip-register`, explicit SBC peer hints help `*-sbc`, and Diameter plus
   IMS/CSCF hints help `*-ims-core`.
 
-## Selection rule
+## Selection Rule
 
 - Choose `volte-*` when the operational voice problem is anchored in LTE / EPS IMS service.
 - Choose `vonr-*` when the same voice problem has to be interpreted through 5GS registration, N1/N2 state, or SBI policy and session flows.
 - Do not use these as generic SIP profiles; they are voice-service profiles on purpose.
 
-Back to the overview: [`docs/PROFILES.md`](PROFILES.md)
+Family overview: [`PROFILES.md`](PROFILES.md)

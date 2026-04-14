@@ -1,5 +1,7 @@
 # Detail Artifact Schema 1.0
 
+This page documents the stable public contract for `detail.json`.
+
 Related docs:
 
 - [`../DOCUMENTATION_MAP.md`](../DOCUMENTATION_MAP.md)

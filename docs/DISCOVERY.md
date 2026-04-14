@@ -84,18 +84,18 @@ Discovery writes two files directly into the output directory — no subdirector
 
 ```text
 artifacts/
-  discover_trace_20251014_104416_V_01.json
-  discover_trace_20251014_104416_V_01.md
+  discover_trace_start_1_V_01.json
+  discover_trace_start_1_V_01.md
 ```
 
-The timestamp prefix comes from the first packet in the capture, using the same
-logic as `analyze` artifacts. This keeps all run outputs in one flat, browsable
-place.
+The filename prefix uses the same semantic ordering as `analyze`: action,
+capture name, start packet, and artifact version. This keeps all run outputs in
+one flat, browsable place.
 
 | File | Purpose |
 |---|---|
-| `discover_<capture>_<YYYYMMDD_HHMMSS>_V_01.json` | Machine-readable scout result for agents and scripts |
-| `discover_<capture>_<YYYYMMDD_HHMMSS>_V_01.md` | Short human summary |
+| `discover_<capture>_start_<n>_V_01.json` | Machine-readable scout result for agents and scripts |
+| `discover_<capture>_start_<n>_V_01.md` | Short human summary |
 
 Both discovery outputs now begin with the same ordered metadata for easier comparison across reruns:
 
@@ -177,7 +177,7 @@ The Markdown header follows the same order:
 
 - `Action`
 - `Capture file`
-- `First packet timestamp`
+- `Start packet`
 - `Artifact version`
 
 ## What Discovery Looks At

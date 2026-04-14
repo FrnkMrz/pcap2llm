@@ -1,5 +1,8 @@
 # Threat Model
 
+This page defines the protected assets, trust boundaries, and non-negotiable
+artifact rules around `pcap2llm`.
+
 Related docs:
 
 - [`../DOCUMENTATION_MAP.md`](../DOCUMENTATION_MAP.md)

@@ -13,6 +13,37 @@ This command does not try to replace focused profile analysis. It answers:
 
 > Which profile family or interface profile should I run next?
 
+Related docs:
+
+- [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)
+- [`PROFILE_SELECTION.md`](PROFILE_SELECTION.md)
+- [`SESSIONS.md`](SESSIONS.md)
+- [`WORKFLOWS.md`](WORKFLOWS.md)
+
+## When To Use Discovery
+
+Run `discover` when at least one of these is true:
+
+- the capture is still unfamiliar
+- the profile family is not obvious yet
+- multiple domains appear mixed together
+- you want a reproducible machine-readable scout artifact
+- an agent, UI, or script should decide the next focused run
+
+## `discover` vs `inspect` vs `analyze`
+
+| Command | Best used for | Writes artifacts? | Typical next step |
+|---|---|---|---|
+| `inspect` | quick human overview when you already have a likely profile family | optional | tighten the filter or run `analyze` |
+| `discover` | broad scout run for unknown captures and staged workflows | yes | `recommend-profiles`, then `analyze` |
+| `analyze` | focused extraction for the interface you actually want to troubleshoot | yes | local review, LLM handoff, or another focused run |
+
+In plain language:
+
+- `inspect` helps a human orient quickly
+- `discover` helps decide what focused run should happen next
+- `analyze` produces the real troubleshooting artifact set
+
 ## Basic Usage
 
 ```bash
@@ -38,6 +69,13 @@ Preview only:
 
 ```bash
 pcap2llm discover trace.pcapng --dry-run
+```
+
+Recommended follow-up:
+
+```bash
+pcap2llm recommend-profiles artifacts/discover_trace_start_1_V_01.json
+pcap2llm analyze trace.pcapng --profile <chosen-profile> --out ./artifacts
 ```
 
 ## Output Files

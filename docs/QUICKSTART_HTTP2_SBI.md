@@ -1,5 +1,12 @@
 # HTTP/2 / SBI Quickstart
 
+Related docs:
+
+- [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)
+- [`QUICKSTART_5GC.md`](QUICKSTART_5GC.md)
+- [`PROFILES_5G.md`](PROFILES_5G.md)
+- [`PRIVACY_SHARING.md`](PRIVACY_SHARING.md)
+
 When troubleshooting service-based interfaces, focus on the relevant control-plane exchange:
 
 ```bash

@@ -1,5 +1,12 @@
 # Golden Corpus
 
+Related docs:
+
+- [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)
+- [`schema/detail.schema.md`](schema/detail.schema.md)
+- [`schema/summary.schema.md`](schema/summary.schema.md)
+- [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md)
+
 The golden corpus under `tests/fixtures/golden/` is the reviewable regression surface for public artifact behavior.
 
 ## What Each Fixture Contains

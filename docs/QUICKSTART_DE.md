@@ -1,9 +1,18 @@
-# pcap2llm — Schnellstart (Deutsch)
+# pcap2llm - Schnellstart (Deutsch)
+
+Dieses Dokument ist bewusst kurz. Es soll dich in wenigen Minuten vom Klonen
+bis zum ersten sinnvollen Lauf bringen.
+
+Wenn du danach tiefer einsteigen willst:
+
+- komplette Dokumentationslandkarte: [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)
+- deutsche Praxisanleitung: [`ANLEITUNG_DE.md`](ANLEITUNG_DE.md)
+- englische Vollreferenz: [`REFERENCE.md`](REFERENCE.md)
 
 ## Voraussetzungen
 
 - Python 3.11+
-- `tshark` im PATH (Wireshark-Paket)
+- `tshark` im PATH
 
 ```bash
 python3 --version
@@ -26,86 +35,83 @@ py -3 -m venv .venv
 python -m pip install -e .[dev]
 ```
 
-Falls du hinter einem Proxy arbeitest:
+## Vier Schritte fuer den Einstieg
 
-```powershell
-$env:HTTP_PROXY="http://proxy.example.com:8080"
-$env:HTTPS_PROXY="http://proxy.example.com:8080"
-python -m pip install --proxy http://proxy.example.com:8080 -e .[dev]
-```
+### 1. Schnell sehen, was in der Capture steckt
 
-## Drei Befehle reichen fuer den Einstieg
-
-**Schritt 1 — Was steckt in der Datei?**
 ```bash
 pcap2llm inspect sample.pcapng --profile lte-core
 ```
 
-**Schritt 2 — Analyse-Artefakte erzeugen:**
+Nutze `inspect`, wenn du schon ungefaehr weisst, in welche Profilfamilie der
+Trace gehoert.
+
+### 2. Wenn der Trace noch unklar ist: `discover`
+
+```bash
+pcap2llm discover sample.pcapng
+```
+
+`discover` ist der breite Scout-Lauf fuer unbekannte Captures. Er hilft dir bei
+der Frage:
+
+> Welches Profil sollte ich danach gezielt fahren?
+
+Optional:
+
+```bash
+pcap2llm recommend-profiles artifacts/discover_sample_start_1_V_01.json
+```
+
+### 3. Die eigentliche Analyse schreiben
+
 ```bash
 pcap2llm analyze sample.pcapng --profile lte-core --out ./artifacts
 ```
 
-**Schritt 3 — Danach in `./artifacts` nachschauen:**
+Danach findest du typischerweise:
 
 | Datei | Inhalt |
 |---|---|
-| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_detail.json` | Normalisierte Pakete — das geht ans LLM |
-| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_summary.json` | Statistiken, Anomalien, Coverage |
-| `analyze_<capture>_<YYYYMMDD_HHMMSS>_V_01_summary.md` | Menschenlesbare Zusammenfassung |
+| `...detail.json` | Normalisierte Pakete, primaeres LLM-Artefakt |
+| `...summary.json` | Statistik, Anomalien, Coverage |
+| `...summary.md` | Menschenlesbare Zusammenfassung |
 
-## Welches Profil?
+### 4. Erst dann feinjustieren
 
-Die Startregel ist einfach:
+Zum Beispiel:
+
+```bash
+# Nur bestimmte Protokolle
+pcap2llm analyze sample.pcapng --profile lte-core -Y "diameter || gtpv2"
+
+# Datenschutz fuer Weitergabe
+pcap2llm analyze sample.pcapng --profile lte-core --privacy-profile share
+
+# Nur den Plan anzeigen
+pcap2llm analyze sample.pcapng --profile lte-core --dry-run
+```
+
+## Welche Profilfamilie?
+
+Die Daumenregel fuer den Anfang:
 
 - `lte-*` fuer LTE / EPC
 - `5g-*` fuer 5G SA Core
 - `volte-*` und `vonr-*` fuer Voice-over-IMS
-- `2g3g-*` fuer Legacy 2G/3G / GERAN
+- `2g3g-*` fuer 2G/3G / GERAN / SS7
 
-Wenn das genaue Interface noch unklar ist, nimm zuerst das breitere
-Ueberblicksprofil der Familie, zum Beispiel `lte-core`, `5g-core`,
-`volte-ims-core`, `vonr-ims-core` oder `2g3g-ss7-geran`.
+Wenn du das genaue Interface noch nicht kennst, nimm zuerst ein breiteres
+Familienprofil wie `lte-core`, `5g-core`, `volte-ims-core`, `vonr-ims-core`
+oder `2g3g-ss7-geran`.
 
-Die vollstaendige Profilreferenz findest du hier:
+## Was du hier nicht suchen musst
 
-- Uebersicht: [`docs/PROFILES.md`](PROFILES.md)
-- LTE / EPC: [`docs/PROFILES_LTE.md`](PROFILES_LTE.md)
-- 5G SA Core: [`docs/PROFILES_5G.md`](PROFILES_5G.md)
-- Voice / IMS: [`docs/PROFILES_VOICE.md`](PROFILES_VOICE.md)
-- 2G/3G / GERAN: [`docs/PROFILES_2G3G.md`](PROFILES_2G3G.md)
+Diese Schnellstartseite erklaert **nicht** alle Optionen.
 
-## Haeufige Optionen
+Dafuer gibt es die naechsten Ebenen:
 
-```bash
-# Nur bestimmte Protokolle analysieren
-pcap2llm analyze sample.pcapng --profile lte-core -Y "diameter || gtpv2"
-
-# Subscriber-Daten schuetzen (IMSI pseudonymisieren, Tokens entfernen)
-pcap2llm analyze sample.pcapng --profile lte-core --privacy-profile share
-
-# 5G N2 gezielt untersuchen
-pcap2llm analyze sample.pcapng --profile 5g-n2 -Y "ngap"
-
-# 5G SBI mit strengerem Datenschutz
-pcap2llm analyze sample.pcapng --profile 5g-sbi-auth -Y "http2" --privacy-profile prod-safe --two-pass
-
-# Alle Pakete (kein Limit)
-pcap2llm analyze sample.pcapng --profile lte-core --all-packets
-
-# Plan anzeigen ohne tshark aufzurufen
-pcap2llm analyze sample.pcapng --profile lte-core --dry-run
-
-# Knoten benennen
-pcap2llm analyze sample.pcapng --profile lte-core \
-  --mapping-file ./examples/mapping.sample.yaml
-```
-
-> **Sweetspot:** Gezielte Captures mit wenigen hundert Signalisierungsnachrichten. Kein mehrstundiger Dump — der erzeugt ein `detail.json`, das kein LLM verarbeiten kann.
-
-## Weiterfuehrendes
-
-- Vollstaendige deutsche Anleitung: [`docs/ANLEITUNG_DE.md`](ANLEITUNG_DE.md)
-- Englische Referenz: [`README.md`](../README.md)
-- Profilreferenz: [`docs/PROFILES.md`](PROFILES.md)
-- Workflows fuer LTE / 5G / SS7: [`docs/WORKFLOWS.md`](WORKFLOWS.md)
+- [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md): kompletter Ueberblick ueber alle Doku-Seiten
+- [`ANLEITUNG_DE.md`](ANLEITUNG_DE.md): typische Nutzung in Deutsch
+- [`REFERENCE.md`](REFERENCE.md): exakte englische Befehls- und Optionsreferenz
+- [`DISCOVERY.md`](DISCOVERY.md): was `discover` genau macht

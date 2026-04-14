@@ -1,5 +1,12 @@
 # Current Pipeline
 
+Related docs:
+
+- [`../DOCUMENTATION_MAP.md`](../DOCUMENTATION_MAP.md)
+- [`scaling_plan.md`](scaling_plan.md)
+- [`../schema/detail.schema.md`](../schema/detail.schema.md)
+- [`../schema/summary.schema.md`](../schema/summary.schema.md)
+
 The current processing architecture is intentionally split into explicit stages so the public artifact contract is not coupled directly to raw TShark output.
 
 ## Stages

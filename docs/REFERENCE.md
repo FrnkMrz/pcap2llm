@@ -1,4 +1,17 @@
-# pcap2llm — Complete Reference
+# pcap2llm - Complete Reference
+
+This is the authoritative English reference for `pcap2llm` commands, options,
+artifacts, privacy controls, automation features, and advanced workflows.
+
+If you are new to the project, start with:
+
+- [`../README.md`](../README.md) for the entrypoint and document map
+- [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md) for the full inventory of all documentation pages
+- [`QUICKSTART_DE.md`](QUICKSTART_DE.md) for a short German quick start
+- [`ANLEITUNG_DE.md`](ANLEITUNG_DE.md) for a German practical guide
+
+Use this file when you need exact syntax, option names, or the technical shape
+of outputs.
 
 ## What Is This Tool?
 
@@ -56,14 +69,12 @@ pip install -e .[dev,encrypt]
 
 ## Command Overview
 
-`pcap2llm` now has three layers of CLI surface:
+`pcap2llm` has four practical layers of surface area:
 
-- core commands for one-shot use: `init-config`, `inspect`, `analyze`
-- direct LLM handoff: `ask-chatgpt`
-- direct LLM handoff: `ask-claude`
-- direct LLM handoff: `ask-gemini`
-- discovery helpers for orchestrators: `discover`, `recommend-profiles`
-- session helpers for multi-run workflows: `session start`, `session run-discovery`, `session run-profile`, `session finalize`
+- everyday one-shot commands: `init-config`, `inspect`, `analyze`
+- staged selection/orchestration helpers: `discover`, `recommend-profiles`
+- structured multi-run helpers: `session start`, `session run-discovery`, `session run-profile`, `session finalize`
+- direct external LLM handoff commands: `ask-chatgpt`, `ask-claude`, `ask-gemini`
 
 For staged automation guidance, see [`docs/DISCOVERY.md`](DISCOVERY.md),
 [`docs/PROFILE_SELECTION.md`](PROFILE_SELECTION.md), and
@@ -124,6 +135,7 @@ pcap2llm inspect sample.pcapng --profile lte-core --dry-run
 -Y / --display-filter TShark display filter
 --config              YAML config file
 --out                 Write JSON result to file instead of stdout
+--format              Output format: json | markdown
 --dry-run             Print planned tshark command, do not run it
 --two-pass            Override two-pass dissection mode
 --tshark-path         Path to tshark executable
@@ -164,6 +176,8 @@ Output control:
   --oversize-factor       Reject if exported packets exceed max-packets by this factor (default: 10, 0=off)
   --dry-run               Print plan only, do not run tshark
   --llm-mode              Output strict JSON for agent/automation use
+  --verbatim-protocol     Add a protocol to verbatim preservation for this run
+  --no-verbatim-protocol  Remove a protocol from verbatim preservation for this run
 
 Endpoint resolution:
   --hosts-file            Wireshark-style hosts file
@@ -202,8 +216,12 @@ Runs a low-cost broad inspection profile and writes:
 - `discovery.json` for machine-readable orchestration
 - `discovery.md` for a short human summary
 
-Use this when the interface is still unclear and you want deterministic input
-for a follow-up profile choice.
+Use this when the interface is still unclear and you want a deterministic scout
+artifact before choosing a focused analysis profile.
+
+`discover` is broader than `inspect` and lighter than a focused `analyze` run.
+It is the right first step for unknown captures, mixed-domain traces, and
+agent-driven staged workflows.
 
 Discovery JSON and Markdown now expose the same ordered metadata block as the other artifact-producing commands:
 
@@ -216,6 +234,9 @@ Discovery JSON and Markdown now expose the same ordered metadata block as the ot
 ```
 --out                   Output directory for discovery artifacts
 -Y / --display-filter   Optional TShark display filter
+--config                Optional YAML config file
+--mapping-file          Optional YAML/JSON alias mapping
+--hosts-file            Optional Wireshark hosts-style mapping file
 --dry-run               Show planned TShark command only
 --two-pass              Override two-pass mode for discovery
 --tshark-path           Path to tshark executable
@@ -242,6 +263,89 @@ discovery pass first.
 -Y / --display-filter   Optional TShark display filter when source is a capture
 --tshark-path           Path to tshark executable
 --tshark-arg            Extra tshark argument (repeatable)
+```
+
+## Direct LLM Handoff Commands
+
+The provider handoff commands run the documented staged workflow internally:
+
+1. `discover`
+2. choose the recommended profile unless `--profile` is forced
+3. `analyze` with the chosen privacy profile
+4. build a bounded prompt from the resulting artifacts
+5. send the request to the external provider API
+6. write prompt and response artifacts next to the normal outputs
+
+These commands are convenience wrappers around the documented workflow in
+[`docs/LLM_TROUBLESHOOTING_WORKFLOW.md`](LLM_TROUBLESHOOTING_WORKFLOW.md).
+
+### `ask-chatgpt`
+
+```bash
+pcap2llm ask-chatgpt trace.pcapng \
+  --privacy-profile llm-telecom-safe \
+  --question "Explain the trace and identify the likely failure point"
+```
+
+**Provider-specific options:**
+```
+--model                OpenAI model name (default: gpt-4.1-mini)
+--timeout-seconds      HTTP timeout for the OpenAI request
+--api-key-env          Environment variable for the API key (default: OPENAI_API_KEY)
+--max-messages         Maximum normalized detail messages included in the prompt
+```
+
+### `ask-claude`
+
+```bash
+pcap2llm ask-claude trace.pcapng \
+  --privacy-profile llm-telecom-safe \
+  --question "Explain the trace and identify the likely failure point"
+```
+
+**Provider-specific options:**
+```
+--model                Anthropic model name (default: claude-3-5-sonnet-latest)
+--timeout-seconds      HTTP timeout for the Anthropic request
+--api-key-env          Environment variable for the API key (default: ANTHROPIC_API_KEY)
+--max-messages         Maximum normalized detail messages included in the prompt
+--max-tokens           Maximum Claude response tokens
+```
+
+### `ask-gemini`
+
+```bash
+pcap2llm ask-gemini trace.pcapng \
+  --privacy-profile llm-telecom-safe \
+  --question "Explain the trace and identify the likely failure point"
+```
+
+**Provider-specific options:**
+```
+--model                Gemini model name (default: gemini-2.0-flash)
+--timeout-seconds      HTTP timeout for the Gemini request
+--api-key-env          Environment variable for the API key (default: GEMINI_API_KEY)
+--max-messages         Maximum normalized detail messages included in the prompt
+```
+
+**Shared workflow options:**
+```
+--question             Question sent together with the generated artifacts
+--profile              Optional forced profile; otherwise discovery chooses the best candidate
+--privacy-profile      Privacy profile for the generated handoff artifacts
+--display-filter       Optional TShark display filter
+--config               Optional YAML config file
+--mapping-file         Optional YAML/JSON alias mapping
+--hosts-file           Optional Wireshark hosts-style mapping file
+--out                  Artifact output directory
+--dry-run              Show the planned workflow without executing it
+--two-pass             Override TShark two-pass mode for the focused analyze run
+--tshark-path          TShark executable path
+--tshark-arg           Extra argument passed to tshark
+--max-packets          Maximum packets written to detail.json before handoff
+--all-packets          Include every exported packet in detail.json
+--max-capture-size-mb  Fail fast for oversized captures before tshark export
+--oversize-factor      Fail if exported packet count exceeds max-packets by this factor
 ```
 
 ## Session Commands
@@ -600,7 +704,8 @@ export PCAP2LLM_VAULT_KEY=<your-key>
 pcap2llm analyze sample.pcapng --imsi-mode encrypt --profile lte-core --out ./artifacts
 ```
 
-If `PCAP2LLM_VAULT_KEY` is not set, a temporary key is generated and stored in `vault.json`. Without the key, encrypted values cannot be recovered.
+If `PCAP2LLM_VAULT_KEY` is not set, artifact generation fails fast. `vault.json`
+stores metadata only and is not a recovery package.
 
 For full privacy guidance: [`docs/PRIVACY_SHARING.md`](PRIVACY_SHARING.md)
 
@@ -834,9 +939,10 @@ This design strongly reduces accidental publication risk, but it is not an absol
 | Document | Contents |
 |---|---|
 | [`../README.md`](../README.md) | Overview, quick start, CLI reference summary |
+| [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md) | Full inventory of all documentation pages and reading paths |
 | **[`REFERENCE.md`](REFERENCE.md)** (this file) | Complete English reference |
 | [`QUICKSTART_DE.md`](QUICKSTART_DE.md) | German 5-minute start |
-| [`ANLEITUNG_DE.md`](ANLEITUNG_DE.md) | Complete German reference |
+| [`ANLEITUNG_DE.md`](ANLEITUNG_DE.md) | German practical guide |
 | [`WORKFLOWS.md`](WORKFLOWS.md) | Step-by-step workflows for LTE, 5G, SS7 |
 | [`PROFILES.md`](PROFILES.md) | Creating custom analysis profiles |
 | [`LLM_MODE.md`](LLM_MODE.md) | Machine-readable JSON mode for automation |

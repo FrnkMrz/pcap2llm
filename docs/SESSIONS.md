@@ -10,6 +10,13 @@ Use them when you want:
 - machine-readable outputs per step
 - a final manifest and a short session report
 
+Related docs:
+
+- [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)
+- [`DISCOVERY.md`](DISCOVERY.md)
+- [`PROFILE_SELECTION.md`](PROFILE_SELECTION.md)
+- [`REFERENCE.md`](REFERENCE.md)
+
 ## Typical Session Flow
 
 ```bash

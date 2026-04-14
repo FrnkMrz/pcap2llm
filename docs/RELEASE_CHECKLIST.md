@@ -1,5 +1,13 @@
 # Release Checklist
 
+Related docs:
+
+- [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)
+- [`PROJECT_STATUS.md`](PROJECT_STATUS.md)
+- [`golden_corpus.md`](golden_corpus.md)
+- [`schema/detail.schema.md`](schema/detail.schema.md)
+- [`schema/summary.schema.md`](schema/summary.schema.md)
+
 Automated in CI:
 
 - License and package metadata verified in built wheel and sdist

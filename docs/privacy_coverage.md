@@ -1,5 +1,12 @@
 # Privacy Coverage
 
+Related docs:
+
+- [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)
+- [`PRIVACY_SHARING.md`](PRIVACY_SHARING.md)
+- [`security/threat_model.md`](security/threat_model.md)
+- [`REFERENCE.md`](REFERENCE.md)
+
 `pcap2llm` exposes configurable data classes at the CLI/profile level and maps them onto broader canonical privacy classes internally.
 
 ## Configurable Data Classes

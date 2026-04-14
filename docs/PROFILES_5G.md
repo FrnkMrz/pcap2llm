@@ -3,6 +3,14 @@
 Use this guide when the capture belongs to 5G SA core control-plane
 troubleshooting.
 
+Related docs:
+
+- [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)
+- [`PROFILES.md`](PROFILES.md)
+- [`WORKFLOWS.md`](WORKFLOWS.md)
+- [`QUICKSTART_5GC.md`](QUICKSTART_5GC.md)
+- [`QUICKSTART_HTTP2_SBI.md`](QUICKSTART_HTTP2_SBI.md)
+
 ## Built-In 5G SA Core Profiles
 
 | Profile | Best used for |

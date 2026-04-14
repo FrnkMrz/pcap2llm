@@ -2,6 +2,13 @@
 
 `pcap2llm` is an early but serious CLI tool for turning focused telecom captures into stable artifacts that can be handed to a downstream LLM.
 
+Related docs:
+
+- [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)
+- [`REFERENCE.md`](REFERENCE.md)
+- [`LLM_MODE.md`](LLM_MODE.md)
+- [`SUPPORTED_ENVIRONMENTS.md`](SUPPORTED_ENVIRONMENTS.md)
+
 ## Maturity
 
 - Project maturity: beta — core pipeline, privacy model, discovery, and LLM-mode contract are stable; profile coverage is broad; API surface is hardening
@@ -49,7 +56,7 @@
 - Large captures are bounded for detail export. Pass-1 index records and pass-2 raw JSON are released from memory after each stage completes, so peak memory scales with `--max-packets`, not total capture size — but pass-1 still scans the full capture.
 - A default pre-export size guard exists to catch accidental large inputs early; disabling it should be an explicit operator decision.
 - TShark version drift can affect raw extraction, which is why public serializer contracts are validated.
-- `--llm-mode` is available on `analyze` and `discover`; `inspect` and `session` commands still target human operators first.
+- `--llm-mode` is currently available on `analyze`; `inspect`, `discover`, and `session` commands still target human operators first.
 - The CLI contract is stable enough for integration work, but still young enough that downstream consumers should pin versions and run contract tests.
 
 ## Near-Term Direction

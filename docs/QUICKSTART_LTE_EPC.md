@@ -1,5 +1,12 @@
 # LTE/EPC Quickstart
 
+Related docs:
+
+- [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)
+- [`PROFILES_LTE.md`](PROFILES_LTE.md)
+- [`WORKFLOWS.md`](WORKFLOWS.md)
+- [`REFERENCE.md`](REFERENCE.md)
+
 Use `pcap2llm inspect` first, narrow the capture with `-Y`, then generate artifacts:
 
 ```bash

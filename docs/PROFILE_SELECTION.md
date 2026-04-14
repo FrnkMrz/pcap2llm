@@ -12,6 +12,13 @@ It is meant for:
 
 It is not an embedded AI feature.
 
+Related docs:
+
+- [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)
+- [`DISCOVERY.md`](DISCOVERY.md)
+- [`PROFILES.md`](PROFILES.md)
+- [`SESSIONS.md`](SESSIONS.md)
+
 ## Basic Usage
 
 From a prior discovery run:

@@ -3,6 +3,13 @@
 Use this guide when the capture belongs to legacy 2G/3G core or GERAN-side
 signaling troubleshooting.
 
+Related docs:
+
+- [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)
+- [`PROFILES.md`](PROFILES.md)
+- [`WORKFLOWS.md`](WORKFLOWS.md)
+- [`REFERENCE.md`](REFERENCE.md)
+
 ## Built-In 2G/3G Core and GERAN Profiles
 
 | Profile | Best used for |

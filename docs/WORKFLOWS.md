@@ -5,6 +5,13 @@ General rule: always run `inspect` first, then narrow with `-Y` before running `
 
 For the documented PCAP -> `pcap2llm` -> external LLM handoff flow, see [`LLM_TROUBLESHOOTING_WORKFLOW.md`](LLM_TROUBLESHOOTING_WORKFLOW.md).
 
+Related docs:
+
+- [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)
+- [`PROFILES.md`](PROFILES.md)
+- [`DISCOVERY.md`](DISCOVERY.md)
+- [`REFERENCE.md`](REFERENCE.md)
+
 The human-readable outputs now start with the same four metadata lines across `inspect`, `discover`, and `analyze`: action, capture file, start packet, and artifact version.
 
 ---

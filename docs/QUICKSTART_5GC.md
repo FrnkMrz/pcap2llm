@@ -1,5 +1,12 @@
 # 5G Core Quickstart
 
+Related docs:
+
+- [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)
+- [`PROFILES_5G.md`](PROFILES_5G.md)
+- [`WORKFLOWS.md`](WORKFLOWS.md)
+- [`QUICKSTART_HTTP2_SBI.md`](QUICKSTART_HTTP2_SBI.md)
+
 For 5G SA troubleshooting, start broad only if you must. As soon as the
 interface is known, switch to the narrower 5G profile:
 

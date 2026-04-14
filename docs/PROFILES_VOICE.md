@@ -3,6 +3,13 @@
 Use this guide when the problem is IMS voice service rather than generic LTE or
 5GC control plane.
 
+Related docs:
+
+- [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)
+- [`PROFILES.md`](PROFILES.md)
+- [`WORKFLOWS.md`](WORKFLOWS.md)
+- [`LLM_TROUBLESHOOTING_WORKFLOW.md`](LLM_TROUBLESHOOTING_WORKFLOW.md)
+
 ## Built-In Voice-Over-IMS Profiles
 
 | Profile | Best used for |

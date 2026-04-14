@@ -1,5 +1,12 @@
 # Summary Artifact Schema 1.0
 
+Related docs:
+
+- [`../DOCUMENTATION_MAP.md`](../DOCUMENTATION_MAP.md)
+- [`detail.schema.md`](detail.schema.md)
+- [`../REFERENCE.md`](../REFERENCE.md)
+- [`../architecture/current_pipeline.md`](../architecture/current_pipeline.md)
+
 `summary.json` is a compact sidecar artifact for operators, automation, and audit. It is not the primary LLM handoff artifact.
 
 ## Stability Guarantee

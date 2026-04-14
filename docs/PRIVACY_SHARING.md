@@ -1,5 +1,14 @@
 # Privacy Modes And Safe Sharing
 
+Related docs:
+
+- [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)
+- [`REFERENCE.md`](REFERENCE.md)
+- [`privacy_coverage.md`](privacy_coverage.md)
+- [`security/threat_model.md`](security/threat_model.md)
+- [`security/encryption_model.md`](security/encryption_model.md)
+- [`LLM_TROUBLESHOOTING_WORKFLOW.md`](LLM_TROUBLESHOOTING_WORKFLOW.md)
+
 ## Choose A Profile For Your Scenario
 
 | Scenario | Recommended profile | Notes |

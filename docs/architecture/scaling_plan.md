@@ -1,5 +1,12 @@
 # Scaling Plan
 
+Related docs:
+
+- [`../DOCUMENTATION_MAP.md`](../DOCUMENTATION_MAP.md)
+- [`current_pipeline.md`](current_pipeline.md)
+- [`../REFERENCE.md`](../REFERENCE.md)
+- [`../PROJECT_STATUS.md`](../PROJECT_STATUS.md)
+
 `pcap2llm` uses a two-pass TShark extraction pipeline. Memory cost during
 normalization and protection is proportional to `--max-packets`, not to the
 full capture size.

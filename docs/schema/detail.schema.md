@@ -1,5 +1,12 @@
 # Detail Artifact Schema 1.0
 
+Related docs:
+
+- [`../DOCUMENTATION_MAP.md`](../DOCUMENTATION_MAP.md)
+- [`summary.schema.md`](summary.schema.md)
+- [`../REFERENCE.md`](../REFERENCE.md)
+- [`../architecture/current_pipeline.md`](../architecture/current_pipeline.md)
+
 `detail.json` is the primary stable artifact intended for a downstream LLM step.
 
 ## Stability Guarantee

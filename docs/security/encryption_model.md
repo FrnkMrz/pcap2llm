@@ -1,5 +1,12 @@
 # Encryption Model
 
+Related docs:
+
+- [`../DOCUMENTATION_MAP.md`](../DOCUMENTATION_MAP.md)
+- [`../PRIVACY_SHARING.md`](../PRIVACY_SHARING.md)
+- [`../REFERENCE.md`](../REFERENCE.md)
+- [`threat_model.md`](threat_model.md)
+
 `pcap2llm` supports inline encryption for selected data classes, but only under an explicit operator-supplied key model.
 
 ## Chosen Model

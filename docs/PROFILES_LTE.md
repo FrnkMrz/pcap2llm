@@ -3,6 +3,13 @@
 Use this guide when the capture belongs to LTE / EPC control-plane
 troubleshooting.
 
+Related docs:
+
+- [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)
+- [`PROFILES.md`](PROFILES.md)
+- [`WORKFLOWS.md`](WORKFLOWS.md)
+- [`QUICKSTART_LTE_EPC.md`](QUICKSTART_LTE_EPC.md)
+
 ## Built-In LTE Interface Profiles
 
 | Profile | Best used for |

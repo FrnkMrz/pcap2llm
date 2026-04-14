@@ -7,6 +7,13 @@ built-in profile selection and custom profile authoring.
 > Profiles control protocol analysis only. Privacy settings are separate — use
 > `--privacy-profile` on the command line or in your config file.
 
+Related docs:
+
+- [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)
+- [`WORKFLOWS.md`](WORKFLOWS.md)
+- [`PROFILE_SELECTION.md`](PROFILE_SELECTION.md)
+- [`REFERENCE.md`](REFERENCE.md)
+
 ## Choose a Built-In Profile Family
 
 Use the family guide that matches the network domain you are troubleshooting:

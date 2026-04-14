@@ -1,5 +1,12 @@
 # Threat Model
 
+Related docs:
+
+- [`../DOCUMENTATION_MAP.md`](../DOCUMENTATION_MAP.md)
+- [`../PRIVACY_SHARING.md`](../PRIVACY_SHARING.md)
+- [`../privacy_coverage.md`](../privacy_coverage.md)
+- [`encryption_model.md`](encryption_model.md)
+
 `pcap2llm` handles traces that may contain subscriber data, operator-internal topology, credentials, and customer content. The main job of the tool is to transform captures into readable artifacts without leaking data unintentionally.
 
 ## Assets To Protect

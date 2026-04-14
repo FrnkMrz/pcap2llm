@@ -4,6 +4,13 @@ Use this workflow when a `.pcap` or `.pcapng` should be translated into a privac
 
 The external LLM never receives the raw capture file directly.
 
+Related docs:
+
+- [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)
+- [`PRIVACY_SHARING.md`](PRIVACY_SHARING.md)
+- [`LLM_MODE.md`](LLM_MODE.md)
+- [`REFERENCE.md`](REFERENCE.md)
+
 ## Goal
 
 `pcap2llm` is the local deterministic translation layer between telecom packet captures and an external LLM that cannot open PCAP files itself.

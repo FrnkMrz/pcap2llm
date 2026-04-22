@@ -268,7 +268,9 @@ def _label_for_endpoint(endpoint: dict[str, Any] | None) -> str:
 def _endpoint_key(endpoint: dict[str, Any] | None) -> str:
     if not endpoint:
         return "unknown"
-    for key in ("alias", "role", "hostname", "ip"):
+    # alias > ip > hostname > role: IP is a unique host identifier; role alone
+    # causes collisions when multiple NEs share the same protocol role (e.g. ngap)
+    for key in ("alias", "ip", "hostname", "role"):
         value = endpoint.get(key)
         if value:
             return f"{key}:{value}"
@@ -309,6 +311,30 @@ def _event_name(packet: dict[str, Any]) -> str:
         value = fields.get(key)
         if value not in (None, ""):
             return str(value)
+
+    # Last resort: use frame_protocols to identify the application protocol even when
+    # the analysis profile only extracts transport-layer fields (e.g. lte-core + SIP pcap)
+    frame_protos = packet.get("frame_protocols") or []
+    _FRAME_PROTO_LABELS: dict[str, str] = {
+        "sip": "SIP",
+        "ngap": "NGAP",
+        "nas-5gs": "NAS-5GS",
+        "nas_5gs": "NAS-5GS",
+        "s1ap": "S1AP",
+        "pfcp": "PFCP",
+        "gtpv2": "GTPv2",
+        "gtpv1": "GTPv1",
+        "diameter": "Diameter",
+        "radius": "RADIUS",
+        "sccp": "SCCP",
+        "map": "MAP",
+        "isup": "ISUP",
+    }
+    for proto in reversed(frame_protos):
+        label = _FRAME_PROTO_LABELS.get(proto.lower())
+        if label:
+            return label
+
     protocol = message.get("protocol") or packet.get("top_protocol") or "signal"
     return str(protocol).upper()
 
@@ -884,9 +910,9 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
             )
             text_x = int((src_x + dst_x) / 2)
             text_anchor = "middle"
-            # place label above for left-to-right arrows, below for right-to-left so
-            # that bidirectional pairs between the same two nodes don't overlap
-            label_y = y - 8 if src_x <= dst_x else y + 18
+            # always above the arrow — guarantees row_height (34px) gap between
+            # any two consecutive labels regardless of direction combination
+            label_y = y - 8
 
         meta_label = f"#{packet_no}" if packet_no is not None else ""
         parts.append(

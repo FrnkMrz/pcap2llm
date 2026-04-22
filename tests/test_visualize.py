@@ -286,3 +286,220 @@ def test_build_flow_model_expands_diameter_command_code_label() -> None:
     )
 
     assert flow["events"][0]["message_name"] == "Credit-Control Request (272)"
+
+
+def test_gtpv2_echo_label_has_no_double_suffix() -> None:
+    request = _packet_with_fields(
+        1,
+        "PGW",
+        "SGW",
+        "",
+        {"gtpv2.message_type": "1", "message_name": None},
+    )
+    del request["message"]["fields"]["message_name"]
+    response = _packet_with_fields(
+        2,
+        "SGW",
+        "PGW",
+        "",
+        {"gtpv2.message_type": "2"},
+    )
+    del response["message"]["fields"]["message_name"]
+
+    flow = build_flow_model(
+        [request, response],
+        capture_file="sample.pcapng",
+        profile="lte-s11",
+        privacy_profile=None,
+    )
+
+    assert flow["events"][0]["message_name"] == "Echo Request (1)"
+    assert flow["events"][1]["message_name"] == "Echo Response (2)"
+
+
+def test_diameter_answer_label_carries_result_code() -> None:
+    packet = {
+        "packet_no": 1,
+        "time_rel_ms": 1.0,
+        "time_epoch": "1712390001.0",
+        "top_protocol": "diameter",
+        "src": {"alias": "HSS", "role": "hss"},
+        "dst": {"alias": "MME", "role": "mme"},
+        "anomalies": [],
+        "message": {
+            "protocol": "diameter",
+            "fields": {
+                "command_code": "316",
+                "diameter.flags.request": "0",
+                "diameter.Result-Code": "2001",
+            },
+        },
+    }
+
+    flow = build_flow_model(
+        [packet],
+        capture_file="sample.pcapng",
+        profile="lte-s6a",
+        privacy_profile=None,
+    )
+
+    assert flow["events"][0]["message_name"] == "Update-Location Answer (316) · Result 2001"
+
+
+def test_diameter_message_name_passthrough_appends_result_code() -> None:
+    packet = _packet_with_fields(
+        1,
+        "HSS",
+        "MME",
+        "Update-Location Answer",
+        {"diameter.Result-Code": "5001"},
+    )
+
+    flow = build_flow_model(
+        [packet],
+        capture_file="sample.pcapng",
+        profile="lte-s6a",
+        privacy_profile=None,
+    )
+
+    assert flow["events"][0]["message_name"] == "Update-Location Answer · Result 5001"
+
+
+def test_ngap_procedure_code_is_named() -> None:
+    packet = _packet_with_fields(
+        1,
+        "gNB",
+        "AMF",
+        "",
+        {"ngap.procedureCode": "32"},
+    )
+    del packet["message"]["fields"]["message_name"]
+
+    flow = build_flow_model(
+        [packet],
+        capture_file="sample.pcapng",
+        profile="5g-core",
+        privacy_profile=None,
+    )
+
+    assert flow["events"][0]["message_name"] == "InitialUEMessage (32)"
+
+
+def test_nas_eps_message_type_is_named() -> None:
+    packet = _packet_with_fields(
+        1,
+        "UE",
+        "MME",
+        "",
+        {"nas_eps.message_type": "0x41"},
+    )
+    del packet["message"]["fields"]["message_name"]
+
+    flow = build_flow_model(
+        [packet],
+        capture_file="sample.pcapng",
+        profile="lte-s1-nas",
+        privacy_profile=None,
+    )
+
+    assert flow["events"][0]["message_name"] == "Attach Request"
+
+
+def test_nas_5gs_message_type_is_named() -> None:
+    packet = _packet_with_fields(
+        1,
+        "UE",
+        "AMF",
+        "",
+        {"nas_5gs.mm.message_type": "0x41"},
+    )
+    del packet["message"]["fields"]["message_name"]
+
+    flow = build_flow_model(
+        [packet],
+        capture_file="sample.pcapng",
+        profile="5g-core",
+        privacy_profile=None,
+    )
+
+    assert flow["events"][0]["message_name"] == "Registration Request"
+
+
+def test_http2_request_uses_method_and_path() -> None:
+    packet = _packet_with_fields(
+        1,
+        "AMF",
+        "SMF",
+        "",
+        {
+            "http2.headers.method": "POST",
+            "http2.headers.path": "/nsmf-pdusession/v1/sm-contexts",
+        },
+    )
+    del packet["message"]["fields"]["message_name"]
+
+    flow = build_flow_model(
+        [packet],
+        capture_file="sample.pcapng",
+        profile="5g-sbi",
+        privacy_profile=None,
+    )
+
+    assert flow["events"][0]["message_name"] == "POST /nsmf-pdusession/v1/sm-contexts"
+
+
+def test_collapsed_repeats_track_first_and_last_packet() -> None:
+    packets = [
+        _packet(5, "MME", "HSS", "AIR"),
+        _packet(6, "MME", "HSS", "AIR"),
+        _packet(7, "MME", "HSS", "AIR"),
+    ]
+
+    flow = build_flow_model(
+        packets,
+        capture_file="sample.pcapng",
+        profile="lte-core",
+        privacy_profile=None,
+    )
+    event = flow["events"][0]
+
+    assert event["repeat_count"] == 3
+    assert event["first_packet_no"] == 5
+    assert event["last_packet_no"] == 7
+    assert event["first_relative_ms"] == 50.0
+    assert event["last_relative_ms"] == 70.0
+
+
+def test_render_flow_svg_includes_tooltip_and_accessibility_nodes() -> None:
+    packets = [_packet(1, "MME", "HSS", "AIR")]
+    flow = build_flow_model(
+        packets,
+        capture_file="sample.pcapng",
+        profile="lte-core",
+        privacy_profile=None,
+        title="Flow Test",
+    )
+
+    svg = render_flow_svg(flow, width=1200)
+
+    assert 'role="img"' in svg
+    assert '<title id="flow-title">Flow Test</title>' in svg
+    assert '<desc id="flow-desc">' in svg
+    assert "<title>#1 | AIR" in svg
+
+
+def test_render_flow_svg_shows_repeat_packet_range_in_label() -> None:
+    packets = [
+        _packet(1, "MME", "HSS", "AIR"),
+        _packet(2, "MME", "HSS", "AIR"),
+    ]
+    flow = build_flow_model(
+        packets,
+        capture_file="sample.pcapng",
+        profile="lte-core",
+        privacy_profile=None,
+    )
+
+    svg = render_flow_svg(flow, width=1200)
+
+    assert "AIR x2 (pkts 1" in svg

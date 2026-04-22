@@ -16,12 +16,22 @@ def _to_ms(value: Any) -> float | None:
 
 
 def _to_int(value: Any) -> int | None:
-    try:
-        if value is None:
-            return None
-        return int(str(value).strip())
-    except (TypeError, ValueError):
+    if value is None:
         return None
+    try:
+        text = str(value).strip()
+    except Exception:
+        return None
+    if not text:
+        return None
+    try:
+        # int(x, 0) handles "0x..", "0b..", "0o.." and decimal transparently
+        return int(text, 0)
+    except (TypeError, ValueError):
+        try:
+            return int(float(text))
+        except (TypeError, ValueError):
+            return None
 
 
 def _to_text(value: Any) -> str | None:
@@ -42,6 +52,31 @@ def _truncate(text: str, max_len: int) -> str:
     return f"{value[:max_len - 3]}..."
 
 
+def _find_nested_field(container: Any, target_keys: tuple[str, ...], max_depth: int = 12) -> Any:
+    """Walk nested dict/list structures and return the first value whose key is in target_keys.
+
+    Needed because verbatim protocols (NGAP) keep tshark's tree structure, so
+    fields like `ngap.procedureCode` or `nas_5gs.mm.message_type` sit inside
+    `..._tree` sub-dicts rather than at the top level.
+    """
+    if not isinstance(container, (dict, list)) or max_depth <= 0:
+        return None
+    if isinstance(container, dict):
+        for key in target_keys:
+            if key in container and not isinstance(container[key], (dict, list)):
+                return container[key]
+        for value in container.values():
+            found = _find_nested_field(value, target_keys, max_depth - 1)
+            if found is not None:
+                return found
+        return None
+    for item in container:
+        found = _find_nested_field(item, target_keys, max_depth - 1)
+        if found is not None:
+            return found
+    return None
+
+
 def _bool_from_field(value: Any) -> bool | None:
     text = _to_text(value)
     if text is None:
@@ -55,8 +90,8 @@ def _bool_from_field(value: Any) -> bool | None:
 
 
 _GTPV2_MESSAGE_NAMES: dict[int, str] = {
-    1: "Echo Request",
-    2: "Echo Response",
+    1: "Echo",
+    2: "Echo",
     32: "Create Session",
     33: "Create Session",
     34: "Modify Bearer",
@@ -239,6 +274,169 @@ def _http_status_label(code: int) -> str:
     return f"HTTP {code}"
 
 
+_NGAP_PROCEDURE_NAMES: dict[int, str] = {
+    0: "AMFConfigurationUpdate",
+    4: "HandoverCancel",
+    5: "HandoverPreparation",
+    6: "HandoverResourceAllocation",
+    7: "InitialContextSetup",
+    9: "NGReset",
+    10: "NGSetup",
+    11: "PathSwitchRequest",
+    12: "PDUSessionResourceModify",
+    13: "PDUSessionResourceModifyIndication",
+    14: "PDUSessionResourceRelease",
+    15: "PDUSessionResourceSetup",
+    16: "PWSCancel",
+    17: "RANConfigurationUpdate",
+    18: "UEContextModification",
+    19: "UEContextRelease",
+    20: "UERadioCapabilityCheck",
+    21: "WriteReplaceWarning",
+    22: "AMFStatusIndication",
+    23: "CellTrafficTrace",
+    24: "DeactivateTrace",
+    25: "DownlinkNASTransport",
+    26: "DownlinkNonUEAssociatedNRPPaTransport",
+    27: "DownlinkRANConfigurationTransfer",
+    28: "DownlinkRANStatusTransfer",
+    29: "DownlinkUEAssociatedNRPPaTransport",
+    30: "ErrorIndication",
+    31: "HandoverNotification",
+    32: "InitialUEMessage",
+    33: "LocationReportingControl",
+    34: "LocationReportingFailureIndication",
+    35: "LocationReport",
+    36: "NASNonDeliveryIndication",
+    37: "OverloadStart",
+    38: "OverloadStop",
+    39: "Paging",
+    40: "PDUSessionResourceNotify",
+    41: "PrivateMessage",
+    42: "PWSFailureIndication",
+    43: "PWSRestartIndication",
+    44: "RerouteNASRequest",
+    45: "RRCInactiveTransitionReport",
+    46: "TraceFailureIndication",
+    47: "TraceStart",
+    48: "UEContextReleaseRequest",
+    49: "UEInformationTransfer",
+    50: "UERadioCapabilityInfoIndication",
+    51: "UETNLABindingRelease",
+    52: "UplinkNASTransport",
+    53: "UplinkNonUEAssociatedNRPPaTransport",
+    54: "UplinkRANConfigurationTransfer",
+    55: "UplinkRANStatusTransfer",
+    56: "UplinkUEAssociatedNRPPaTransport",
+}
+
+
+def _ngap_procedure_label(code: int) -> str:
+    name = _NGAP_PROCEDURE_NAMES.get(code)
+    return f"{name} ({code})" if name else f"NGAP Procedure {code}"
+
+
+_NAS_EPS_MESSAGE_NAMES: dict[int, str] = {
+    0x41: "Attach Request",
+    0x42: "Attach Accept",
+    0x43: "Attach Complete",
+    0x44: "Attach Reject",
+    0x45: "Detach Request",
+    0x46: "Detach Accept",
+    0x48: "Tracking Area Update Request",
+    0x49: "Tracking Area Update Accept",
+    0x4a: "Tracking Area Update Complete",
+    0x4b: "Tracking Area Update Reject",
+    0x4c: "Extended Service Request",
+    0x4d: "Service Reject",
+    0x4e: "Service Request",
+    0x50: "GUTI Reallocation Command",
+    0x51: "GUTI Reallocation Complete",
+    0x52: "Authentication Request",
+    0x53: "Authentication Response",
+    0x54: "Authentication Reject",
+    0x5c: "Authentication Failure",
+    0x55: "Identity Request",
+    0x56: "Identity Response",
+    0x5d: "Security Mode Command",
+    0x5e: "Security Mode Complete",
+    0x5f: "Security Mode Reject",
+    0x60: "EMM Status",
+    0x61: "EMM Information",
+    0x62: "Downlink NAS Transport",
+    0x63: "Uplink NAS Transport",
+    0xc1: "Activate Default EPS Bearer Context Request",
+    0xc2: "Activate Default EPS Bearer Context Accept",
+    0xc3: "Activate Default EPS Bearer Context Reject",
+    0xc5: "Activate Dedicated EPS Bearer Context Request",
+    0xc6: "Activate Dedicated EPS Bearer Context Accept",
+    0xc7: "Activate Dedicated EPS Bearer Context Reject",
+    0xc9: "Modify EPS Bearer Context Request",
+    0xca: "Modify EPS Bearer Context Accept",
+    0xcb: "Modify EPS Bearer Context Reject",
+    0xcd: "Deactivate EPS Bearer Context Request",
+    0xce: "Deactivate EPS Bearer Context Accept",
+    0xd0: "PDN Connectivity Request",
+    0xd1: "PDN Connectivity Reject",
+    0xd2: "PDN Disconnect Request",
+    0xd3: "PDN Disconnect Reject",
+}
+
+
+_NAS_5GS_MESSAGE_NAMES: dict[int, str] = {
+    0x41: "Registration Request",
+    0x42: "Registration Accept",
+    0x43: "Registration Complete",
+    0x44: "Registration Reject",
+    0x45: "Deregistration Request (UE originating)",
+    0x46: "Deregistration Accept (UE originating)",
+    0x47: "Deregistration Request (UE terminated)",
+    0x48: "Deregistration Accept (UE terminated)",
+    0x4c: "Service Request",
+    0x4d: "Service Reject",
+    0x4e: "Service Accept",
+    0x54: "Configuration Update Command",
+    0x55: "Configuration Update Complete",
+    0x56: "Authentication Request",
+    0x57: "Authentication Response",
+    0x58: "Authentication Reject",
+    0x59: "Authentication Failure",
+    0x5a: "Authentication Result",
+    0x5b: "Identity Request",
+    0x5c: "Identity Response",
+    0x5d: "Security Mode Command",
+    0x5e: "Security Mode Complete",
+    0x5f: "Security Mode Reject",
+    0x64: "5GMM Status",
+    0x65: "Notification",
+    0x66: "Notification Response",
+    0x67: "UL NAS Transport",
+    0x68: "DL NAS Transport",
+    0xc1: "PDU Session Establishment Request",
+    0xc2: "PDU Session Establishment Accept",
+    0xc3: "PDU Session Establishment Reject",
+    0xc5: "PDU Session Authentication Command",
+    0xc6: "PDU Session Authentication Complete",
+    0xc7: "PDU Session Authentication Result",
+    0xc9: "PDU Session Modification Request",
+    0xca: "PDU Session Modification Reject",
+    0xcb: "PDU Session Modification Command",
+    0xcc: "PDU Session Modification Complete",
+    0xcd: "PDU Session Modification Command Reject",
+    0xd1: "PDU Session Release Request",
+    0xd2: "PDU Session Release Reject",
+    0xd3: "PDU Session Release Command",
+    0xd4: "PDU Session Release Complete",
+    0xd6: "5GSM Status",
+}
+
+
+def _nas_label(code: int, variant: str) -> str:
+    table = _NAS_5GS_MESSAGE_NAMES if variant == "5gs" else _NAS_EPS_MESSAGE_NAMES
+    name = table.get(code)
+    return name if name else f"NAS-{variant.upper()} 0x{code:02x}"
+
+
 def _label_for_endpoint(endpoint: dict[str, Any] | None) -> str:
     if not endpoint:
         return "unknown"
@@ -283,6 +481,10 @@ def _event_name(packet: dict[str, Any]) -> str:
 
     message_name = _to_text(fields.get("message_name"))
     if message_name:
+        # If Diameter, append the Result-Code so answers carry outcome in the label
+        result_code = _to_int(fields.get("diameter.Result-Code") or fields.get("diameter.result_code"))
+        if result_code is not None and "result" not in message_name.lower():
+            return f"{message_name} · Result {result_code}"
         return message_name
 
     diameter_request = _bool_from_field(fields.get("diameter.flags.request"))
@@ -291,26 +493,56 @@ def _event_name(packet: dict[str, Any]) -> str:
 
     command_code = _to_int(fields.get("command_code") or fields.get("diameter.cmd.code"))
     if command_code is not None:
-        return _diameter_command_label(command_code, diameter_request)
+        label = _diameter_command_label(command_code, diameter_request)
+        result_code = _to_int(fields.get("diameter.Result-Code") or fields.get("diameter.result_code"))
+        if result_code is not None and diameter_request is not True:
+            return f"{label} · Result {result_code}"
+        return label
 
+    # HTTP/2: prefer method + path on requests (":status" marks responses)
     http_status = _to_int(fields.get("http.response.code") or fields.get("http2.headers.status"))
     if http_status is not None:
         return _http_status_label(http_status)
+
+    http2_method = _to_text(fields.get("http2.headers.method"))
+    http2_path = _to_text(fields.get("http2.headers.path"))
+    if http2_method and http2_path:
+        return f"{http2_method} {http2_path}"
+    if http2_path:
+        return http2_path
 
     gtpv2_type = _to_int(fields.get("gtpv2.message_type"))
     if gtpv2_type is not None:
         return _gtpv2_message_label(gtpv2_type)
 
-    candidates = (
-        "nas_eps.message_type",
-        "pfcp.message_type",
-        "ngap.procedureCode",
-        "http2.headers.path",
+    nas_eps_type = _to_int(
+        fields.get("nas_eps.message_type")
+        or _find_nested_field(fields, ("nas_eps.message_type",))
     )
-    for key in candidates:
-        value = fields.get(key)
-        if value not in (None, ""):
-            return str(value)
+    if nas_eps_type is not None:
+        return _nas_label(nas_eps_type, "eps")
+
+    nas_5gs_type = _to_int(
+        fields.get("nas_5gs.mm.message_type")
+        or fields.get("nas_5gs.sm.message_type")
+        or _find_nested_field(
+            fields,
+            ("nas_5gs.mm.message_type", "nas_5gs.sm.message_type", "nas-5gs.mm.message_type", "nas-5gs.sm.message_type"),
+        )
+    )
+    if nas_5gs_type is not None:
+        return _nas_label(nas_5gs_type, "5gs")
+
+    ngap_proc = _to_int(
+        fields.get("ngap.procedureCode")
+        or _find_nested_field(fields, ("ngap.procedureCode",))
+    )
+    if ngap_proc is not None:
+        return _ngap_procedure_label(ngap_proc)
+
+    pfcp_type = fields.get("pfcp.message_type")
+    if pfcp_type not in (None, ""):
+        return str(pfcp_type)
 
     # Last resort: use frame_protocols to identify the application protocol even when
     # the analysis profile only extracts transport-layer fields (e.g. lte-core + SIP pcap)
@@ -690,17 +922,26 @@ def build_flow_model(
         signature = (str(src_key), str(dst_key), str(message_name), str(protocol_name))
 
         if collapse_repeats and events and signature == last_signature:
-            events[-1]["repeat_count"] = int(events[-1].get("repeat_count") or 1) + 1
-            events[-1]["raw_refs"].append({"packet_no": packet.get("packet_no")})
-            events[-1]["detail_label"] = f"pkt {events[-1].get('packet_no')}..{packet.get('packet_no')}"
+            last_event = events[-1]
+            last_event["repeat_count"] = int(last_event.get("repeat_count") or 1) + 1
+            last_event["raw_refs"].append({"packet_no": packet.get("packet_no")})
+            last_event["last_packet_no"] = packet.get("packet_no")
+            last_event["last_relative_ms"] = relative_ms
+            first_no = last_event.get("first_packet_no")
+            last_no = last_event.get("last_packet_no")
+            last_event["detail_label"] = f"pkt {first_no}..{last_no}"
             continue
 
         events.append(
             {
                 "id": f"event-{len(events) + 1}",
                 "packet_no": packet.get("packet_no"),
+                "first_packet_no": packet.get("packet_no"),
+                "last_packet_no": packet.get("packet_no"),
                 "timestamp": packet.get("time_epoch"),
                 "relative_ms": relative_ms,
+                "first_relative_ms": relative_ms,
+                "last_relative_ms": relative_ms,
                 "src_node": src_key,
                 "dst_node": dst_key,
                 "protocol_family": packet.get("top_protocol"),
@@ -784,7 +1025,15 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
         event_y[str(event.get("id"))] = top_margin + (idx - 1) * row_height
 
     parts: list[str] = []
-    parts.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{canvas_width}" height="{height}" viewBox="0 0 {canvas_width} {height}">')
+    parts.append(
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{canvas_width}" height="{height}" '
+        f'viewBox="0 0 {canvas_width} {height}" role="img" aria-labelledby="flow-title flow-desc">'
+    )
+    parts.append(f'<title id="flow-title">{title}</title>')
+    parts.append(
+        f'<desc id="flow-desc">{subtitle} — '
+        f'{len(nodes)} lanes, {len(events)} events.</desc>'
+    )
     parts.append("<defs>")
     parts.append("<marker id=\"arrow\" markerWidth=\"10\" markerHeight=\"7\" refX=\"9\" refY=\"3.5\" orient=\"auto\">")
     parts.append("<polygon points=\"0 0, 10 3.5, 0 7\" fill=\"#3d5a80\" />")
@@ -877,24 +1126,43 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
             color = "#2a9d8f"
 
         packet_no = event.get("packet_no")
+        first_no = event.get("first_packet_no") if event.get("first_packet_no") is not None else packet_no
+        last_no = event.get("last_packet_no") if event.get("last_packet_no") is not None else packet_no
         repeat_count = int(event.get("repeat_count") or 1)
         label_text = str(event.get("short_label") or event.get("message_name") or "event")
         if repeat_count > 1:
-            label_text = f"{label_text} x{repeat_count}"
-        label_text = _truncate(label_text, 56)
+            label_text = f"{label_text} x{repeat_count} (pkts {first_no}–{last_no})"
+        label_text = _truncate(label_text, 64)
         label = escape(label_text)
         protocol = escape(str(event.get("protocol") or ""))
         status = escape(str(event.get("status") or ""))
         session_key = escape(str(event.get("session_key") or ""))
 
+        tooltip_parts = [f"#{packet_no}" if packet_no is not None else "event"]
+        if event.get("message_name"):
+            tooltip_parts.append(str(event.get("message_name")))
+        if repeat_count > 1:
+            tooltip_parts.append(f"repeat x{repeat_count} (pkts {first_no}–{last_no})")
+        tooltip_parts.append(f"{src} → {dst}")
+        if event.get("protocol"):
+            tooltip_parts.append(str(event.get("protocol")))
+        if event.get("relative_ms") is not None:
+            tooltip_parts.append(f"t={event.get('relative_ms')}")
+        if event.get("correlation_id"):
+            tooltip_parts.append(str(event.get("correlation_id")))
+        tooltip = escape(" | ".join(str(p) for p in tooltip_parts if p))
+        shared_attrs = (
+            f'stroke="{color}" stroke-width="1.7" marker-end="{marker}" '
+            f'data-event-id="{escape(str(event.get("id")))}" data-packet-no="{escape(str(packet_no))}" '
+            f'data-protocol="{protocol}" data-session-key="{session_key}" '
+            f'data-src="{escape(str(src))}" data-dst="{escape(str(dst))}" data-status="{status}"'
+        )
+
         if src_x == dst_x:
             loop_to = src_x + 48
             parts.append(
                 f'<path d="M {src_x} {y} C {loop_to} {y-8}, {loop_to} {y+8}, {src_x} {y+16}" '
-                f'stroke="{color}" stroke-width="1.7" fill="none" marker-end="{marker}" '
-                f'data-event-id="{escape(str(event.get("id")))}" data-packet-no="{escape(str(packet_no))}" '
-                f'data-protocol="{protocol}" data-session-key="{session_key}" '
-                f'data-src="{escape(str(src))}" data-dst="{escape(str(dst))}" data-status="{status}" />'
+                f'fill="none" {shared_attrs}><title>{tooltip}</title></path>'
             )
             # clamp to canvas so the label never lands outside the viewport
             text_x = min(loop_to + 8, canvas_width - 120)
@@ -902,11 +1170,8 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
             label_y = y - 8
         else:
             parts.append(
-                f'<line x1="{src_x}" y1="{y}" x2="{dst_x}" y2="{y}" stroke="{color}" stroke-width="1.7" '
-                f'marker-end="{marker}" data-event-id="{escape(str(event.get("id")))}" '
-                f'data-packet-no="{escape(str(packet_no))}" data-protocol="{protocol}" '
-                f'data-session-key="{session_key}" data-src="{escape(str(src))}" '
-                f'data-dst="{escape(str(dst))}" data-status="{status}" />'
+                f'<line x1="{src_x}" y1="{y}" x2="{dst_x}" y2="{y}" '
+                f'{shared_attrs}><title>{tooltip}</title></line>'
             )
             text_x = int((src_x + dst_x) / 2)
             text_anchor = "middle"

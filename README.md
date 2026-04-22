@@ -76,6 +76,8 @@ Every `analyze` run writes a semantically ordered, versioned file set:
 | `analyze_<capture>_start_<n>_V_01_detail.json` | Primary LLM input: normalized packets, filtered fields, privacy applied |
 | `analyze_<capture>_start_<n>_V_01_summary.json` | Sidecar with protocol mix, anomalies, timing, and coverage |
 | `analyze_<capture>_start_<n>_V_01_summary.md` | Human-readable summary |
+| `analyze_<capture>_start_<n>_V_01_flow.json` | Optional signaling flow model (`--render-flow-svg`) |
+| `analyze_<capture>_start_<n>_V_01_flow.svg` | Optional signaling sequence diagram (`--render-flow-svg`) |
 | `analyze_<capture>_start_<n>_V_01_pseudonym_mapping.json` | Only when pseudonymization is active |
 | `analyze_<capture>_start_<n>_V_01_vault.json` | Only when encryption is active |
 
@@ -146,6 +148,14 @@ Practical rule:
 1. run `inspect` or `discover`
 2. narrow with `-Y` until the packet set is meaningful
 3. then run `analyze`
+
+Flow artifacts can be rendered during analyze and re-rendered later without
+running tshark again:
+
+```bash
+pcap2llm analyze trace.pcapng --profile lte-core --render-flow-svg --out ./artifacts
+pcap2llm visualize ./artifacts/analyze_trace_start_1_V_01_flow.json --width 1800
+```
 
 ## Documentation Map
 

@@ -71,7 +71,7 @@ pip install -e .[dev,encrypt]
 
 `pcap2llm` has four practical layers of surface area:
 
-- everyday one-shot commands: `init-config`, `inspect`, `analyze`
+- everyday one-shot commands: `init-config`, `inspect`, `analyze`, `visualize`
 - staged selection/orchestration helpers: `discover`, `recommend-profiles`
 - structured multi-run helpers: `session start`, `session run-discovery`, `session run-profile`, `session finalize`
 - direct external LLM handoff commands: `ask-chatgpt`, `ask-claude`, `ask-gemini`
@@ -178,6 +178,12 @@ Output control:
   --llm-mode              Output strict JSON for agent/automation use
   --verbatim-protocol     Add a protocol to verbatim preservation for this run
   --no-verbatim-protocol  Remove a protocol from verbatim preservation for this run
+  --render-flow-svg       Write additional flow.json and flow.svg artifacts
+  --flow-title            Optional title for generated flow artifacts
+  --flow-max-events       Limit rendered flow events (default: 120, 0=unlimited)
+  --flow-svg-width        SVG width for flow rendering (default: 1600)
+  --collapse-repeats / --no-collapse-repeats
+                          Collapse adjacent identical flow events into xN markers
 
 Endpoint resolution:
   --hosts-file            Wireshark-style hosts file
@@ -203,6 +209,21 @@ TShark:
   --two-pass              Override two-pass dissection mode
   --tshark-path           Path to tshark executable
   --tshark-arg            Extra tshark argument (repeatable)
+```
+
+### `visualize` - Re-render flow SVG from an existing flow JSON
+
+```bash
+pcap2llm visualize ./artifacts/analyze_trace_start_1_V_01_flow.json
+pcap2llm visualize ./artifacts/analyze_trace_start_1_V_01_flow.json --out ./artifacts/flow_custom.svg --width 1800
+```
+
+Reads a previously generated `flow.json` and writes a fresh SVG without rerunning tshark or the analysis pipeline.
+
+**Options:**
+```
+--out                   Output SVG path (default: same stem as input, .svg extension)
+--width                 SVG canvas width in pixels (default: 1600)
 ```
 
 ### `discover` — Broad scout run for orchestrators

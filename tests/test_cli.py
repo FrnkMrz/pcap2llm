@@ -91,6 +91,7 @@ def test_analyze_dry_run_outputs_plan(tmp_path: Path) -> None:
             "1400",
             "--flow-title",
             "Test Flow",
+            "--no-collapse-repeats",
         ],
     )
     assert result.exit_code == 0
@@ -103,6 +104,7 @@ def test_analyze_dry_run_outputs_plan(tmp_path: Path) -> None:
     assert payload["flow_max_events"] == 88
     assert payload["flow_svg_width"] == 1400
     assert payload["flow_title"] == "Test Flow"
+    assert payload["collapse_repeats"] is False
 
 
 def test_analyze_dry_run_includes_effective_verbatim_overrides(tmp_path: Path) -> None:

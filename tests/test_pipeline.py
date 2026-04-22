@@ -514,6 +514,7 @@ class TestAnalyzeCapturePipeline:
                 flow_title="Pipeline Flow",
                 flow_max_events=77,
                 flow_svg_width=1400,
+                collapse_repeats=False,
                 privacy_profile_name="llm-telecom-safe",
             )
 
@@ -526,6 +527,7 @@ class TestAnalyzeCapturePipeline:
         assert kwargs["privacy_profile"] == "llm-telecom-safe"
         assert kwargs["max_events"] == 77
         assert kwargs["title"] == "Pipeline Flow"
+        assert kwargs["collapse_repeats"] is False
         render_flow.assert_called_once_with(fake_flow, width=1400)
 
     def test_full_pipeline_empty_capture(self, tmp_path: Path) -> None:

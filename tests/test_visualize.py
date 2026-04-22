@@ -105,6 +105,23 @@ def test_build_flow_model_pairs_request_and_response() -> None:
     assert second["paired_event_id"] == first["id"]
 
 
+def test_build_flow_model_pairs_without_correlation_id_by_message_base() -> None:
+    packets = [
+        _packet(1, "AMF", "SMF", "Create Session Request"),
+        _packet(2, "SMF", "AMF", "Create Session Response"),
+    ]
+
+    flow = build_flow_model(
+        packets,
+        capture_file="sample.pcapng",
+        profile="lte-s11",
+        privacy_profile=None,
+    )
+
+    assert flow["events"][0]["paired_event_id"] == flow["events"][1]["id"]
+    assert flow["events"][1]["paired_event_id"] == flow["events"][0]["id"]
+
+
 def test_build_flow_model_creates_phases() -> None:
     packets = [
         _packet(1, "MME", "HSS", "Authentication Information Request"),
@@ -124,6 +141,24 @@ def test_build_flow_model_creates_phases() -> None:
     phase_kinds = {phase["kind"] for phase in flow["phases"]}
     assert "authentication" in phase_kinds
     assert "session_setup" in phase_kinds
+
+
+def test_build_flow_model_uses_family_specific_phase_rules_for_5g() -> None:
+    packets = [
+        _packet(1, "UE", "AMF", "Registration Request"),
+        _packet(2, "AMF", "SMF", "Nsmf_CreateSMContext Request"),
+    ]
+
+    flow = build_flow_model(
+        packets,
+        capture_file="sample.pcapng",
+        profile="5g-core",
+        privacy_profile=None,
+    )
+
+    kinds = [phase["kind"] for phase in flow["phases"]]
+    assert "registration" in kinds
+    assert "session_setup" in kinds
 
 
 def test_build_flow_model_uses_profile_family_lane_order() -> None:
@@ -177,3 +212,21 @@ def test_render_flow_svg_includes_phase_and_repeat_marker() -> None:
 
     assert 'class="phases"' in svg
     assert "AIR x2" in svg
+
+
+def test_build_flow_model_no_collapse_keeps_all_events() -> None:
+    packets = [
+        _packet(1, "MME", "HSS", "AIR"),
+        _packet(2, "MME", "HSS", "AIR"),
+    ]
+
+    flow = build_flow_model(
+        packets,
+        capture_file="sample.pcapng",
+        profile="lte-core",
+        privacy_profile=None,
+        collapse_repeats=False,
+    )
+
+    assert flow["event_count_rendered"] == 2
+    assert flow["event_count_uncollapsed"] == 2

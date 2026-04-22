@@ -23,6 +23,17 @@ def _to_int(value: Any) -> int | None:
         return None
 
 
+def _to_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, list):
+        if not value:
+            return None
+        return _to_text(value[0])
+    text = str(value).strip()
+    return text or None
+
+
 def _label_for_endpoint(endpoint: dict[str, Any] | None) -> str:
     if not endpoint:
         return "unknown"
@@ -177,6 +188,22 @@ def _base_message_name(name: str) -> str:
     return lowered
 
 
+def _message_is_response(name: str, status: str) -> bool:
+    lowered = name.lower().strip()
+    if status == "response":
+        return True
+    response_hints = (
+        " response",
+        " answer",
+        " ack",
+        " complete",
+        "accept",
+        "success",
+        " aia",
+    )
+    return any(hint in lowered for hint in response_hints)
+
+
 def _correlation_id(packet: dict[str, Any]) -> str | None:
     fields = ((packet.get("message") or {}).get("fields") or {})
     candidates = (
@@ -191,14 +218,31 @@ def _correlation_id(packet: dict[str, Any]) -> str | None:
         "ngap.RAN_UE_NGAP_ID",
     )
     for key in candidates:
-        value = fields.get(key)
-        if value not in (None, ""):
+        value = _to_text(fields.get(key))
+        if value:
             return f"{key}:{value}"
     return None
 
 
-def _phase_kind(event_name: str, status: str) -> tuple[str, str]:
+def _phase_kind(event_name: str, status: str, profile_family: str) -> tuple[str, str]:
     lowered = event_name.lower()
+
+    if profile_family == "5g":
+        if any(token in lowered for token in ("registration", "initial ue", "ng setup")):
+            return ("registration", "Registration")
+        if any(token in lowered for token in ("nsmf", "createsmcontext", "pdu session", "pfcp")):
+            return ("session_setup", "Session Setup")
+    elif profile_family == "lte":
+        if any(token in lowered for token in ("attach", "initial ue", "downlink nas transport")):
+            return ("registration", "Registration")
+        if any(token in lowered for token in ("create session", "modify bearer", "gtpv2")):
+            return ("session_setup", "Session Setup")
+    elif profile_family == "ims":
+        if any(token in lowered for token in ("register", "401", "407", "challenge")):
+            return ("authentication", "Authentication")
+        if any(token in lowered for token in ("invite", "183", "180", "200 ok", "bye")):
+            return ("signaling", "Call Signaling")
+
     if any(token in lowered for token in ("reject", "fail", "error", "timeout", "401", "403", "500")):
         return ("failure", "Failure / Retry")
     if any(token in lowered for token in ("auth", "air", "aia", "aka", "eap")):
@@ -216,17 +260,26 @@ def _phase_kind(event_name: str, status: str) -> tuple[str, str]:
     return ("signaling", "Signaling")
 
 
-def _build_phases(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _build_phases(events: list[dict[str, Any]], *, profile: str) -> list[dict[str, Any]]:
     if not events:
         return []
 
     phases: list[dict[str, Any]] = []
-    current_kind, current_label = _phase_kind(str(events[0].get("message_name") or ""), str(events[0].get("status") or ""))
+    family = _profile_family(profile)
+    current_kind, current_label = _phase_kind(
+        str(events[0].get("message_name") or ""),
+        str(events[0].get("status") or ""),
+        family,
+    )
     start_event = str(events[0]["id"])
     previous_event_id = str(events[0]["id"])
 
     for event in events[1:]:
-        kind, label = _phase_kind(str(event.get("message_name") or ""), str(event.get("status") or ""))
+        kind, label = _phase_kind(
+            str(event.get("message_name") or ""),
+            str(event.get("status") or ""),
+            family,
+        )
         if kind != current_kind:
             phases.append(
                 {
@@ -256,28 +309,55 @@ def _build_phases(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _correlate_request_response(events: list[dict[str, Any]]) -> None:
-    pending: dict[tuple[str, str, str, str], str] = {}
+    pending: dict[tuple[str, str, str, str], list[str]] = {}
+
+    def _enqueue(key: tuple[str, str, str, str], event_id: str) -> None:
+        pending.setdefault(key, []).append(event_id)
+
+    def _dequeue(key: tuple[str, str, str, str]) -> str | None:
+        queue = pending.get(key)
+        if not queue:
+            return None
+        event_id = queue.pop(0)
+        if not queue:
+            pending.pop(key, None)
+        return event_id
+
     for event in events:
         protocol = str(event.get("protocol") or "")
         correlation_id = str(event.get("correlation_id") or "")
         base = _base_message_name(str(event.get("message_name") or ""))
         src = str(event.get("src_node") or "")
         dst = str(event.get("dst_node") or "")
+        status = str(event.get("status") or "")
 
-        req_key = (protocol, correlation_id or base, src, dst)
-        resp_key = (protocol, correlation_id or base, dst, src)
+        strict_key = correlation_id or base
+        req_key = (protocol, strict_key, src, dst)
+        resp_key = (protocol, strict_key, dst, src)
+        loose_req_key = (protocol, base, src, dst)
+        loose_resp_key = (protocol, base, dst, src)
 
-        if event.get("is_request"):
-            pending[req_key] = str(event["id"])
+        if not _message_is_response(str(event.get("message_name") or ""), status) and not event.get("is_response"):
+            _enqueue(req_key, str(event["id"]))
+            if req_key != loose_req_key:
+                _enqueue(loose_req_key, str(event["id"]))
             continue
 
-        if event.get("is_response") and resp_key in pending:
-            paired_id = pending.pop(resp_key)
-            event["paired_event_id"] = paired_id
-            for candidate in events:
-                if str(candidate.get("id")) == paired_id:
-                    candidate["paired_event_id"] = str(event["id"])
-                    break
+        paired_id = _dequeue(resp_key)
+        if paired_id is None and resp_key != loose_resp_key:
+            paired_id = _dequeue(loose_resp_key)
+        if paired_id is None:
+            continue
+
+        event["is_response"] = True
+        event["is_request"] = False
+        event["status"] = "response" if status != "error" else status
+        event["message_type"] = event["status"]
+        event["paired_event_id"] = paired_id
+        for candidate in events:
+            if str(candidate.get("id")) == paired_id:
+                candidate["paired_event_id"] = str(event["id"])
+                break
 
 
 def build_flow_model(
@@ -375,7 +455,7 @@ def build_flow_model(
         last_signature = signature
 
     _correlate_request_response(events)
-    phases = _build_phases(events)
+    phases = _build_phases(events, profile=profile)
 
     nodes = _lane_order(list(node_map.values()), profile=profile)
     for lane_index, node in enumerate(nodes):

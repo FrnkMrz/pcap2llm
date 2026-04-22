@@ -133,6 +133,7 @@ def analyze_capture(
     flow_title: str | None = None,
     flow_max_events: int = 120,
     flow_svg_width: int = 1600,
+    collapse_repeats: bool = True,
     privacy_profile_name: str | None = None,
     on_stage: OnStage | None = None,
 ) -> AnalyzeArtifacts:
@@ -329,6 +330,7 @@ def analyze_capture(
             privacy_profile=privacy_profile_name,
             max_events=flow_max_events,
             title=flow_title,
+            collapse_repeats=collapse_repeats,
         )
         flow_svg = render_flow_svg(flow, width=flow_svg_width)
 

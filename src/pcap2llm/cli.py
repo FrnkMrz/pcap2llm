@@ -692,6 +692,11 @@ def analyze_command(
         "--flow-svg-width",
         help="SVG canvas width for flow rendering.",
     ),
+    collapse_repeats: bool = typer.Option(
+        True,
+        "--collapse-repeats/--no-collapse-repeats",
+        help="Collapse adjacent identical flow events into xN markers.",
+    ),
     ip_mode: str | None = typer.Option(None, "--ip-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
     hostname_mode: str | None = typer.Option(None, "--hostname-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
     subscriber_id_mode: str | None = typer.Option(None, "--subscriber-id-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
@@ -784,6 +789,7 @@ def analyze_command(
                 flow_max_events=flow_max_events,
                 flow_svg_width=flow_svg_width,
                 flow_title=flow_title,
+                collapse_repeats=collapse_repeats,
             )
         else:
             payload = {
@@ -799,6 +805,7 @@ def analyze_command(
                 "flow_title": flow_title,
                 "flow_max_events": flow_max_events,
                 "flow_svg_width": flow_svg_width,
+                "collapse_repeats": collapse_repeats,
                 "privacy_modes": privacy_modes,
                 "effective_verbatim_protocols": effective_verbatim_protocols,
                 "effective_profile_overrides": effective_profile_overrides,
@@ -840,6 +847,7 @@ def analyze_command(
                 flow_title=flow_title,
                 flow_max_events=flow_max_events,
                 flow_svg_width=flow_svg_width,
+                collapse_repeats=collapse_repeats,
                 privacy_profile_name=privacy_profile_name or config_data.get("privacy_profile"),
                 on_stage=on_stage,
             )
@@ -941,6 +949,7 @@ def analyze_command(
             "render_flow_svg": render_flow_svg,
             "flow_max_events": flow_max_events,
             "flow_svg_width": flow_svg_width,
+            "collapse_repeats": collapse_repeats,
         },
         warnings=warnings,
         schema_versions={

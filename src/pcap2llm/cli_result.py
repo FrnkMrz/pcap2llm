@@ -32,6 +32,7 @@ def build_dry_run_payload(
     flow_max_events: int,
     flow_svg_width: int,
     flow_title: str | None,
+    collapse_repeats: bool,
 ) -> dict[str, Any]:
     return {
         "status": "ok",
@@ -50,6 +51,7 @@ def build_dry_run_payload(
             "render_flow_svg": render_flow_svg,
             "flow_max_events": flow_max_events,
             "flow_svg_width": flow_svg_width,
+            "collapse_repeats": collapse_repeats,
         },
         "flow_title": flow_title,
         "privacy_modes": privacy_modes,

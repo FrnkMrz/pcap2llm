@@ -25,7 +25,7 @@ pytest tests/test_pipeline.py -v
 # Lint
 ruff check .
 
-# CLI usage
+# CLI usage — core commands
 pcap2llm inspect sample.pcapng --profile lte-core
 pcap2llm analyze sample.pcapng --profile lte-core --out ./artifacts
 pcap2llm analyze sample.pcapng --profile lte-core --max-packets 500 --out ./artifacts
@@ -33,6 +33,28 @@ pcap2llm analyze sample.pcapng --profile lte-core --all-packets --out ./artifact
 pcap2llm analyze sample.pcapng --profile lte-core --privacy-profile share --out ./artifacts
 pcap2llm analyze sample.pcapng --profile lte-core --llm-mode --out ./artifacts
 pcap2llm init-config
+
+# Discovery → profile recommendation → analyze flow
+pcap2llm discover sample.pcapng --out ./artifacts
+pcap2llm recommend-profiles ./artifacts/<discovery>.json   # also accepts a raw capture
+
+# Flow (sequence-diagram) rendering
+pcap2llm analyze sample.pcapng --profile lte-s6a --render-flow-svg --out ./artifacts
+pcap2llm visualize ./artifacts/<flow>.json                 # re-render SVG without re-running pipeline
+
+# External-LLM handoff (uses llm-telecom-safe by default — see Documented Agent Workflow)
+pcap2llm ask-chatgpt sample.pcapng --question "..."
+pcap2llm ask-claude  sample.pcapng --question "..."
+pcap2llm ask-gemini  sample.pcapng --question "..."
+
+# Multi-run session orchestration
+pcap2llm session start sample.pcapng --out ./artifacts
+pcap2llm session run-discovery --session ./artifacts/<session-dir>
+pcap2llm session run-profile   --session ./artifacts/<session-dir> --profile lte-s6a
+pcap2llm session finalize      --session ./artifacts/<session-dir>
+
+# Local batch runner (reads batches/*.toml; captures not committed)
+python3 scripts/run_local_batches.py batches/local_examples.toml
 ```
 
 ## Source Modules
@@ -40,12 +62,13 @@ pcap2llm init-config
 | Module | Purpose |
 |---|---|
 | `pipeline.py` | Main orchestrator — two-pass pipeline, file naming, capture size guard |
-| `cli.py` | Typer CLI — 3 commands, privacy resolution, progress display, LLM mode |
+| `cli.py` | Typer CLI — 9 top-level commands + `session` subcommands, privacy resolution, progress display, LLM mode |
 | `models.py` | Pydantic v2 data models and schema constants |
 | `index_models.py` | `PacketIndexRecord`, `SelectedFrames`, `parse_index_row()` — pass-1 data model |
 | `index_inspector.py` | Pass-1 inspection: `inspect_index_records()`, `select_frame_numbers()` |
 | `normalizer.py` | TShark JSON → `NormalizedPacket`; verbatim protocol passthrough |
 | `inspector.py` | Thin wrapper for inspection with `on_stage` callback support |
+| `inspect_enrichment.py` | Domain detection, trace shape, classification state, anomaly enrichment over pass-1 results |
 | `reducer.py` | Strips transport fields to profile-specified set |
 | `protector.py` | Privacy enforcement — BLAKE2s pseudonyms, Fernet encryption, masking |
 | `resolver.py` | IP/hostname → enriched endpoint (hosts file, YAML mapping, CIDR, port inference) |
@@ -59,6 +82,14 @@ pcap2llm init-config
 | `cli_result.py` | LLM-mode JSON result payload builders |
 | `error_codes.py` | Maps exception messages to machine-readable error codes |
 | `tshark_runner.py` | Runs `tshark -n -r <pcap> -T json`, parses and validates output |
+| `output_metadata.py` | `semantic_artifact_filename()` — timestamp prefix + `_V_NN[_kind]` naming for every output file |
+| `discovery.py` | `discover` command: protocol-family / trace-shape summary used as input to profile selection |
+| `recommendation.py` | `recommend-profiles` scoring engine — domain inference, evidence classes, host/peer hints |
+| `signaling.py` | Protocol canonicalization + dominant-signaling detection shared by discovery & recommendation |
+| `sessions.py` | Session manifest I/O (`start`, `append_run`, `build_session_report`) for multi-run orchestration |
+| `visualize.py` | Flow model + SVG renderer — lanes (NEs), events (messages), phases; `build_flow_model()` / `render_flow_svg()` |
+| `chatgpt.py` / `claude.py` / `gemini.py` | `ask-*` commands — bundle artifacts + question for external-LLM handoff |
+| `local_batch_runner.py` | TOML-driven batch runner for curated local captures (see `batches/*.toml`) |
 
 ## Architecture
 
@@ -100,9 +131,19 @@ Default behavior for that workflow:
 - `ArtifactCoverage` — tracks `detail_packets_included`, `detail_packets_available`, `detail_truncated`, `truncation_note`
 - `AnalyzeArtifacts` — internal pipeline return value before file writing
 
-**CLI** (`cli.py`) — Typer, 3 commands. Exit code 1 on all errors; errors to stderr. Progress via `rich` on TTYs (spinner + step counter), plain `[N/M] description` on non-TTY. `--llm-mode` switches stdout to strict JSON with status, coverage, warnings, and error codes for agent/automation use.
+**CLI** (`cli.py`) — Typer. 9 top-level commands (`init-config`, `inspect`, `discover`, `recommend-profiles`, `analyze`, `ask-chatgpt`, `ask-claude`, `ask-gemini`, `visualize`) plus the `session` subapp (`start`, `run-discovery`, `run-profile`, `finalize`). Exit code 1 on all errors; errors to stderr. Progress via `rich` on TTYs (spinner + step counter), plain `[N/M] description` on non-TTY. `--llm-mode` (on `analyze`) switches stdout to strict JSON with status, coverage, warnings, and error codes for agent/automation use.
 
 **Endpoint resolution** (`resolver.py`) — lookup order: exact IP → case-insensitive hostname → CIDR subnet → port-based role inference.
+
+**Flow visualization** (`visualize.py`, opt-in via `analyze --render-flow-svg`) — produces `flow.json` + `flow.svg` sidecars. `build_flow_model()` derives lanes (network elements), events (signaling messages), and phases (call-flow stages); `render_flow_svg()` emits an SVG sequence diagram. Lane ordering is profile-family aware (5G gNB/AMF/SMF/UPF, LTE eNB/MME/SGW/PGW/HSS, IMS P/I/S-CSCF, …). Endpoint key priority is `alias → ip → hostname → role` — do **not** reorder: `role`-first collides distinct NEs sharing the same protocol role onto one lane. Arrow labels always sit at `y - 8` (uniform above-arrow) to guarantee a full `row_height` gap between consecutive labels. A `frame_protocols` fallback map recovers a real protocol name (`SIP`, `NGAP`, `NAS-5GS`, `S1AP`, `PFCP`, `GTPv1/2`, `Diameter`, `RADIUS`, `SCCP`, `MAP`, `ISUP`) when the analysis profile did not extract app-layer fields. The standalone `visualize <flow.json>` command re-renders an SVG without re-running the pipeline.
+
+**Discovery & recommendation** (`discovery.py`, `recommendation.py`, `signaling.py`) — `discover` inspects a capture and writes a discovery JSON/Markdown artifact (protocol families, trace shape, resolved peers, anomalies). `recommend-profiles` scores profiles from either the discovery JSON or a raw capture, using protocol evidence classes, domain inference, peer-role hints, and DNS naming evidence. These power the "Documented Agent Workflow" below.
+
+**Session orchestration** (`sessions.py`) — `session start` creates a session directory with a manifest, captures a SHA-256 of the pcap, and writes a session ID. Subsequent `session run-discovery` / `session run-profile` calls append run records via `append_run()`; `session finalize` marks status and writes a report. Manifest path: `session_manifest_path(session_dir)`.
+
+**External-LLM handoff** (`chatgpt.py`, `claude.py`, `gemini.py`) — the `ask-*` commands generate artifacts, build a prompt via `build_*_prompt()` (using `DEFAULT_CHATGPT_QUESTION` / `DEFAULT_SYSTEM_PROMPT` unless overridden), and write handoff files. The default system prompt constrains the LLM to the supplied artifacts and forbids inventing packets or states.
+
+**Output filenames** (`output_metadata.py`) — every artifact goes through `semantic_artifact_filename()`, which produces `{action}_{capture_stem}_{YYYYMMDD_HHMMSS}_V_NN[_kind].{ext}`. Timestamp comes from the first packet epoch; `_V_01` is always present and auto-increments on collision. `artifact_kind` differentiates sidecars (`flow`, `summary`, `detail`, `mapping`, `vault`, …) within one run.
 
 ## Key Design Decisions
 
@@ -170,9 +211,55 @@ Default behavior for that workflow:
 --force  overwrite existing file
 ```
 
+### `discover`
+```
+capture               input .pcap/.pcapng
+--out                 artifact output directory (default: artifacts)
+--display-filter/-Y   tshark display filter
+--config              optional YAML config file
+--two-pass / --tshark-path / --tshark-arg
+```
+
+### `recommend-profiles`
+```
+source                discovery JSON file OR raw capture
+--display-filter/-Y   only meaningful when source is a capture
+--config / --two-pass / --tshark-path / --tshark-arg
+```
+
+### `visualize`
+```
+flow_json             input flow.json from analyze --render-flow-svg
+--out                 output SVG path (default: same stem, .svg)
+--width               SVG canvas width in px (default: 1600)
+```
+
+### `analyze` — additional flags not in the main list above
+```
+--render-flow-svg     emit flow.json + flow.svg sidecars
+```
+
+### `ask-chatgpt` / `ask-claude` / `ask-gemini`
+```
+capture               input .pcap/.pcapng
+--question            question to send with the bundled artifacts
+                      (default: DEFAULT_CHATGPT_QUESTION — asks for evidence-first
+                      failure analysis with ranked root causes)
+# Inherits analyze flags (profile, privacy-profile, out, …).
+# Never sends raw PCAP, mapping, or vault material.
+```
+
+### `session <start|run-discovery|run-profile|finalize>`
+```
+session start <capture>      --out <dir>
+session run-discovery         --session <session-dir>
+session run-profile           --session <session-dir> --profile <name>
+session finalize              --session <session-dir> --status completed|failed
+```
+
 ## Test Suite
 
-27 test modules in `tests/`. Key ones:
+32 test modules in `tests/`. Key ones:
 
 | File | What it covers |
 |---|---|
@@ -192,3 +279,20 @@ Default behavior for that workflow:
 | `test_discovery.py` | Discovery artifacts, versioned filenames, JSON/Markdown output |
 | `test_orchestration.py` | Session manifests, multi-run orchestration |
 | `test_profiles.py` | Profile YAML loading, selector_metadata, verbatim_protocols |
+| `test_profiles_5g_core_interfaces.py` / `test_profiles_2g3g_interfaces.py` / `test_profiles_volte_vonr.py` | Per-family profile coverage (5G SBI/N-interfaces, 2G/3G SS7/GERAN, VoLTE/VoNR) |
+| `test_visualize.py` | Flow model construction, lane ordering, SVG rendering, label placement |
+| `test_protector.py` | Pseudonymization, masking, Fernet encryption, vault-key validation |
+| `test_resolver.py` / `test_resolver_extended.py` | Endpoint resolution lookup order, CIDR subnets, role inference |
+| `test_summarizer.py` / `test_summarizer_extended.py` | Timing stats, burst detection, protocol counts |
+| `test_inspector.py` | Inspector wrapper, `on_stage` callback wiring |
+| `test_local_hosts.py` | Wireshark hosts-file parsing (see `examples/wireshark_hosts.sample`) |
+| `test_chatgpt.py` / `test_claude.py` / `test_gemini.py` | External-LLM handoff prompt assembly and file layout |
+| `test_local_batch_runner.py` | TOML batch definition loading, case selection, path resolution |
+| `test_package_metadata_checker.py` | Guards against stale pyproject metadata |
+
+## Dev scripts (`scripts/`)
+
+- `run_local_batches.py` — executes `batches/*.toml` suites against local PCAPs (not committed)
+- `benchmark_pipeline.py` — lightweight two-pass pipeline benchmark
+- `update_golden.py` — regenerate golden corpus fixtures
+- `install-git-hooks.sh` / `git-hooks/` — local git hook setup

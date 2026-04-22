@@ -231,7 +231,7 @@ def test_render_flow_svg_contains_event_metadata_attributes() -> None:
     assert "AIR" in svg
 
 
-def test_render_flow_svg_includes_phase_and_repeat_marker() -> None:
+def test_render_flow_svg_omits_phase_band_and_keeps_repeat_marker() -> None:
     packets = [
         _packet(1, "MME", "HSS", "AIR"),
         _packet(2, "MME", "HSS", "AIR"),
@@ -245,8 +245,39 @@ def test_render_flow_svg_includes_phase_and_repeat_marker() -> None:
 
     svg = render_flow_svg(flow, width=1200)
 
-    assert 'class="phases"' in svg
+    assert 'class="phases"' not in svg
+    assert ">Authentication<" not in svg
+    assert ">#1<" in svg
     assert "AIR x2" in svg
+
+
+def test_render_flow_svg_separates_title_from_lane_labels() -> None:
+    packets = [
+        {
+            "packet_no": 1,
+            "time_rel_ms": 1.0,
+            "time_epoch": "1712390001.0",
+            "top_protocol": "diameter",
+            "src": {"hostname": "mme01.local", "ip": "10.0.0.10", "role": "mme"},
+            "dst": {"hostname": "hss01.local", "ip": "10.0.0.20", "role": "hss"},
+            "anomalies": [],
+            "message": {"protocol": "diameter", "fields": {"message_name": "AIR"}},
+        }
+    ]
+    flow = build_flow_model(
+        packets,
+        capture_file="sample.pcapng",
+        profile="lte-core",
+        privacy_profile=None,
+        title="Flow Test",
+    )
+
+    svg = render_flow_svg(flow, width=1200)
+
+    assert '<text x="24" y="60"' in svg
+    assert '<line x1="18" y1="82"' in svg
+    assert 'y="112" text-anchor="middle" font-weight="bold"' in svg
+    assert 'y1="154"' in svg
 
 
 def test_build_flow_model_no_collapse_keeps_all_events() -> None:

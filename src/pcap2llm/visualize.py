@@ -1144,21 +1144,21 @@ def build_flow_model(
 def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
     nodes = flow.get("nodes") or []
     events = flow.get("events") or []
-    phases = flow.get("phases") or []
     title = escape(str(flow.get("title") or "Signaling Flow"))
     subtitle = escape(str(flow.get("subtitle") or ""))
 
     left_margin = 130
     right_margin = 90
-    top_margin = 170
+    top_margin = 210
     row_height = 34
     footer_height = 60
 
     lane_count = max(1, len(nodes))
     lane_spacing = max(220, int((width - left_margin - right_margin) / lane_count))
     canvas_width = max(width, left_margin + right_margin + lane_spacing * lane_count)
-    # 3 header lines: role + name + ip  →  need 36 px for labels (y=62,74,86) before lane_top=100
-    lane_label_y = 62
+    # Keep lane labels well below the title/subtitle block. Three-line
+    # endpoint labels (role + name + IP) occupy y=112..138 before lane_top=154.
+    lane_label_y = 112
     height = top_margin + max(1, len(events)) * row_height + footer_height
 
     node_x: dict[str, int] = {}
@@ -1189,12 +1189,12 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
     parts.append("</defs>")
 
     parts.append('<rect x="0" y="0" width="100%" height="100%" fill="#f8f8f2" />')
-    parts.append(f'<text x="24" y="30" font-family="Georgia, serif" font-size="20" fill="#1f2a44">{title}</text>')
-    parts.append(f'<text x="24" y="56" font-family="Georgia, serif" font-size="13" fill="#3a4a66">{subtitle}</text>')
-    parts.append(f'<line x1="18" y1="64" x2="{canvas_width - 18}" y2="64" stroke="#d7dde8" stroke-width="1" />')
+    parts.append(f'<text x="24" y="32" font-family="Georgia, serif" font-size="20" fill="#1f2a44">{title}</text>')
+    parts.append(f'<text x="24" y="60" font-family="Georgia, serif" font-size="13" fill="#3a4a66">{subtitle}</text>')
+    parts.append(f'<line x1="18" y1="82" x2="{canvas_width - 18}" y2="82" stroke="#d7dde8" stroke-width="1" />')
 
     parts.append('<g class="lanes">')
-    lane_top = 100
+    lane_top = 154
     lane_bottom = top_margin + max(1, len(events)) * row_height
     for node in nodes:
         x = node_x[node["id"]]
@@ -1224,34 +1224,6 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
                 f'{weight}font-family="Georgia, serif" font-size="11" fill={color}>{escape(text)}</text>'
             )
         parts.append(f'<line x1="{x}" y1="{lane_top}" x2="{x}" y2="{lane_bottom}" stroke="#b9c1cc" stroke-width="1.2" />')
-    parts.append("</g>")
-
-    phase_color = {
-        "registration": "#e8f1ff",
-        "authentication": "#eef8e9",
-        "security": "#fff7dd",
-        "session_setup": "#f3ecff",
-        "failure": "#ffecec",
-        "release": "#f0f0f0",
-        "signaling": "#f7f7f7",
-    }
-    parts.append('<g class="phases">')
-    for phase in phases:
-        start_y = event_y.get(str(phase.get("start_event")))
-        end_y = event_y.get(str(phase.get("end_event")))
-        if start_y is None or end_y is None:
-            continue
-        y = min(start_y, end_y) - 12
-        h = abs(end_y - start_y) + row_height
-        kind = str(phase.get("kind") or "signaling")
-        fill = phase_color.get(kind, "#f7f7f7")
-        label = escape(str(phase.get("label") or "Phase"))
-        parts.append(
-            f'<rect x="8" y="{y}" width="108" height="{h}" fill="{fill}" stroke="#d2d8e2" stroke-width="0.8" rx="4" />'
-        )
-        parts.append(
-            f'<text x="14" y="{y + 16}" font-family="Georgia, serif" font-size="10" fill="#2f3a4d">{label}</text>'
-        )
     parts.append("</g>")
 
     parts.append('<g class="events">')
@@ -1329,7 +1301,6 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
             f'<text x="{text_x}" y="{label_y}" text-anchor="{text_anchor}" font-family="Georgia, serif" '
             f'font-size="11" fill="#2c3647">{label}</text>'
         )
-        # Packet-Nr. rechts-bündig an left_margin-Kante, klar rechts vom Phase-Band (endet ~x=116)
         parts.append(
             f'<text x="{left_margin - 4}" y="{y + 4}" text-anchor="end" font-family="Courier New, monospace" font-size="10" fill="#5b6473">{escape(meta_label)}</text>'
         )

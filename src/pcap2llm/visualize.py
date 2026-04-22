@@ -1180,6 +1180,14 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
         f'{len(nodes)} lanes, {len(events)} events.</desc>'
     )
     parts.append("<defs>")
+    parts.append(
+        "<style>"
+        ".event-tooltip{display:none;pointer-events:none;font-family:Georgia,serif;"
+        "font-size:11px;fill:#111827;paint-order:stroke;stroke:#f8f8f2;"
+        "stroke-width:4px;stroke-linejoin:round;}"
+        ".event:hover .event-tooltip{display:inline;}"
+        "</style>"
+    )
     parts.append("<marker id=\"arrow\" markerWidth=\"10\" markerHeight=\"7\" refX=\"9\" refY=\"3.5\" orient=\"auto\">")
     parts.append("<polygon points=\"0 0, 10 3.5, 0 7\" fill=\"#3d5a80\" />")
     parts.append("</marker>")
@@ -1268,18 +1276,26 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
         if event.get("correlation_id"):
             tooltip_parts.append(str(event.get("correlation_id")))
         tooltip = escape(" | ".join(str(p) for p in tooltip_parts if p))
-        shared_attrs = (
-            f'stroke="{color}" stroke-width="1.7" marker-end="{marker}" '
+        visible_tooltip = escape(_truncate(" | ".join(str(p) for p in tooltip_parts if p), 96))
+        event_attrs = (
             f'data-event-id="{escape(str(event.get("id")))}" data-packet-no="{escape(str(packet_no))}" '
             f'data-protocol="{protocol}" data-session-key="{session_key}" '
             f'data-src="{escape(str(src))}" data-dst="{escape(str(dst))}" data-status="{status}"'
         )
+        visible_attrs = f'stroke="{color}" stroke-width="1.7" marker-end="{marker}"'
+
+        parts.append(f'<g class="event" cursor="help" {event_attrs}>')
+        parts.append(f'<title>{tooltip}</title>')
 
         if src_x == dst_x:
             loop_to = src_x + 48
+            path_d = f"M {src_x} {y} C {loop_to} {y-8}, {loop_to} {y+8}, {src_x} {y+16}"
             parts.append(
-                f'<path d="M {src_x} {y} C {loop_to} {y-8}, {loop_to} {y+8}, {src_x} {y+16}" '
-                f'fill="none" {shared_attrs}><title>{tooltip}</title></path>'
+                f'<path d="{path_d}" fill="none" stroke="transparent" stroke-width="18" '
+                f'pointer-events="stroke" />'
+            )
+            parts.append(
+                f'<path d="{path_d}" fill="none" {visible_attrs} pointer-events="none" />'
             )
             # clamp to canvas so the label never lands outside the viewport
             text_x = min(loop_to + 8, canvas_width - 120)
@@ -1288,7 +1304,11 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
         else:
             parts.append(
                 f'<line x1="{src_x}" y1="{y}" x2="{dst_x}" y2="{y}" '
-                f'{shared_attrs}><title>{tooltip}</title></line>'
+                f'stroke="transparent" stroke-width="18" pointer-events="stroke" />'
+            )
+            parts.append(
+                f'<line x1="{src_x}" y1="{y}" x2="{dst_x}" y2="{y}" '
+                f'{visible_attrs} pointer-events="none" />'
             )
             text_x = int((src_x + dst_x) / 2)
             text_anchor = "middle"
@@ -1304,6 +1324,10 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
         parts.append(
             f'<text x="{left_margin - 4}" y="{y + 4}" text-anchor="end" font-family="Courier New, monospace" font-size="10" fill="#5b6473">{escape(meta_label)}</text>'
         )
+        parts.append(
+            f'<text class="event-tooltip" x="{text_x}" y="{label_y - 14}" text-anchor="{text_anchor}">{visible_tooltip}</text>'
+        )
+        parts.append("</g>")
 
     parts.append("</g>")
 

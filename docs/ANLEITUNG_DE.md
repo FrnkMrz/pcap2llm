@@ -165,7 +165,7 @@ pcap2llm analyze trace.pcapng \
 
 Dann entstehen zusaetzlich `flow.json` und `flow.svg`. Das Flow-JSON enthaelt
 Lanes, Events, Phasen, Korrelationen und Repeat-Metadaten; das SVG ist ein
-Sequenzdiagramm mit Hover-Tooltips. Die Labels nutzen, soweit im Trace
+Sequenzdiagramm mit Event-Hover-Tooltips. Die Labels nutzen, soweit im Trace
 vorhanden, protokollspezifische Details wie Diameter Result-Code, GTPv2
 Message/Cause, NGAP Procedure, NAS-EPS/NAS-5GS Message Type, HTTP/2
 Methode/Pfad/Status und DNS Query/Rcode/Antwortzahl. Fehlerhafte Antworten

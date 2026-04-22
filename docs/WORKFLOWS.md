@@ -17,11 +17,11 @@ The human-readable outputs now start with the same four metadata lines across `i
 For focused call-flow reviews, add `--render-flow-svg` to `analyze` to produce
 `flow.json` and `flow.svg` sidecars. The SVG is a sequence diagram with
 endpoint lanes, phase blocks, request/response coloring, error highlighting,
-repeat-collapse markers, and hover tooltips. Labels include telecom-specific
-details where possible, including Diameter result codes, GTPv2 causes, NGAP and
-NAS message names, HTTP/2 method/path or status, and DNS query/rcode details.
-You can rerender the same model later with `pcap2llm visualize ..._flow.json`
-without rerunning TShark.
+repeat-collapse markers, and event-row hover tooltips. Labels include
+telecom-specific details where possible, including Diameter result codes, GTPv2
+causes, NGAP and NAS message names, HTTP/2 method/path or status, and DNS
+query/rcode details. You can rerender the same model later with
+`pcap2llm visualize ..._flow.json` without rerunning TShark.
 
 ---
 
@@ -51,9 +51,12 @@ Use `scripts/run_all_local_pcaps.sh` for the one-shot local sweep. It scans
 `.local/` recursively for `.pcap` and `.pcapng` files, skips `.local/runs/`,
 runs `discover`, `inspect`, and `analyze`, auto-selects the top discovery
 profile, and analyzes with `--privacy-profile internal` plus
-`--render-flow-svg`. Its `.local/runs/RESULTS.md` includes a flow overview
-with packet/event/node/phase/error/pairing counts and short event samples from
-each `flow.json`.
+`--render-flow-svg`. Existing outputs are preserved: normal reruns rely on the
+artifact version suffix and write the next `V_NN` files. Use `--force` only when
+you want to delete previous outputs for each trace before regenerating them.
+Its `.local/runs/RESULTS.md` includes a flow overview with
+packet/event/node/phase/error/pairing counts and short event samples from each
+`flow.json`.
 
 Use `scripts/run_local_batches.py` when you want a curated list of named cases
 with explicit actions, profiles, and extra arguments in `batches/*.toml`.

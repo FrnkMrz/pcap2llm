@@ -6,6 +6,22 @@ The format is intentionally simple and optimized for humans reading repo history
 
 ## Unreleased
 
+### Fixed — 2026-04-22 (flow usability and local reruns)
+
+- **SVG flow hover usability**:
+  - event tooltips now use a wider transparent hover target around each arrow,
+    so operators no longer need to point exactly at the thin SVG stroke.
+  - SVGs also include an in-SVG hover text fallback in addition to native
+    browser `<title>` tooltips.
+
+- **Local PCAP sweep reruns**:
+  - `scripts/run_all_local_pcaps.sh` no longer skips traces just because prior
+    outputs exist.
+  - normal reruns now preserve existing artifacts and rely on the built-in
+    `V_01` / `V_02` / ... filename versioning.
+  - `--force` remains available for the destructive replace workflow, deleting
+    prior outputs before regenerating from `V_01`.
+
 ### Added — 2026-04-22 (signaling flow visualization)
 
 - **Optional signaling-flow artifacts for `analyze`**:
@@ -16,7 +32,7 @@ The format is intentionally simple and optimized for humans reading repo history
     repeat-collapse metadata (`repeat_count`, first/last packet number, and
     relative timing).
   - `flow.svg` renders a telecom sequence diagram with role-aware lane ordering,
-    above-arrow labels, browser hover tooltips, accessible SVG title/description,
+    above-arrow labels, event hover tooltips, accessible SVG title/description,
     request/response coloring, and red error highlighting.
 
 - **Standalone flow re-rendering**:

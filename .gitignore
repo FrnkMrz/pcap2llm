@@ -1,4 +1,5 @@
 .DS_Store
+.claude/
 # Local-only sensitive files — never commit real contents
 .local/*
 !.local/.gitkeep

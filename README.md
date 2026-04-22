@@ -77,7 +77,7 @@ Every `analyze` run writes a semantically ordered, versioned file set:
 | `analyze_<capture>_start_<n>_V_01_summary.json` | Sidecar with protocol mix, anomalies, timing, and coverage |
 | `analyze_<capture>_start_<n>_V_01_summary.md` | Human-readable summary |
 | `analyze_<capture>_start_<n>_V_01_flow.json` | Optional signaling flow model with lanes, events, phases, correlations, and collapse metadata (`--render-flow-svg`) |
-| `analyze_<capture>_start_<n>_V_01_flow.svg` | Optional signaling sequence diagram with hover tooltips and status coloring (`--render-flow-svg`) |
+| `analyze_<capture>_start_<n>_V_01_flow.svg` | Optional signaling sequence diagram with event hover tooltips and status coloring (`--render-flow-svg`) |
 | `analyze_<capture>_start_<n>_V_01_pseudonym_mapping.json` | Only when pseudonymization is active |
 | `analyze_<capture>_start_<n>_V_01_vault.json` | Only when encryption is active |
 

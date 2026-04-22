@@ -234,7 +234,9 @@ Labels are protocol-aware when the extracted fields are available:
 - HTTP/2 request method/path or response status
 - DNS query type/name, response rcode, answer count, and `dns.id` correlation
 
-The SVG includes browser hover tooltips on arrows and marks error events in red.
+The SVG includes browser hover tooltips on event rows, with a wider transparent
+hit target around each arrow plus an in-SVG tooltip fallback. Error events are
+marked in red.
 If a profile did not extract a rich app-layer message name, the renderer falls
 back to `frame_protocols` for labels such as SIP, NGAP, NAS-5GS, S1AP, PFCP,
 GTPv1/GTPv2, Diameter, RADIUS, SCCP, MAP, or ISUP.

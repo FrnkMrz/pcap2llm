@@ -10,12 +10,13 @@
 #   - scans .local/ recursively for .pcap and .pcapng files
 #   - skips .local/runs/ so generated outputs are never re-processed
 #   - auto-selects the top profile from discovery for inspect + analyze
+#   - preserves prior outputs by relying on pcap2llm's V_01/V_02/... versioning
 #
 # Output:  .local/runs/
-#            discover_<capture>_start_<n>_V_01.{json,md}
-#            inspect_<capture>_start_<n>_V_01.{json,md}
-#            analyze_<capture>_start_<n>_V_01_*.{json,md}
-#            analyze_<capture>_start_<n>_V_01_flow.{json,svg}
+#            discover_<capture>_start_<n>_V_NN.{json,md}
+#            inspect_<capture>_start_<n>_V_NN.{json,md}
+#            analyze_<capture>_start_<n>_V_NN_*.{json,md}
+#            analyze_<capture>_start_<n>_V_NN_flow.{json,svg}
 #          .local/runs/RESULTS.md  - consolidated overview
 
 set -euo pipefail
@@ -194,13 +195,10 @@ for pcap in "${pcap_files[@]}"; do
   sep
   log "${BOLD}[$idx/$total]${RESET} $display_name"
 
-  if trace_has_outputs "$capture_key" && [[ "$FORCE" -eq 0 ]]; then
-    warn "Trace outputs already exist - skipping (use --force to re-run and replace them)"
-    RESULT_ROWS+=("| \`$display_name\` | skipped | - | - | - | - | - | - | - | - | - | - |")
-    continue
-  fi
-
   if [[ "$FORCE" -eq 1 ]]; then
+    if trace_has_outputs "$capture_key"; then
+      warn "Removing existing trace outputs first (--force)"
+    fi
     cleanup_trace_outputs "$capture_key" "$run_slug"
   fi
 
@@ -383,15 +381,15 @@ log "Writing $RESULTS_FILE …"
   echo ""
   echo "\`\`\`"
   echo ".local/runs/"
-  echo "  discover_<capture>_start_<n>_V_01.json"
-  echo "  discover_<capture>_start_<n>_V_01.md"
-  echo "  inspect_<capture>_start_<n>_V_01.json"
-  echo "  inspect_<capture>_start_<n>_V_01.md"
-  echo "  analyze_<capture>_start_<n>_V_01_summary.json"
-  echo "  analyze_<capture>_start_<n>_V_01_detail.json"
-  echo "  analyze_<capture>_start_<n>_V_01_summary.md"
-  echo "  analyze_<capture>_start_<n>_V_01_flow.json"
-  echo "  analyze_<capture>_start_<n>_V_01_flow.svg"
+  echo "  discover_<capture>_start_<n>_V_NN.json"
+  echo "  discover_<capture>_start_<n>_V_NN.md"
+  echo "  inspect_<capture>_start_<n>_V_NN.json"
+  echo "  inspect_<capture>_start_<n>_V_NN.md"
+  echo "  analyze_<capture>_start_<n>_V_NN_summary.json"
+  echo "  analyze_<capture>_start_<n>_V_NN_detail.json"
+  echo "  analyze_<capture>_start_<n>_V_NN_summary.md"
+  echo "  analyze_<capture>_start_<n>_V_NN_flow.json"
+  echo "  analyze_<capture>_start_<n>_V_NN_flow.svg"
   echo "\`\`\`"
 } > "$RESULTS_FILE"
 

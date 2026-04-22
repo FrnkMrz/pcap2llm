@@ -554,6 +554,24 @@ def test_render_flow_svg_includes_tooltip_and_accessibility_nodes() -> None:
     assert "<title>#1 | AIR" in svg
 
 
+def test_render_flow_svg_adds_wide_transparent_event_hover_target() -> None:
+    packets = [_packet(1, "MME", "HSS", "AIR")]
+    flow = build_flow_model(
+        packets,
+        capture_file="sample.pcapng",
+        profile="lte-core",
+        privacy_profile=None,
+    )
+
+    svg = render_flow_svg(flow, width=1200)
+
+    assert '<g class="event" cursor="help" data-event-id="event-1"' in svg
+    assert 'stroke="transparent" stroke-width="18" pointer-events="stroke"' in svg
+    assert 'stroke-width="1.7" marker-end="url(#arrow)" pointer-events="none"' in svg
+    assert ".event:hover .event-tooltip{display:inline;}" in svg
+    assert '<text class="event-tooltip"' in svg
+
+
 def test_gtpv2_response_label_carries_cause_name_on_error() -> None:
     packet = _packet_with_fields(
         1,

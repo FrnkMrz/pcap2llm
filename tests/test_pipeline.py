@@ -488,6 +488,46 @@ class TestAnalyzeCapturePipeline:
         assert isinstance(artifacts.detail["messages"], list)
         assert "# PCAP2LLM Artifact Summary" in artifacts.markdown
 
+    def test_full_pipeline_generates_flow_artifacts_when_enabled(self, tmp_path: Path) -> None:
+        profile = load_profile("lte-core")
+        runner = TSharkRunner()
+        raw_packets = [_make_raw_packet(number=str(i), src_ip=f"10.0.0.{i}") for i in range(1, 3)]
+        fake_flow = {
+            "title": "V1.1 Flow",
+            "nodes": [],
+            "events": [],
+            "phases": [{"id": "phase-1", "label": "Signaling", "start_event": "event-1", "end_event": "event-1", "kind": "signaling"}],
+        }
+
+        with (
+            mock_runner_two_pass(runner, raw_packets),
+            patch("pcap2llm.pipeline.build_flow_model", return_value=fake_flow) as build_flow,
+            patch("pcap2llm.pipeline.render_flow_svg", return_value="<svg />") as render_flow,
+        ):
+            artifacts = analyze_capture(
+                tmp_path / "sample.pcapng",
+                out_dir=tmp_path / "out",
+                runner=runner,
+                profile=profile,
+                privacy_modes={},
+                render_flow_svg_artifact=True,
+                flow_title="Pipeline Flow",
+                flow_max_events=77,
+                flow_svg_width=1400,
+                privacy_profile_name="llm-telecom-safe",
+            )
+
+        assert artifacts.flow == fake_flow
+        assert artifacts.flow_svg == "<svg />"
+        build_flow.assert_called_once()
+        _, kwargs = build_flow.call_args
+        assert kwargs["capture_file"].endswith("sample.pcapng")
+        assert kwargs["profile"] == "lte-core"
+        assert kwargs["privacy_profile"] == "llm-telecom-safe"
+        assert kwargs["max_events"] == 77
+        assert kwargs["title"] == "Pipeline Flow"
+        render_flow.assert_called_once_with(fake_flow, width=1400)
+
     def test_full_pipeline_empty_capture(self, tmp_path: Path) -> None:
         profile = load_profile("lte-core")
         runner = TSharkRunner()

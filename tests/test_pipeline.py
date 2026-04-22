@@ -416,6 +416,22 @@ class TestWriteArtifactsErrorHandling:
         assert f"{_ARTIFACT_PREFIX}_V_01_summary.json" in markdown
         assert f"{_ARTIFACT_PREFIX}_V_01_detail.json" in markdown
 
+    def test_write_artifacts_writes_optional_flow_artifacts(self, tmp_path: Path) -> None:
+        artifacts = self._make_artifacts()
+        artifacts.flow = {
+            "title": "Signaling Flow",
+            "nodes": [],
+            "events": [],
+        }
+        artifacts.flow_svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>"
+
+        outputs = write_artifacts(artifacts, tmp_path / "out")
+
+        assert outputs["flow_json"].name == f"{_ARTIFACT_PREFIX}_V_01_flow.json"
+        assert outputs["flow_svg"].name == f"{_ARTIFACT_PREFIX}_V_01_flow.svg"
+        assert outputs["flow_json"].exists()
+        assert outputs["flow_svg"].exists()
+
     def test_write_artifacts_adds_explicit_artifact_version_metadata(self, tmp_path: Path) -> None:
         outputs = write_artifacts(self._make_artifacts(), tmp_path / "out")
         summary = json.loads(outputs["summary"].read_text(encoding="utf-8"))

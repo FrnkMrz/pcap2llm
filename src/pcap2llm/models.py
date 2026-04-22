@@ -205,6 +205,8 @@ class AnalyzeArtifacts(BaseModel):
     markdown: str
     pseudonym_mapping: dict[str, dict[str, str]] = Field(default_factory=dict)
     vault: dict[str, Any] | None = None
+    flow: dict[str, Any] | None = None
+    flow_svg: str | None = None
 
 
 class ArtifactCoverage(BaseModel):

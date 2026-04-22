@@ -130,6 +130,41 @@ def test_llm_mode_includes_mapping_and_vault_sidecars_in_result(tmp_path: Path) 
     assert "encrypted_output_requires_key_handling" in warning_codes
 
 
+def test_llm_mode_includes_flow_sidecars_in_result(tmp_path: Path) -> None:
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+    out_dir = tmp_path / "artifacts"
+    outputs = {
+        "summary": out_dir / "analyze_sample_start_1_V_01_summary.json",
+        "detail": out_dir / "analyze_sample_start_1_V_01_detail.json",
+        "markdown": out_dir / "analyze_sample_start_1_V_01_summary.md",
+        "flow_json": out_dir / "analyze_sample_start_1_V_01_flow.json",
+        "flow_svg": out_dir / "analyze_sample_start_1_V_01_flow.svg",
+    }
+
+    with (
+        patch("pcap2llm.cli.analyze_capture", return_value=_artifacts(out_dir)),
+        patch("pcap2llm.cli.write_artifacts", return_value=outputs),
+    ):
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                str(capture),
+                "--llm-mode",
+                "--profile",
+                "lte-core",
+                "--out",
+                str(out_dir),
+                "--render-flow-svg",
+            ],
+        )
+
+    payload = json.loads(result.stdout)
+    assert payload["files"]["flow_json"].endswith("_V_01_flow.json")
+    assert payload["files"]["flow_svg"].endswith("_V_01_flow.svg")
+
+
 def test_llm_mode_reports_truncation_warning(tmp_path: Path) -> None:
     capture = tmp_path / "sample.pcapng"
     capture.write_bytes(b"fake")

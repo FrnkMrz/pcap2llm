@@ -27,6 +27,7 @@ from pcap2llm.serializers import (
 )
 from pcap2llm.summarizer import build_summary
 from pcap2llm.tshark_runner import TSharkRunner
+from pcap2llm.visualize import build_flow_model, render_flow_svg
 
 # Signature: (description, current_step, total_steps)
 OnStage = Callable[[str, int, int], None]
@@ -69,6 +70,8 @@ def _resolve_output_paths(
     first_seen: str | None,
     include_mapping: bool,
     include_vault: bool,
+    include_flow_json: bool,
+    include_flow_svg: bool,
 ) -> dict[str, Path]:
     stems = {
         "summary": ("summary", ".json"),
@@ -79,6 +82,10 @@ def _resolve_output_paths(
         stems["mapping"] = ("pseudonym_mapping", ".json")
     if include_vault:
         stems["vault"] = ("vault", ".json")
+    if include_flow_json:
+        stems["flow_json"] = ("flow", ".json")
+    if include_flow_svg:
+        stems["flow_svg"] = ("flow", ".svg")
 
     version = 1
     while True:
@@ -122,6 +129,11 @@ def analyze_capture(
     fail_on_truncation: bool = False,
     max_capture_size_mb: int = 250,
     oversize_factor: float = _DEFAULT_OVERSIZE_FACTOR,
+    render_flow_svg_artifact: bool = False,
+    flow_title: str | None = None,
+    flow_max_events: int = 120,
+    flow_svg_width: int = 1600,
+    privacy_profile_name: str | None = None,
     on_stage: OnStage | None = None,
 ) -> AnalyzeArtifacts:
     """Run the full two-pass analysis pipeline.
@@ -307,12 +319,27 @@ def analyze_capture(
         mapping_filename=mapping_filename,
         vault_filename=vault_filename,
     )
+    flow: dict[str, object] | None = None
+    flow_svg: str | None = None
+    if render_flow_svg_artifact:
+        flow = build_flow_model(
+            protected_packets,
+            capture_file=str(capture_path),
+            profile=profile.name,
+            privacy_profile=privacy_profile_name,
+            max_events=flow_max_events,
+            title=flow_title,
+        )
+        flow_svg = render_flow_svg(flow, width=flow_svg_width)
+
     return AnalyzeArtifacts(
         summary=summary,
         detail=detail,
         markdown=markdown,
         pseudonym_mapping=protector.pseudonyms,
         vault=protector.vault_metadata(),
+        flow=flow,
+        flow_svg=flow_svg,
     )
 
 
@@ -400,6 +427,8 @@ def write_artifacts(artifacts: AnalyzeArtifacts, out_dir: Path) -> dict[str, Pat
         first_seen=artifacts.summary.get("capture", {}).get("first_seen"),
         include_mapping=bool(artifacts.pseudonym_mapping),
         include_vault=bool(artifacts.vault),
+        include_flow_json=bool(artifacts.flow),
+        include_flow_svg=bool(artifacts.flow_svg),
     )
     artifact_version = artifact_version_from_filename(outputs["summary"].name)
     artifacts.summary["artifact"] = build_artifact_metadata(artifact_version)
@@ -422,6 +451,10 @@ def write_artifacts(artifacts: AnalyzeArtifacts, out_dir: Path) -> dict[str, Pat
             )
         if artifacts.vault:
             outputs["vault"].write_text(json.dumps(artifacts.vault, indent=2), encoding="utf-8")
+        if artifacts.flow:
+            outputs["flow_json"].write_text(json.dumps(artifacts.flow, indent=2), encoding="utf-8")
+        if artifacts.flow_svg:
+            outputs["flow_svg"].write_text(artifacts.flow_svg, encoding="utf-8")
     except OSError as exc:
         raise RuntimeError(f"Failed to write artifacts to '{out_dir}': {exc}") from exc
     return outputs

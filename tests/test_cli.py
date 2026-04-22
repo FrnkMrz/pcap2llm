@@ -84,6 +84,13 @@ def test_analyze_dry_run_outputs_plan(tmp_path: Path) -> None:
             "lte-core",
             "--ip-mode",
             "mask",
+            "--render-flow-svg",
+            "--flow-max-events",
+            "88",
+            "--flow-svg-width",
+            "1400",
+            "--flow-title",
+            "Test Flow",
         ],
     )
     assert result.exit_code == 0
@@ -92,6 +99,10 @@ def test_analyze_dry_run_outputs_plan(tmp_path: Path) -> None:
     assert payload["privacy_modes"]["ip"] == "mask"
     assert payload["fail_on_truncation"] is False
     assert payload["max_capture_size_mb"] == 250
+    assert payload["render_flow_svg"] is True
+    assert payload["flow_max_events"] == 88
+    assert payload["flow_svg_width"] == 1400
+    assert payload["flow_title"] == "Test Flow"
 
 
 def test_analyze_dry_run_includes_effective_verbatim_overrides(tmp_path: Path) -> None:

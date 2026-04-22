@@ -672,6 +672,26 @@ def analyze_command(
         "--llm-mode",
         help="Return a strict machine-readable JSON result on stdout for orchestrators and LLM workflows.",
     ),
+    render_flow_svg: bool = typer.Option(
+        False,
+        "--render-flow-svg",
+        help="Render additional flow.json and flow.svg signaling artifacts.",
+    ),
+    flow_title: str | None = typer.Option(
+        None,
+        "--flow-title",
+        help="Optional title for the generated signaling flow SVG.",
+    ),
+    flow_max_events: int = typer.Option(
+        120,
+        "--flow-max-events",
+        help="Maximum number of rendered events in flow artifacts (0 = unlimited).",
+    ),
+    flow_svg_width: int = typer.Option(
+        1600,
+        "--flow-svg-width",
+        help="SVG canvas width for flow rendering.",
+    ),
     ip_mode: str | None = typer.Option(None, "--ip-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
     hostname_mode: str | None = typer.Option(None, "--hostname-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
     subscriber_id_mode: str | None = typer.Option(None, "--subscriber-id-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
@@ -760,6 +780,10 @@ def analyze_command(
                 llm_mode=llm_mode,
                 effective_verbatim_protocols=effective_verbatim_protocols,
                 effective_profile_overrides=effective_profile_overrides,
+                render_flow_svg=render_flow_svg,
+                flow_max_events=flow_max_events,
+                flow_svg_width=flow_svg_width,
+                flow_title=flow_title,
             )
         else:
             payload = {
@@ -771,6 +795,10 @@ def analyze_command(
                 "max_packets": effective_max_packets if effective_max_packets > 0 else "unlimited",
                 "fail_on_truncation": fail_on_truncation,
                 "max_capture_size_mb": max_capture_size_mb,
+                "render_flow_svg": render_flow_svg,
+                "flow_title": flow_title,
+                "flow_max_events": flow_max_events,
+                "flow_svg_width": flow_svg_width,
                 "privacy_modes": privacy_modes,
                 "effective_verbatim_protocols": effective_verbatim_protocols,
                 "effective_profile_overrides": effective_profile_overrides,
@@ -808,6 +836,11 @@ def analyze_command(
                 fail_on_truncation=fail_on_truncation,
                 max_capture_size_mb=max_capture_size_mb,
                 oversize_factor=oversize_factor,
+                render_flow_svg_artifact=render_flow_svg,
+                flow_title=flow_title,
+                flow_max_events=flow_max_events,
+                flow_svg_width=flow_svg_width,
+                privacy_profile_name=privacy_profile_name or config_data.get("privacy_profile"),
                 on_stage=on_stage,
             )
     except Exception as exc:  # noqa: BLE001
@@ -905,6 +938,9 @@ def analyze_command(
             "max_capture_size_mb": max_capture_size_mb,
             "fail_on_truncation": fail_on_truncation,
             "oversize_factor": oversize_factor,
+            "render_flow_svg": render_flow_svg,
+            "flow_max_events": flow_max_events,
+            "flow_svg_width": flow_svg_width,
         },
         warnings=warnings,
         schema_versions={

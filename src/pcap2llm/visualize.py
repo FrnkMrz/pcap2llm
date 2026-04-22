@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from html import escape
+from http import HTTPStatus
 from typing import Any
 
 
@@ -34,13 +35,233 @@ def _to_text(value: Any) -> str | None:
     return text or None
 
 
+def _truncate(text: str, max_len: int) -> str:
+    value = text.strip()
+    if len(value) <= max_len:
+        return value
+    return f"{value[: max_len - 1]}..."
+
+
+def _bool_from_field(value: Any) -> bool | None:
+    text = _to_text(value)
+    if text is None:
+        return None
+    lowered = text.lower()
+    if lowered in {"1", "true", "yes", "set"}:
+        return True
+    if lowered in {"0", "false", "no", "unset"}:
+        return False
+    return None
+
+
+_GTPV2_MESSAGE_NAMES: dict[int, str] = {
+    1: "Echo Request",
+    2: "Echo Response",
+    32: "Create Session",
+    33: "Create Session",
+    34: "Modify Bearer",
+    35: "Modify Bearer",
+    36: "Delete Session",
+    37: "Delete Session",
+    38: "Change Notification",
+    39: "Change Notification",
+    64: "Modify Bearer Command",
+    65: "Modify Bearer Failure Indication",
+    66: "Delete Bearer Command",
+    67: "Delete Bearer Failure Indication",
+    68: "Bearer Resource Command",
+    69: "Bearer Resource Failure Indication",
+    70: "DL Data Notification Failure",
+    95: "Create Bearer",
+    96: "Create Bearer",
+    97: "Update Bearer",
+    98: "Update Bearer",
+    99: "Delete Bearer",
+    100: "Delete Bearer",
+    101: "Delete PDN Connection Set",
+    102: "Delete PDN Connection Set",
+    128: "Identification",
+    129: "Identification",
+    130: "Context",
+    131: "Context",
+    132: "Context Acknowledge",
+    133: "Forward Relocation",
+    134: "Forward Relocation",
+    135: "Forward Relocation Complete Notification",
+    136: "Forward Relocation Complete Acknowledge",
+    139: "Relocation Cancel",
+    140: "Relocation Cancel",
+    149: "Detach Notification",
+    150: "Detach Acknowledge",
+    151: "CS Paging Indication",
+    162: "Suspend Notification",
+    163: "Suspend Acknowledge",
+    164: "Resume Notification",
+    165: "Resume Acknowledge",
+    166: "Create Indirect Data Forwarding Tunnel",
+    167: "Create Indirect Data Forwarding Tunnel",
+    168: "Delete Indirect Data Forwarding Tunnel",
+    169: "Delete Indirect Data Forwarding Tunnel",
+    170: "Release Access Bearers",
+    171: "Release Access Bearers",
+    176: "Downlink Data Notification",
+    177: "Downlink Data Notification Ack",
+    179: "PGW Restart Notification",
+    180: "PGW Restart Notification Ack",
+    200: "Update PDN Connection Set",
+    201: "Update PDN Connection Set",
+    211: "Modify Access Bearers",
+    212: "Modify Access Bearers",
+}
+
+_GTPV2_REQUEST_CODES: frozenset[int] = frozenset([
+    1,32,34,36,38,64,66,68,95,97,99,101,128,130,133,135,139,149,151,
+    162,164,166,168,170,176,179,200,211,
+])
+
+
+def _gtpv2_message_label(code: int) -> str:
+    base = _GTPV2_MESSAGE_NAMES.get(code)
+    if base is None:
+        return f"GTPv2 Message {code}"
+    if code in _GTPV2_REQUEST_CODES:
+        return f"{base} Request ({code})"
+    return f"{base} Response ({code})"
+
+
+_KNOWN_NE_ROLES: frozenset[str] = frozenset([
+    "ue", "gnb", "enb", "mme", "sgw", "pgw", "hss", "pcrf", "msc", "dns",
+    "amf", "smf", "upf", "ausf", "udm", "udr", "pcf", "chf", "dra",
+    "p-cscf", "i-cscf", "s-cscf", "as", "sbc", "ocs", "ofcs",
+])
+
+# Maps protocol-level role strings (from resolver) to display abbreviations
+_ROLE_DISPLAY: dict[str, str] = {
+    "ue": "UE",
+    "gnb": "gNB",
+    "enb": "eNB",
+    "mme": "MME",
+    "sgw": "SGW",
+    "pgw": "PGW",
+    "hss": "HSS",
+    "pcrf": "PCRF",
+    "msc": "MSC",
+    "dns": "DNS",
+    "amf": "AMF",
+    "smf": "SMF",
+    "upf": "UPF",
+    "ausf": "AUSF",
+    "udm": "UDM",
+    "udr": "UDR",
+    "pcf": "PCF",
+    "chf": "CHF",
+    "dra": "DRA",
+    "p-cscf": "P-CSCF",
+    "i-cscf": "I-CSCF",
+    "s-cscf": "S-CSCF",
+    "as": "AS",
+    "sbc": "SBC",
+    "ocs": "OCS",
+    "ofcs": "OFCS",
+    # protocol-name based roles from resolver/normalizer
+    "diameter": "DIA-NE",
+    "gtpc": "GTP-NE",
+    "gtpu": "GTP-NE",
+    "sip": "SIP-NE",
+    "http2": "SBI-NE",
+    "pfcp": "PFCP-NE",
+    "s1ap": "eNB",
+    "ngap": "gNB",
+    "sccp": "SS7-NE",
+    "m3ua": "SS7-NE",
+}
+
+
+_DIAMETER_COMMAND_NAMES: dict[int, str] = {
+    257: "Capabilities-Exchange",
+    258: "Re-Auth",
+    271: "Accounting",
+    272: "Credit-Control",
+    274: "Abort-Session",
+    275: "Session-Termination",
+    280: "Device-Watchdog",
+    282: "Disconnect-Peer",
+    300: "User-Authorization",
+    301: "Server-Assignment",
+    302: "Location-Info",
+    303: "Multimedia-Auth",
+    304: "Registration-Termination",
+    305: "Push-Profile",
+    306: "User-Data",
+    307: "Profile-Update",
+    308: "Subscribe-Notifications",
+    309: "Push-Notification",
+    310: "Bootstrapping-Info",
+    311: "Message-Process",
+    312: "Diameter-EAP",
+    313: "AA",
+    314: "ST",
+    315: "AS",
+    316: "Update-Location",
+    317: "Cancel-Location",
+    318: "Authentication-Information",
+    319: "Insert-Subscriber-Data",
+    320: "Delete-Subscriber-Data",
+    321: "Purge-UE",
+    322: "Reset",
+    323: "Notify",
+    324: "ME-Identity-Check",
+    325: "Update-Location",
+    326: "Delete-Subscriber-Data",
+    8388622: "Re-Auth",
+    8388620: "Spending-Limit",
+}
+
+
+def _diameter_command_label(code: int, is_request: bool | None) -> str:
+    base = _DIAMETER_COMMAND_NAMES.get(code)
+    if base is None:
+        return f"Diameter Command {code}"
+    if is_request is True:
+        return f"{base} Request ({code})"
+    if is_request is False:
+        return f"{base} Answer ({code})"
+    return f"{base} ({code})"
+
+
+def _http_status_label(code: int) -> str:
+    try:
+        phrase = HTTPStatus(code).phrase
+    except ValueError:
+        phrase = ""
+    if phrase:
+        return f"HTTP {code} {phrase}"
+    return f"HTTP {code}"
+
+
 def _label_for_endpoint(endpoint: dict[str, Any] | None) -> str:
     if not endpoint:
         return "unknown"
-    for key in ("alias", "role", "hostname", "ip"):
-        value = endpoint.get(key)
-        if value:
-            return str(value)
+
+    ip = _to_text(endpoint.get("ip"))
+    hostname = _to_text(endpoint.get("hostname"))
+    alias = _to_text(endpoint.get("alias"))
+    role = _to_text(endpoint.get("role"))
+
+    name = None
+    for candidate in (hostname, alias):
+        if candidate and candidate != ip:
+            name = candidate
+            break
+
+    if name and ip:
+        return f"{name} ({ip})"
+    if ip:
+        return ip
+    if name:
+        return name
+    if role:
+        return role
     return "unknown"
 
 
@@ -57,16 +278,32 @@ def _endpoint_key(endpoint: dict[str, Any] | None) -> str:
 def _event_name(packet: dict[str, Any]) -> str:
     message = packet.get("message") or {}
     fields = message.get("fields") or {}
+
+    message_name = _to_text(fields.get("message_name"))
+    if message_name:
+        return message_name
+
+    diameter_request = _bool_from_field(fields.get("diameter.flags.request"))
+    if diameter_request is None:
+        diameter_request = _bool_from_field(fields.get("diameter.flags.request_tree"))
+
+    command_code = _to_int(fields.get("command_code") or fields.get("diameter.cmd.code"))
+    if command_code is not None:
+        return _diameter_command_label(command_code, diameter_request)
+
+    http_status = _to_int(fields.get("http.response.code") or fields.get("http2.headers.status"))
+    if http_status is not None:
+        return _http_status_label(http_status)
+
+    gtpv2_type = _to_int(fields.get("gtpv2.message_type"))
+    if gtpv2_type is not None:
+        return _gtpv2_message_label(gtpv2_type)
+
     candidates = (
-        "message_name",
-        "command_code",
-        "diameter.cmd.code",
         "nas_eps.message_type",
-        "gtpv2.message_type",
         "pfcp.message_type",
         "ngap.procedureCode",
         "http2.headers.path",
-        "http.response.code",
     )
     for key in candidates:
         value = fields.get(key)
@@ -87,6 +324,14 @@ def _event_status(packet: dict[str, Any], event_name: str) -> str:
     http_status = _to_int(fields.get("http.response.code") or fields.get("http2.headers.status"))
     if http_status is not None and http_status >= 400:
         return "error"
+
+    diameter_request = _bool_from_field(fields.get("diameter.flags.request"))
+    if diameter_request is None:
+        diameter_request = _bool_from_field(fields.get("diameter.flags.request_tree"))
+    if diameter_request is True:
+        return "request"
+    if diameter_request is False:
+        return "response"
 
     anomalies = packet.get("anomalies") or []
     if anomalies:
@@ -491,15 +736,18 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
     title = escape(str(flow.get("title") or "Signaling Flow"))
     subtitle = escape(str(flow.get("subtitle") or ""))
 
-    left_margin = 120
-    right_margin = 80
-    top_margin = 120
+    left_margin = 130
+    right_margin = 90
+    top_margin = 170
     row_height = 34
-    lane_label_y = 42
+    lane_label_y = 76
     footer_height = 60
 
     lane_count = max(1, len(nodes))
-    lane_spacing = max(160, int((width - left_margin - right_margin) / lane_count))
+    lane_spacing = max(220, int((width - left_margin - right_margin) / lane_count))
+    canvas_width = max(width, left_margin + right_margin + lane_spacing * lane_count)
+    # 3 header lines: role + name + ip  →  need 36 px for labels (y=62,74,86) before lane_top=100
+    lane_label_y = 62
     height = top_margin + max(1, len(events)) * row_height + footer_height
 
     node_x: dict[str, int] = {}
@@ -511,7 +759,7 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
         event_y[str(event.get("id"))] = top_margin + (idx - 1) * row_height
 
     parts: list[str] = []
-    parts.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">')
+    parts.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{canvas_width}" height="{height}" viewBox="0 0 {canvas_width} {height}">')
     parts.append("<defs>")
     parts.append("<marker id=\"arrow\" markerWidth=\"10\" markerHeight=\"7\" refX=\"9\" refY=\"3.5\" orient=\"auto\">")
     parts.append("<polygon points=\"0 0, 10 3.5, 0 7\" fill=\"#3d5a80\" />")
@@ -524,14 +772,38 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
     parts.append('<rect x="0" y="0" width="100%" height="100%" fill="#f8f8f2" />')
     parts.append(f'<text x="24" y="30" font-family="Georgia, serif" font-size="20" fill="#1f2a44">{title}</text>')
     parts.append(f'<text x="24" y="56" font-family="Georgia, serif" font-size="13" fill="#3a4a66">{subtitle}</text>')
+    parts.append(f'<line x1="18" y1="64" x2="{canvas_width - 18}" y2="64" stroke="#d7dde8" stroke-width="1" />')
 
     parts.append('<g class="lanes">')
-    lane_top = 70
+    lane_top = 100
     lane_bottom = top_margin + max(1, len(events)) * row_height
     for node in nodes:
         x = node_x[node["id"]]
-        label = escape(str(node.get("label") or node["id"]))
-        parts.append(f'<text x="{x}" y="{lane_label_y}" text-anchor="middle" font-family="Georgia, serif" font-size="12" fill="#1f2a44">{label}</text>')
+        node_label = str(node.get("label") or node["id"])
+        role_raw = str(node.get("role") or "").lower().strip()
+        role_tag = _ROLE_DISPLAY.get(role_raw)
+
+        if " (" in node_label and node_label.endswith(")"):
+            split_at = node_label.rfind(" (")
+            main = _truncate(node_label[:split_at], 28)
+            ip_part = _truncate(node_label[split_at + 2 : -1], 24)
+            if role_tag:
+                label_lines = [(role_tag, True), (main, False), (f"({ip_part})", False)]
+            else:
+                label_lines = [(main, False), (f"({ip_part})", False)]
+        else:
+            if role_tag:
+                label_lines = [(role_tag, True), (_truncate(node_label, 32), False)]
+            else:
+                label_lines = [(_truncate(node_label, 34), False)]
+
+        for line_index, (text, bold) in enumerate(label_lines):
+            weight = 'font-weight="bold" ' if bold else ''
+            color = '"#0a1a3a"' if bold else '"#1f2a44"'
+            parts.append(
+                f'<text x="{x}" y="{lane_label_y + line_index * 13}" text-anchor="middle" '
+                f'{weight}font-family="Georgia, serif" font-size="11" fill={color}>{escape(text)}</text>'
+            )
         parts.append(f'<line x1="{x}" y1="{lane_top}" x2="{x}" y2="{lane_bottom}" stroke="#b9c1cc" stroke-width="1.2" />')
     parts.append("</g>")
 
@@ -556,7 +828,7 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
         fill = phase_color.get(kind, "#f7f7f7")
         label = escape(str(phase.get("label") or "Phase"))
         parts.append(
-            f'<rect x="8" y="{y}" width="100" height="{h}" fill="{fill}" stroke="#d2d8e2" stroke-width="0.8" rx="4" />'
+            f'<rect x="8" y="{y}" width="108" height="{h}" fill="{fill}" stroke="#d2d8e2" stroke-width="0.8" rx="4" />'
         )
         parts.append(
             f'<text x="14" y="{y + 16}" font-family="Georgia, serif" font-size="10" fill="#2f3a4d">{label}</text>'
@@ -584,6 +856,7 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
         label_text = str(event.get("short_label") or event.get("message_name") or "event")
         if repeat_count > 1:
             label_text = f"{label_text} x{repeat_count}"
+        label_text = _truncate(label_text, 56)
         label = escape(label_text)
         protocol = escape(str(event.get("protocol") or ""))
         status = escape(str(event.get("status") or ""))
@@ -612,12 +885,14 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
             text_anchor = "middle"
 
         meta_label = f"#{packet_no}" if packet_no is not None else ""
+        label_y = y - 7 if idx % 2 == 0 else y - 3
         parts.append(
-            f'<text x="{text_x}" y="{y - 5}" text-anchor="{text_anchor}" font-family="Georgia, serif" '
+            f'<text x="{text_x}" y="{label_y}" text-anchor="{text_anchor}" font-family="Georgia, serif" '
             f'font-size="11" fill="#2c3647">{label}</text>'
         )
+        # Packet-Nr. rechts-bündig an left_margin-Kante, klar rechts vom Phase-Band (endet ~x=116)
         parts.append(
-            f'<text x="32" y="{y + 4}" font-family="Courier New, monospace" font-size="10" fill="#5b6473">{escape(meta_label)}</text>'
+            f'<text x="{left_margin - 4}" y="{y + 4}" text-anchor="end" font-family="Courier New, monospace" font-size="10" fill="#5b6473">{escape(meta_label)}</text>'
         )
 
     parts.append("</g>")

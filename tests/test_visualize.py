@@ -230,3 +230,59 @@ def test_build_flow_model_no_collapse_keeps_all_events() -> None:
 
     assert flow["event_count_rendered"] == 2
     assert flow["event_count_uncollapsed"] == 2
+
+
+def test_build_flow_model_endpoint_label_includes_name_and_ip() -> None:
+    packets = [
+        {
+            "packet_no": 1,
+            "time_rel_ms": 1.0,
+            "time_epoch": "1712390001.0",
+            "top_protocol": "diameter",
+            "src": {"hostname": "mme01.local", "ip": "10.0.0.10", "role": "mme"},
+            "dst": {"hostname": "hss01.local", "ip": "10.0.0.20", "role": "hss"},
+            "anomalies": [],
+            "message": {"protocol": "diameter", "fields": {"message_name": "AIR"}},
+        }
+    ]
+
+    flow = build_flow_model(
+        packets,
+        capture_file="sample.pcapng",
+        profile="lte-core",
+        privacy_profile=None,
+    )
+
+    labels = [node["label"] for node in flow["nodes"]]
+    assert "mme01.local (10.0.0.10)" in labels
+    assert "hss01.local (10.0.0.20)" in labels
+
+
+def test_build_flow_model_expands_diameter_command_code_label() -> None:
+    packets = [
+        {
+            "packet_no": 1,
+            "time_rel_ms": 1.0,
+            "time_epoch": "1712390001.0",
+            "top_protocol": "diameter",
+            "src": {"alias": "MME", "role": "mme"},
+            "dst": {"alias": "HSS", "role": "hss"},
+            "anomalies": [],
+            "message": {
+                "protocol": "diameter",
+                "fields": {
+                    "command_code": "272",
+                    "diameter.flags.request": "1",
+                },
+            },
+        }
+    ]
+
+    flow = build_flow_model(
+        packets,
+        capture_file="sample.pcapng",
+        profile="lte-core",
+        privacy_profile=None,
+    )
+
+    assert flow["events"][0]["message_name"] == "Credit-Control Request (272)"

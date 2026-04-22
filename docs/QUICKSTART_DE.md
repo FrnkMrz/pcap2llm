@@ -76,6 +76,8 @@ Danach findest du typischerweise:
 | `...detail.json` | Normalisierte Pakete, primaeres LLM-Artefakt |
 | `...summary.json` | Statistik, Anomalien, Coverage |
 | `...summary.md` | Menschenlesbare Zusammenfassung |
+| `...flow.json` | Optionales Flow-Modell bei `--render-flow-svg` |
+| `...flow.svg` | Optionale Signalisierungs-Grafik bei `--render-flow-svg` |
 
 ### 4. Erst dann feinjustieren
 
@@ -90,6 +92,12 @@ pcap2llm analyze sample.pcapng --profile lte-core --privacy-profile share
 
 # Nur den Plan anzeigen
 pcap2llm analyze sample.pcapng --profile lte-core --dry-run
+
+# Signalisierungs-Flow als SVG erzeugen
+pcap2llm analyze sample.pcapng --profile lte-core --render-flow-svg --out ./artifacts
+
+# Vorhandenes Flow-JSON ohne neuen TShark-Lauf neu rendern
+pcap2llm visualize ./artifacts/analyze_sample_start_1_V_01_flow.json --width 1800
 ```
 
 ## Welche Profilfamilie?

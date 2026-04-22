@@ -29,10 +29,16 @@ The current processing architecture is intentionally split into explicit stages 
 6. `serialize`
    - validate public `summary.json` and `detail.json` artifacts against Schema 1.0
    - render `summary.md` as a human-readable sidecar
+   - optionally derive `flow.json` and `flow.svg` from protected packets when
+     `analyze --render-flow-svg` is enabled
+7. `visualize`
+   - standalone CLI path that reads an existing `flow.json`
+   - rerenders the SVG without rerunning TShark, normalization, privacy, or summary stages
 
 ## Design Intent
 
 - `detail.json` is the primary LLM handoff artifact
 - `summary.json` and `summary.md` are sidecars
+- `flow.json` and `flow.svg` are optional review sidecars, derived after privacy protection
 - bounded formatting is explicit
 - internal extraction can evolve without changing the public contract

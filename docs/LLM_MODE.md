@@ -14,6 +14,7 @@ Related docs:
 - `detail.json` is the primary LLM handoff artifact
 - `summary.json` is the structured sidecar for coverage, counts, anomalies, and privacy metadata
 - `summary.md` is the human-readable sidecar
+- `flow.json` and `flow.svg` are optional local flow sidecars when `--render-flow-svg` is set
 - `--llm-mode` only changes the CLI return format; it does not change the artifact semantics
 
 ## Purpose
@@ -44,7 +45,9 @@ Typical success payload:
     "detail": "artifacts/...detail...",
     "markdown": "artifacts/...summary.md",
     "mapping": null,
-    "vault": null
+    "vault": null,
+    "flow_json": null,
+    "flow_svg": null
   },
   "coverage": {
     "detail_packets_included": 312,
@@ -59,7 +62,11 @@ Typical success payload:
     "all_packets": false,
     "max_capture_size_mb": 250,
     "fail_on_truncation": false,
-    "oversize_factor": 10.0
+    "oversize_factor": 10.0,
+    "render_flow_svg": false,
+    "flow_max_events": 120,
+    "flow_svg_width": 1600,
+    "collapse_repeats": true
   },
   "schema_versions": {
     "summary": "1.0",
@@ -119,6 +126,7 @@ pcap2llm analyze trace.pcapng \
   --profile lte-core \
   --privacy-profile share \
   --llm-mode \
+  --render-flow-svg \
   --out ./artifacts
 ```
 
@@ -134,7 +142,9 @@ pcap2llm analyze trace.pcapng \
   "files": {
     "detail": "artifacts/analyze_trace_start_1_V_01_detail.json",
     "summary": "artifacts/analyze_trace_start_1_V_01_summary.json",
-    "markdown": "artifacts/analyze_trace_start_1_V_01_summary.md"
+    "markdown": "artifacts/analyze_trace_start_1_V_01_summary.md",
+    "flow_json": "artifacts/analyze_trace_start_1_V_01_flow.json",
+    "flow_svg": "artifacts/analyze_trace_start_1_V_01_flow.svg"
   },
   "coverage": {
     "detail_packets_included": 312,
@@ -153,6 +163,9 @@ pcap2llm analyze trace.pcapng \
 2. `coverage.detail_truncated` — if `true`, the detail artifact is a slice. Consider refining the filter before passing to an LLM.
 3. `warnings` — check for `no_relevant_protocols_detected` (wrong profile or filter too strict) or `pseudonym_mapping_created` (keep the mapping file separate).
 4. `files.detail` — this is the primary artifact to pass to the downstream LLM.
+5. `files.flow_json` / `files.flow_svg` — present only when `--render-flow-svg`
+   was requested. Treat them as local review aids unless your orchestrator
+   explicitly needs the flow model.
 
 `artifact_prefix` is the semantic filename prefix. It reflects action, capture
 name, and start packet. `artifact_version` carries the explicit `V_01`, `V_02`,

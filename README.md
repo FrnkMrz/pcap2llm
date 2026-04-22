@@ -76,8 +76,8 @@ Every `analyze` run writes a semantically ordered, versioned file set:
 | `analyze_<capture>_start_<n>_V_01_detail.json` | Primary LLM input: normalized packets, filtered fields, privacy applied |
 | `analyze_<capture>_start_<n>_V_01_summary.json` | Sidecar with protocol mix, anomalies, timing, and coverage |
 | `analyze_<capture>_start_<n>_V_01_summary.md` | Human-readable summary |
-| `analyze_<capture>_start_<n>_V_01_flow.json` | Optional signaling flow model (`--render-flow-svg`) |
-| `analyze_<capture>_start_<n>_V_01_flow.svg` | Optional signaling sequence diagram (`--render-flow-svg`) |
+| `analyze_<capture>_start_<n>_V_01_flow.json` | Optional signaling flow model with lanes, events, phases, correlations, and collapse metadata (`--render-flow-svg`) |
+| `analyze_<capture>_start_<n>_V_01_flow.svg` | Optional signaling sequence diagram with hover tooltips and status coloring (`--render-flow-svg`) |
 | `analyze_<capture>_start_<n>_V_01_pseudonym_mapping.json` | Only when pseudonymization is active |
 | `analyze_<capture>_start_<n>_V_01_vault.json` | Only when encryption is active |
 
@@ -156,6 +156,15 @@ running tshark again:
 pcap2llm analyze trace.pcapng --profile lte-core --render-flow-svg --out ./artifacts
 pcap2llm visualize ./artifacts/analyze_trace_start_1_V_01_flow.json --width 1800
 ```
+
+The flow renderer is intended for quick human orientation in focused signaling
+traces. It uses resolved endpoint aliases/roles for lanes, groups adjacent
+identical events when repeat collapse is enabled, and labels common telecom
+messages with protocol-specific detail: Diameter result codes, GTPv2 message
+names and causes, NGAP procedures, NAS-EPS/NAS-5GS message types, HTTP/2
+method/path or status, and DNS query/response names, rcodes, and answer counts.
+Error-ish outcomes such as Diameter result codes >= 3000, HTTP status >= 400,
+GTPv2 causes >= 64, and DNS rcode failures are highlighted in the SVG.
 
 ## Documentation Map
 

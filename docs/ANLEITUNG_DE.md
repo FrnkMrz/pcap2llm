@@ -137,6 +137,8 @@ Jeder `analyze`-Lauf schreibt einen logisch benannten Dateisatz:
 | `analyze_<capture>_start_<n>_V_01_detail.json` | Primaeres LLM-Artefakt mit normalisierten Paketen |
 | `analyze_<capture>_start_<n>_V_01_summary.json` | Statistik, Anomalien, Timing, Coverage |
 | `analyze_<capture>_start_<n>_V_01_summary.md` | Menschenlesbare Zusammenfassung |
+| `analyze_<capture>_start_<n>_V_01_flow.json` | Optionales Signalisierungs-Flow-Modell bei `--render-flow-svg` |
+| `analyze_<capture>_start_<n>_V_01_flow.svg` | Optionale Sequenzdiagramm-Grafik bei `--render-flow-svg` |
 | `analyze_<capture>_start_<n>_V_01_pseudonym_mapping.json` | Nur bei Pseudonymisierung |
 | `analyze_<capture>_start_<n>_V_01_vault.json` | Nur bei Verschluesselung |
 
@@ -148,6 +150,33 @@ Die Ausgaben von `inspect`, `discover` und `analyze` beginnen einheitlich mit:
 4. artifact version
 
 Das ist gut fuer Vergleiche zwischen mehreren Laeufen.
+
+## Signalisierungs-Flow visualisieren
+
+Wenn du neben JSON und Markdown eine schnelle visuelle Orientierung brauchst,
+aktiviere beim Analyse-Lauf die Flow-Ausgabe:
+
+```bash
+pcap2llm analyze trace.pcapng \
+  --profile lte-core \
+  --render-flow-svg \
+  --out ./artifacts
+```
+
+Dann entstehen zusaetzlich `flow.json` und `flow.svg`. Das Flow-JSON enthaelt
+Lanes, Events, Phasen, Korrelationen und Repeat-Metadaten; das SVG ist ein
+Sequenzdiagramm mit Hover-Tooltips. Die Labels nutzen, soweit im Trace
+vorhanden, protokollspezifische Details wie Diameter Result-Code, GTPv2
+Message/Cause, NGAP Procedure, NAS-EPS/NAS-5GS Message Type, HTTP/2
+Methode/Pfad/Status und DNS Query/Rcode/Antwortzahl. Fehlerhafte Antworten
+werden visuell hervorgehoben.
+
+Wenn du nur die Darstellung neu erzeugen willst, ohne TShark oder die Pipeline
+erneut zu starten:
+
+```bash
+pcap2llm visualize ./artifacts/analyze_trace_start_1_V_01_flow.json --width 1800
+```
 
 ## Profile sinnvoll waehlen
 

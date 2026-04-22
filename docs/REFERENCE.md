@@ -211,6 +211,34 @@ TShark:
   --tshark-arg            Extra tshark argument (repeatable)
 ```
 
+#### Optional flow artifacts
+
+`--render-flow-svg` adds two sidecars to the normal `analyze` output set:
+
+- `..._flow.json`: machine-readable flow model with endpoint lanes, events,
+  protocol labels, phase blocks, request/response correlation, rendered/truncated
+  event counts, and warnings.
+- `..._flow.svg`: human-readable sequence diagram generated from that model.
+
+The renderer uses endpoint aliases, IPs, hostnames, and roles to build lanes,
+then orders common telecom roles by profile family (for example UE -> eNB/MME
+for LTE, UE -> gNB/AMF/SMF for 5G, and CSCF-oriented ordering for IMS).
+Adjacent identical events are collapsed by default and keep
+`repeat_count`, `first_packet_no`, `last_packet_no`, and relative-time metadata.
+
+Labels are protocol-aware when the extracted fields are available:
+
+- Diameter command names plus `Result-Code` on answers
+- GTPv2 message names plus response cause values; causes >= 64 are errors
+- NGAP procedure names and NAS-EPS/NAS-5GS message names
+- HTTP/2 request method/path or response status
+- DNS query type/name, response rcode, answer count, and `dns.id` correlation
+
+The SVG includes browser hover tooltips on arrows and marks error events in red.
+If a profile did not extract a rich app-layer message name, the renderer falls
+back to `frame_protocols` for labels such as SIP, NGAP, NAS-5GS, S1AP, PFCP,
+GTPv1/GTPv2, Diameter, RADIUS, SCCP, MAP, or ISUP.
+
 ### `visualize` - Re-render flow SVG from an existing flow JSON
 
 ```bash
@@ -219,6 +247,8 @@ pcap2llm visualize ./artifacts/analyze_trace_start_1_V_01_flow.json --out ./arti
 ```
 
 Reads a previously generated `flow.json` and writes a fresh SVG without rerunning tshark or the analysis pipeline.
+Use this after changing only presentation width or output path, or when you want
+to keep the packet-processing artifacts fixed and regenerate the diagram.
 
 **Options:**
 ```
@@ -435,6 +465,7 @@ Every `analyze` run writes a semantically ordered file set:
 - `_V_01` is always present; auto-increments to `_V_02`, `_V_03` if files already exist in the output directory
 - `summary.json` and `detail.json` include `schema_version`, `generated_at` (ISO 8601 UTC), and `capture_sha256`
 - `summary.json` includes a `coverage` block showing how many packets were exported and how many were written to `detail.json`
+- `flow.json` is generated from the protected detail packets and can be passed to `pcap2llm visualize` for later SVG rendering
 
 ---
 

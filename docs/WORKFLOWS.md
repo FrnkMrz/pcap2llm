@@ -14,6 +14,15 @@ Related docs:
 
 The human-readable outputs now start with the same four metadata lines across `inspect`, `discover`, and `analyze`: action, capture file, start packet, and artifact version.
 
+For focused call-flow reviews, add `--render-flow-svg` to `analyze` to produce
+`flow.json` and `flow.svg` sidecars. The SVG is a sequence diagram with
+endpoint lanes, phase blocks, request/response coloring, error highlighting,
+repeat-collapse markers, and hover tooltips. Labels include telecom-specific
+details where possible, including Diameter result codes, GTPv2 causes, NGAP and
+NAS message names, HTTP/2 method/path or status, and DNS query/rcode details.
+You can rerender the same model later with `pcap2llm visualize ..._flow.json`
+without rerunning TShark.
+
 ---
 
 ## Repo-Owned Local Batch Runs

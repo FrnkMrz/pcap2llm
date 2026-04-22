@@ -60,7 +60,7 @@ Use it when you want to know:
 | [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md) | everyone | complete document inventory and navigation hub | whichever topic page matches your task |
 | [`QUICKSTART_DE.md`](QUICKSTART_DE.md) | German-speaking users | shortest path from install to first meaningful run | [`ANLEITUNG_DE.md`](ANLEITUNG_DE.md), [`DISCOVERY.md`](DISCOVERY.md), [`REFERENCE.md`](REFERENCE.md) |
 | [`ANLEITUNG_DE.md`](ANLEITUNG_DE.md) | German-speaking users | practical day-to-day usage guide | [`WORKFLOWS.md`](WORKFLOWS.md), [`PRIVACY_SHARING.md`](PRIVACY_SHARING.md), [`REFERENCE.md`](REFERENCE.md) |
-| [`REFERENCE.md`](REFERENCE.md) | operators, integrators, contributors | full English command and option reference | topic-specific pages linked below |
+| [`REFERENCE.md`](REFERENCE.md) | operators, integrators, contributors | full English command, option, artifact, and visualization reference | topic-specific pages linked below |
 
 ## Capture Analysis And Orchestration
 
@@ -122,6 +122,7 @@ Across the full set, the documentation now covers:
 - German quickstart and German practical usage guidance
 - complete English CLI reference
 - discovery, recommendation, and session-based orchestration
+- optional signaling-flow visualization with `flow.json`, `flow.svg`, and `visualize`
 - protocol-family workflows for LTE, 5G, voice/IMS, and legacy SS7/GERAN
 - profile selection and custom profile authoring
 - privacy profiles, sharing rules, and encryption model

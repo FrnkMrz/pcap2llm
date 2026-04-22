@@ -27,7 +27,7 @@ full capture size.
 | Frame selection | Derives bounded set of frame numbers from pass-1 records |
 | **Pass 2 — selective export** | TShark `-T json -Y "frame.number in {N1,N2,...}"` for selected frames only; chunked at 500 frames per invocation |
 | Normalization / protection | Runs only on the pass-2 output — memory proportional to `max_packets` |
-| Serialization | Writes bounded `detail.json` + full-coverage `summary.json` |
+| Serialization | Writes bounded `detail.json` + full-coverage `summary.json`; optionally derives `flow.json` + `flow.svg` from the protected bounded packet set |
 
 **What this makes true:**
 
@@ -35,6 +35,7 @@ full capture size.
 - Normalization and protection memory is proportional to the detail artifact, not the full capture
 - Inspection accuracy is preserved: pass-1 covers all packets, so `summary.json` stats are always complete
 - Anomaly detection (Diameter, GTPv2-C) runs over all pass-1 records — stateful detectors remain correct
+- Flow rendering is bounded by the protected detail packet set and `--flow-max-events`; it is not a second full-capture pass
 
 **What still applies:**
 

@@ -39,10 +39,13 @@ pcap2llm recommend-profiles artifacts/discover_trace_start_1_V_01.json
 pcap2llm analyze trace.pcapng \
   --profile <chosen-profile> \
   --privacy-profile llm-telecom-safe \
+  --render-flow-svg \
   --out ./artifacts
 ```
 
 For HTTP/2-heavy 5G SBI traces, add `--two-pass`.
+`--render-flow-svg` is optional but useful for local validation: it creates a
+`flow.json` model and `flow.svg` sequence diagram beside the normal artifacts.
 
 ## Required Rules
 
@@ -75,7 +78,9 @@ Prefer the smallest useful input:
 
 1. `summary.json` for protocol mix, anomalies, timing, and coverage
 2. a focused excerpt from `detail.json` for the relevant call flow or failure window
-3. a short operator question such as:
+3. optionally, selected information from `flow.json` when sequence order,
+   collapsed repeats, or request/response pairing matters
+4. a short operator question such as:
    - what procedure is shown here?
    - where does the failure occur?
    - what is the most likely root cause?
@@ -89,7 +94,10 @@ After the LLM responds:
 
 1. compare the explanation to `summary.json`
 2. check protocol ordering and anomalies against `detail.json`
-3. separate direct trace evidence from hypotheses
+3. use `flow.svg` locally to verify the claimed sequence, response/error
+   coloring, GTPv2 causes, Diameter results, DNS rcodes, and repeat-collapse
+   ranges
+4. separate direct trace evidence from hypotheses
 
 Recommended reporting style:
 

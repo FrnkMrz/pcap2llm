@@ -34,12 +34,14 @@ Related docs:
 
 - Primary artifact contract: `detail.json`
 - Context and audit sidecars: `summary.json` and `summary.md`
+- Optional visual flow sidecars: `flow.json` and `flow.svg` from `analyze --render-flow-svg`
 - Optional machine-readable CLI contract: `pcap2llm analyze ... --llm-mode`
 - Artifact structure is part of the product surface; raw TShark JSON is not
 
 ## Current Operational Model
 
 - The tool extracts packets with TShark, normalizes selected data, applies privacy policy decisions, and serializes bounded artifacts.
+- Optional flow rendering derives a deterministic endpoint/event/phase model from the protected detail packets; it does not add AI analysis.
 - The product boundary stops at readable artifact generation. Any inference, explanation, or diagnosis happens in a separate downstream step.
 - `--llm-mode` does not change artifact semantics. It only changes the CLI return contract so external callers can parse outcomes, warnings, limits, and file paths reliably.
 

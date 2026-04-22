@@ -35,6 +35,7 @@ What may remain visible depends on the privacy profile, but the following must b
 - `detail.json`: primary LLM handoff artifact, privacy-controlled and bounded
 - `summary.json`: compact counts, anomalies, and policy metadata only
 - `summary.md`: human-readable sidecar derived from `summary.json`
+- `flow.json` / `flow.svg`: optional visual-review sidecars derived after privacy protection; labels and SVG tooltips still need review before sharing outside the trusted boundary
 
 The tool must never silently leak:
 

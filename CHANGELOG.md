@@ -6,6 +6,44 @@ The format is intentionally simple and optimized for humans reading repo history
 
 ## Unreleased
 
+### Added — 2026-04-22 (signaling flow visualization)
+
+- **Optional signaling-flow artifacts for `analyze`**:
+  - `pcap2llm analyze ... --render-flow-svg` now writes `flow.json` and
+    `flow.svg` sidecars next to `detail.json`, `summary.json`, and `summary.md`.
+  - `flow.json` carries endpoint lanes, rendered events, phase blocks,
+    request/response correlation, rendered/truncated event counts, warnings, and
+    repeat-collapse metadata (`repeat_count`, first/last packet number, and
+    relative timing).
+  - `flow.svg` renders a telecom sequence diagram with role-aware lane ordering,
+    above-arrow labels, browser hover tooltips, accessible SVG title/description,
+    request/response coloring, and red error highlighting.
+
+- **Standalone flow re-rendering**:
+  - added `pcap2llm visualize <flow.json>` to regenerate an SVG from an existing
+    flow model without rerunning TShark or the analysis pipeline.
+  - supports custom output path and SVG width.
+
+- **Richer protocol-aware flow labels**:
+  - Diameter answers include `Result-Code` in labels and result codes >= 3000
+    mark the event as an error.
+  - GTPv2 labels use message names, avoid request/response double suffixes, add
+    response cause values, and mark cause >= 64 as an error.
+  - NGAP procedures and NAS-EPS/NAS-5GS message types are named when their codes
+    are present, including fields nested inside verbatim TShark trees.
+  - HTTP/2 labels prefer request method/path or response status.
+  - DNS events show query type/name, response rcode, answer count, and use
+    `dns.id` as a correlation key; non-zero rcode marks the event as an error.
+  - fallback labeling now recovers app-layer names from `frame_protocols` for
+    SIP, NGAP, NAS-5GS, S1AP, PFCP, GTPv1/GTPv2, Diameter, RADIUS, SCCP, MAP,
+    and ISUP when profile extraction did not surface richer fields.
+
+- **Documentation refreshed for visualization**:
+  - README, English reference, German quickstart/practical guide, workflow docs,
+    LLM workflow/mode docs, project status, pipeline internals, documentation
+    map, and contributor notes now describe the new flow sidecars and
+    `visualize` command.
+
 ### Added — 2026-04-12 (repo-owned local batch runner)
 
 - **Repo-owned local batch execution tooling**:

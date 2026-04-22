@@ -60,7 +60,8 @@ But the real inputs and outputs stay local-only:
 
 - captures such as `.local/PCAPs/...`
 - helper files such as `.local/hosts`
-- result directories such as `.local/results/...`
+- one-shot run output under `.local/runs/`
+- curated batch output under `.local/results/...`
 
 Useful variants:
 
@@ -73,6 +74,11 @@ python3 scripts/run_local_batches.py --batch batches/local_examples.toml --outpu
 ```
 
 Use `run_all_local_pcaps.sh` when you want the old one-shot "scan everything in `.local/` and run it" flow.
+It runs `discover`, `inspect`, and `analyze` for each `.pcap`/`.pcapng`,
+auto-selects the top discovery profile, uses the local-only `internal` privacy
+profile, and renders `flow.json` plus `flow.svg` for each analyzed capture.
+The generated `.local/runs/RESULTS.md` includes a flow overview and short event
+samples from each `flow.json`.
 
 Use `run_local_batches.py` when you want a curated, versioned set of named cases.
 
@@ -81,6 +87,8 @@ Use `run_local_batches.py` when you want a curated, versioned set of named cases
 - `.local/hosts` — Wireshark hosts mapping
 - `.local/Subnets` — CIDR fallback mappings for roaming partner or cluster IP ranges
 - `.local/ss7pcs` — SS7 point-code aliases for OPC/DPC-based peer naming
+- `.local/PCAPs/...` — local captures for one-shot batch runs
+- `.local/runs/...` — local `run_all_local_pcaps.sh` output, including flow artifacts
 - local mapping tables (YAML/JSON)
 - anonymization dictionaries
 - raw trace files used for local testing

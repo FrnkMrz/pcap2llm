@@ -426,12 +426,14 @@ Every `analyze` run writes a semantically ordered file set:
 | `analyze_<capture>_start_<n>_V_01_detail.json` | **Primary LLM input** — normalized packets, reduced fields, privacy applied |
 | `analyze_<capture>_start_<n>_V_01_summary.json` | Sidecar — protocol mix, conversations, anomalies, coverage, timing |
 | `analyze_<capture>_start_<n>_V_01_summary.md` | Human-readable version of the summary |
+| `analyze_<capture>_start_<n>_V_01_flow.json` | Optional signaling flow model, written when `--render-flow-svg` is used |
+| `analyze_<capture>_start_<n>_V_01_flow.svg` | Optional signaling sequence diagram, written when `--render-flow-svg` is used |
 | `analyze_<capture>_start_<n>_V_01_pseudonym_mapping.json` | Only when pseudonymization is active |
 | `analyze_<capture>_start_<n>_V_01_vault.json` | Only when encryption is active |
 
 - Filenames lead with semantic context: action, capture filename, start packet, artifact version.
 - `_V_01` is always present; auto-increments to `_V_02`, `_V_03` if files already exist in the output directory
-- Both JSON files include `schema_version`, `generated_at` (ISO 8601 UTC), and `capture_sha256`
+- `summary.json` and `detail.json` include `schema_version`, `generated_at` (ISO 8601 UTC), and `capture_sha256`
 - `summary.json` includes a `coverage` block showing how many packets were exported and how many were written to `detail.json`
 
 ---
@@ -920,6 +922,9 @@ cp /path/to/your/hosts .local/hosts
 ### What belongs in .local/
 
 - `.local/hosts` — Wireshark hosts mapping
+- `.local/PCAPs/...` — local-only captures for one-shot batch runs
+- `.local/runs/...` — output from `scripts/run_all_local_pcaps.sh`, including flow artifacts and `RESULTS.md`
+- `.local/results/...` — output from curated local batch definitions
 - local mapping tables
 - anonymization dictionaries
 - raw trace files for local testing

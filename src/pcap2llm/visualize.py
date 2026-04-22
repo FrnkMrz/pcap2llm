@@ -660,10 +660,13 @@ def _event_name(packet: dict[str, Any]) -> str:
             fields.get("dns.count.answers")
             or _find_nested_field(fields, ("dns.count.answers",))
         )
+        is_response = dns_flag_response == 1 or (
+            dns_flag_response is None and rcode is not None and rcode != 0
+        )
         return _dns_label(
             qry_name=dns_qry_name,
             qry_type=qry_type,
-            is_response=dns_flag_response == 1,
+            is_response=is_response,
             rcode=rcode,
             answer_count=answers,
         )
@@ -853,6 +856,7 @@ def _correlation_id(packet: dict[str, Any]) -> str | None:
         "diameter.hopbyhopid",
         "diameter.endtoendid",
         "http2.streamid",
+        "gtpv2.seq",
         "gtpv2.seq_no",
         "gtpv2.sequence_number",
         "pfcp.sequence_number",

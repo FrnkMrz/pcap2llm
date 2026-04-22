@@ -105,6 +105,41 @@ def test_build_flow_model_pairs_request_and_response() -> None:
     assert second["paired_event_id"] == first["id"]
 
 
+def test_build_flow_model_pairs_gtpv2_request_and_response_with_seq() -> None:
+    packets = [
+        _packet_with_fields(
+            1,
+            "MME",
+            "SGW",
+            "",
+            {"gtpv2.message_type": "32", "gtpv2.seq": "42"},
+        ),
+        _packet_with_fields(
+            2,
+            "SGW",
+            "MME",
+            "",
+            {"gtpv2.message_type": "33", "gtpv2.seq": "42"},
+        ),
+    ]
+    del packets[0]["message"]["fields"]["message_name"]
+    del packets[1]["message"]["fields"]["message_name"]
+
+    flow = build_flow_model(
+        packets,
+        capture_file="sample.pcapng",
+        profile="lte-s11",
+        privacy_profile=None,
+    )
+
+    first = flow["events"][0]
+    second = flow["events"][1]
+    assert first["correlation_id"] == "gtpv2.seq:42"
+    assert second["correlation_id"] == "gtpv2.seq:42"
+    assert first["paired_event_id"] == second["id"]
+    assert second["paired_event_id"] == first["id"]
+
+
 def test_build_flow_model_pairs_without_correlation_id_by_message_base() -> None:
     packets = [
         _packet(1, "AMF", "SMF", "Create Session Request"),
@@ -615,6 +650,32 @@ def test_dns_nxdomain_response_is_flagged_as_error() -> None:
         [packet],
         capture_file="sample.pcapng",
         profile="lte-dns",
+        privacy_profile=None,
+    )
+
+    event = flow["events"][0]
+    assert event["message_name"] == "DNS A missing.example.com · NXDOMAIN"
+    assert event["status"] == "error"
+
+
+def test_dns_error_rcode_labels_response_without_response_flag() -> None:
+    packet = _packet_with_fields(
+        1,
+        "DNS",
+        "UE",
+        "",
+        {
+            "dns.qry.name": "missing.example.com",
+            "dns.qry.type": "1",
+            "dns.flags.rcode": "3",
+        },
+    )
+    del packet["message"]["fields"]["message_name"]
+
+    flow = build_flow_model(
+        [packet],
+        capture_file="sample.pcapng",
+        profile="lte-core",
         privacy_profile=None,
     )
 

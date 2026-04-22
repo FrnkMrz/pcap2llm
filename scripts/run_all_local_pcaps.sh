@@ -15,6 +15,7 @@
 #            discover_<capture>_start_<n>_V_01.{json,md}
 #            inspect_<capture>_start_<n>_V_01.{json,md}
 #            analyze_<capture>_start_<n>_V_01_*.{json,md}
+#            analyze_<capture>_start_<n>_V_01_flow.{json,svg}
 #          .local/runs/RESULTS.md  - consolidated overview
 
 set -euo pipefail
@@ -76,6 +77,18 @@ json_field() {
   jq -r "$query // empty" "$file" 2>/dev/null || true
 }
 
+abs_artifact_path() {
+  local path="$1"
+  if [[ -z "$path" || "$path" == "null" ]]; then
+    return 0
+  fi
+  if [[ "$path" == /* ]]; then
+    printf '%s\n' "$path"
+  else
+    printf '%s/%s\n' "$PROJECT_ROOT" "$path"
+  fi
+}
+
 capture_segment() {
   local trace_path="$1"
   local base stem
@@ -106,6 +119,8 @@ cleanup_trace_outputs() {
     -o -name "analyze_${capture_key}_start_*_V_*_summary.json" \
     -o -name "analyze_${capture_key}_start_*_V_*_detail.json" \
     -o -name "analyze_${capture_key}_start_*_V_*_summary.md" \
+    -o -name "analyze_${capture_key}_start_*_V_*_flow.json" \
+    -o -name "analyze_${capture_key}_start_*_V_*_flow.svg" \
     -o -name "${run_slug}__*" \) \
     -delete
 }
@@ -164,6 +179,7 @@ fi
 MAX_PACKETS=500
 
 declare -a RESULT_ROWS=()
+declare -a FLOW_JSON_FILES=()
 
 total=${#pcap_files[@]}
 idx=0
@@ -180,7 +196,7 @@ for pcap in "${pcap_files[@]}"; do
 
   if trace_has_outputs "$capture_key" && [[ "$FORCE" -eq 0 ]]; then
     warn "Trace outputs already exist - skipping (use --force to re-run and replace them)"
-    RESULT_ROWS+=("| \`$display_name\` | skipped | - | - | - |")
+    RESULT_ROWS+=("| \`$display_name\` | skipped | - | - | - | - | - | - | - | - | - | - |")
     continue
   fi
 
@@ -193,6 +209,13 @@ for pcap in "${pcap_files[@]}"; do
   analyze_status="ok"
   top_profile="lte-core"
   classification=""
+  packets="-"
+  flow_events="-"
+  flow_nodes="-"
+  flow_phases="-"
+  flow_errors="-"
+  flow_paired="-"
+  flow_links="-"
 
   log "  [1/3] discover …"
   discover_stdout="$(mktemp)"
@@ -252,18 +275,37 @@ for pcap in "${pcap_files[@]}"; do
     analyze_json="$(mktemp)"
     analyze_stderr="$(mktemp)"
     if "$PCAP2LLM_BIN" analyze "$pcap" \
-         --profile "$top_profile" \
-         --privacy-profile "$PRIVACY" \
-         --max-packets "$MAX_PACKETS" \
-         --out "$RUNS_DIR" \
-         --llm-mode \
-         "${HOSTS_ARGS[@]}" \
+      --profile "$top_profile" \
+      --privacy-profile "$PRIVACY" \
+      --max-packets "$MAX_PACKETS" \
+      --out "$RUNS_DIR" \
+      --render-flow-svg \
+      --llm-mode \
+      "${HOSTS_ARGS[@]}" \
          2>"$analyze_stderr" \
        | tee "$analyze_json" >/dev/null; then
       a_status=$(jq -r '.status // "unknown"' "$analyze_json" 2>/dev/null || echo "unknown")
       a_included=$(jq -r '.coverage.detail_packets_included // "?"' "$analyze_json" 2>/dev/null || echo "?")
       a_truncated=$(jq -r '.coverage.detail_truncated // false' "$analyze_json" 2>/dev/null || echo "?")
-      ok "analyze done → status=$a_status  packets=$a_included  truncated=$a_truncated"
+      packets="$a_included"
+      a_flow_json="$(abs_artifact_path "$(json_field "$analyze_json" '.files.flow_json')")"
+      a_flow_svg="$(abs_artifact_path "$(json_field "$analyze_json" '.files.flow_svg')")"
+      if [[ -f "$a_flow_json" ]]; then
+        FLOW_JSON_FILES+=("$a_flow_json")
+        flow_rendered=$(jq -r '.event_count_rendered // ((.events // []) | length) // 0' "$a_flow_json" 2>/dev/null || echo "0")
+        flow_uncollapsed=$(jq -r '.event_count_uncollapsed // .event_count_rendered // ((.events // []) | length) // 0' "$a_flow_json" 2>/dev/null || echo "0")
+        flow_events="${flow_rendered}/${flow_uncollapsed}"
+        flow_nodes=$(jq -r '(.nodes // []) | length' "$a_flow_json" 2>/dev/null || echo "0")
+        flow_phases=$(jq -r '(.phases // []) | length' "$a_flow_json" 2>/dev/null || echo "0")
+        flow_errors=$(jq -r '[.events[]? | select((.status // "") == "error" or (.is_error // false) == true)] | length' "$a_flow_json" 2>/dev/null || echo "0")
+        flow_paired=$(jq -r '[.events[]? | select(.paired_event_id != null and .paired_event_id != "")] | length' "$a_flow_json" 2>/dev/null || echo "0")
+        if [[ -f "$a_flow_svg" ]]; then
+          flow_links="[SVG]($a_flow_svg) / [JSON]($a_flow_json)"
+        else
+          flow_links="[JSON]($a_flow_json)"
+        fi
+      fi
+      ok "analyze done → status=$a_status  packets=$a_included  flow_events=$flow_events  truncated=$a_truncated"
       if [[ "$a_truncated" == "true" ]]; then
         warn "detail was truncated — consider passing --max-packets higher or a -Y filter"
       fi
@@ -278,7 +320,7 @@ for pcap in "${pcap_files[@]}"; do
     rm -f "$analyze_json" "$analyze_stderr"
   fi
 
-  RESULT_ROWS+=("| \`$display_name\` | $discover_status | $top_profile | $inspect_status | $analyze_status |")
+  RESULT_ROWS+=("| \`$display_name\` | $discover_status | $top_profile | $inspect_status | $analyze_status | $packets | $flow_events | $flow_nodes | $flow_phases | $flow_errors | $flow_paired | $flow_links |")
 done
 
 sep
@@ -288,12 +330,52 @@ log "Writing $RESULTS_FILE …"
   echo "# Local Trace Run Results"
   echo ""
   echo "Generated: $(date -u '+%Y-%m-%d %H:%M UTC')"
+  echo "Privacy: \`$PRIVACY\`"
+  echo "Flow rendering: \`--render-flow-svg\`"
   echo ""
-  echo "| Trace | Discover | Top Profile | Inspect | Analyze |"
-  echo "|---|---|---|---|---|"
+  echo "## Flow Overview"
+  echo ""
+  echo "| Trace | Discover | Top Profile | Inspect | Analyze | Packets | Flow Events | Nodes | Phases | Errors | Paired | Flow |"
+  echo "|---|---|---|---|---|---:|---:|---:|---:|---:|---:|---|"
   for row in "${RESULT_ROWS[@]}"; do
     echo "$row"
   done
+  echo ""
+  if [[ ${#FLOW_JSON_FILES[@]} -gt 0 ]]; then
+    echo "## Flow Event Samples"
+    echo ""
+    echo "Each sample shows up to the first 8 rendered flow events from the corresponding \`flow.json\`."
+    echo ""
+    for flow_json in "${FLOW_JSON_FILES[@]}"; do
+      capture_name=$(jq -r '(.capture_file // input_filename) | split("/")[-1]' "$flow_json" 2>/dev/null || basename "$flow_json")
+      profile_name=$(jq -r '.profile // "unknown"' "$flow_json" 2>/dev/null || echo "unknown")
+      rendered=$(jq -r '.event_count_rendered // ((.events // []) | length) // 0' "$flow_json" 2>/dev/null || echo "0")
+      uncollapsed=$(jq -r '.event_count_uncollapsed // .event_count_rendered // ((.events // []) | length) // 0' "$flow_json" 2>/dev/null || echo "0")
+      nodes=$(jq -r '(.nodes // []) | length' "$flow_json" 2>/dev/null || echo "0")
+      phases=$(jq -r '(.phases // []) | length' "$flow_json" 2>/dev/null || echo "0")
+      errors=$(jq -r '[.events[]? | select((.status // "") == "error" or (.is_error // false) == true)] | length' "$flow_json" 2>/dev/null || echo "0")
+      phase_preview=$(jq -r '[.phases[0:8][]? | (.label // .kind // "Phase")] | join(", ")' "$flow_json" 2>/dev/null || echo "")
+      [[ -z "$phase_preview" ]] && phase_preview="-"
+      echo "### $capture_name"
+      echo "Profile \`$profile_name\`; events $rendered/$uncollapsed; nodes $nodes; phases $phases ($phase_preview); errors $errors."
+      echo ""
+      jq -r '
+        .events[0:8][]? |
+        "- pkt \(.packet_no // "?") - `\(.status // "")` - \(.message_name // .short_label // "event")" +
+        (if .correlation_id then " - corr `\(.correlation_id)`" else "" end) +
+        (if .paired_event_id then " - paired `\(.paired_event_id)`" else "" end)
+      ' "$flow_json" 2>/dev/null || true
+      remaining=$(jq -r '((.events // []) | length) - ([.events[0:8][]?] | length)' "$flow_json" 2>/dev/null || echo "0")
+      if [[ "$remaining" =~ ^[0-9]+$ && "$remaining" -gt 0 ]]; then
+        echo "- ... +$remaining more events in [flow.json]($flow_json)"
+      fi
+      flow_warnings=$(jq -r '(.warnings // []) | join("; ")' "$flow_json" 2>/dev/null || echo "")
+      if [[ -n "$flow_warnings" ]]; then
+        echo "- Flow warnings: $flow_warnings"
+      fi
+      echo ""
+    done
+  fi
   echo ""
   echo "Runner command: \`bash scripts/run_all_local_pcaps.sh\`"
   echo ""
@@ -308,6 +390,8 @@ log "Writing $RESULTS_FILE …"
   echo "  analyze_<capture>_start_<n>_V_01_summary.json"
   echo "  analyze_<capture>_start_<n>_V_01_detail.json"
   echo "  analyze_<capture>_start_<n>_V_01_summary.md"
+  echo "  analyze_<capture>_start_<n>_V_01_flow.json"
+  echo "  analyze_<capture>_start_<n>_V_01_flow.svg"
   echo "\`\`\`"
 } > "$RESULTS_FILE"
 

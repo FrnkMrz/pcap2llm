@@ -23,6 +23,8 @@ For repeatable local regression-style runs, keep the runner and batch definition
 Example:
 
 ```bash
+bash scripts/run_all_local_pcaps.sh
+bash scripts/run_all_local_pcaps.sh --force
 python3 scripts/run_local_batches.py --batch batches/local_examples.toml --list
 python3 scripts/run_local_batches.py --batch batches/local_examples.toml
 python3 scripts/run_local_batches.py --batch batches/local_examples.toml --case inspect_volte_mixed_trace
@@ -33,8 +35,19 @@ Recommended local workflow:
 1. store private captures and helper files under ignored paths such as `.local/PCAPs/` and `.local/hosts`
 2. edit the committed batch catalog in `batches/*.toml`
 3. run the repo-owned batch tool from the repo root
-4. review local outputs under `.local/results/`
+4. review one-shot outputs under `.local/runs/` or curated batch outputs under `.local/results/`
 5. never commit captures or generated artifacts
+
+Use `scripts/run_all_local_pcaps.sh` for the one-shot local sweep. It scans
+`.local/` recursively for `.pcap` and `.pcapng` files, skips `.local/runs/`,
+runs `discover`, `inspect`, and `analyze`, auto-selects the top discovery
+profile, and analyzes with `--privacy-profile internal` plus
+`--render-flow-svg`. Its `.local/runs/RESULTS.md` includes a flow overview
+with packet/event/node/phase/error/pairing counts and short event samples from
+each `flow.json`.
+
+Use `scripts/run_local_batches.py` when you want a curated list of named cases
+with explicit actions, profiles, and extra arguments in `batches/*.toml`.
 
 ---
 

@@ -39,7 +39,7 @@ def _truncate(text: str, max_len: int) -> str:
     value = text.strip()
     if len(value) <= max_len:
         return value
-    return f"{value[: max_len - 1]}..."
+    return f"{value[:max_len - 3]}..."
 
 
 def _bool_from_field(value: Any) -> bool | None:
@@ -740,7 +740,6 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
     right_margin = 90
     top_margin = 170
     row_height = 34
-    lane_label_y = 76
     footer_height = 60
 
     lane_count = max(1, len(nodes))
@@ -837,7 +836,7 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
 
     parts.append('<g class="events">')
     for idx, event in enumerate(events, start=1):
-        y = top_margin + (idx - 1) * row_height
+        y = event_y[str(event.get("id"))]
         src = event.get("src_node")
         dst = event.get("dst_node")
         src_x = node_x.get(str(src), left_margin)
@@ -871,8 +870,10 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
                 f'data-protocol="{protocol}" data-session-key="{session_key}" '
                 f'data-src="{escape(str(src))}" data-dst="{escape(str(dst))}" data-status="{status}" />'
             )
-            text_x = loop_to + 8
+            # clamp to canvas so the label never lands outside the viewport
+            text_x = min(loop_to + 8, canvas_width - 120)
             text_anchor = "start"
+            label_y = y - 8
         else:
             parts.append(
                 f'<line x1="{src_x}" y1="{y}" x2="{dst_x}" y2="{y}" stroke="{color}" stroke-width="1.7" '
@@ -883,9 +884,11 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
             )
             text_x = int((src_x + dst_x) / 2)
             text_anchor = "middle"
+            # place label above for left-to-right arrows, below for right-to-left so
+            # that bidirectional pairs between the same two nodes don't overlap
+            label_y = y - 8 if src_x <= dst_x else y + 18
 
         meta_label = f"#{packet_no}" if packet_no is not None else ""
-        label_y = y - 7 if idx % 2 == 0 else y - 3
         parts.append(
             f'<text x="{text_x}" y="{label_y}" text-anchor="{text_anchor}" font-family="Georgia, serif" '
             f'font-size="11" fill="#2c3647">{label}</text>'

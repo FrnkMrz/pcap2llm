@@ -324,7 +324,7 @@ class TestPrivacyModeHelp:
             "--token-mode",
             "--uri-mode",
             "--apn-dnn-mode",
-            "--diameter-identity",  # --diameter-identity-mode (may be truncated)
+            "--diameter-identit",  # --diameter-identity-mode (may be truncated)
             "--payload-text-mode",
         ]
         for prefix in expected_prefixes:

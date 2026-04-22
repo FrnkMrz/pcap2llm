@@ -164,6 +164,51 @@ def _gtpv2_message_label(code: int) -> str:
     return f"{base} Response ({code})"
 
 
+_GTPV2_CAUSE_NAMES: dict[int, str] = {
+    16: "Request accepted",
+    17: "Request accepted partially",
+    18: "New PDN type network preference",
+    19: "New PDN type single address bearer only",
+    64: "Context Not Found",
+    65: "Invalid Message Format",
+    66: "Version not supported",
+    67: "Invalid length",
+    68: "Service not supported",
+    69: "Mandatory IE incorrect",
+    70: "Mandatory IE missing",
+    72: "System failure",
+    73: "No resources available",
+    78: "Missing or unknown APN",
+    82: "Denied in RAT",
+    83: "Preferred PDN type not supported",
+    84: "All dynamic addresses are occupied",
+    86: "Protocol type not supported",
+    87: "UE not responding",
+    88: "UE refuses",
+    89: "Service denied",
+    91: "No memory available",
+    92: "User authentication failed",
+    93: "APN access denied - no subscription",
+    94: "Request rejected",
+    96: "IMSI/IMEI not known",
+    100: "Remote peer not responding",
+    101: "Collision with network initiated request",
+    103: "Conditional IE missing",
+    110: "Temporarily rejected (handover in progress)",
+    113: "APN Congestion",
+    116: "Multiple PDN connections for APN not allowed",
+}
+
+
+def _gtpv2_cause_suffix(code: int) -> str:
+    name = _GTPV2_CAUSE_NAMES.get(code)
+    if code <= 17:
+        return f" · Cause {code}"
+    if name:
+        return f" · Cause {code} ({name})"
+    return f" · Cause {code}"
+
+
 _KNOWN_NE_ROLES: frozenset[str] = frozenset([
     "ue", "gnb", "enb", "mme", "sgw", "pgw", "hss", "pcrf", "msc", "dns",
     "amf", "smf", "upf", "ausf", "udm", "udr", "pcf", "chf", "dra",
@@ -437,6 +482,63 @@ def _nas_label(code: int, variant: str) -> str:
     return name if name else f"NAS-{variant.upper()} 0x{code:02x}"
 
 
+_DNS_QUERY_TYPES: dict[int, str] = {
+    1: "A",
+    2: "NS",
+    5: "CNAME",
+    6: "SOA",
+    12: "PTR",
+    15: "MX",
+    16: "TXT",
+    28: "AAAA",
+    33: "SRV",
+    35: "NAPTR",
+    41: "OPT",
+    43: "DS",
+    46: "RRSIG",
+    47: "NSEC",
+    48: "DNSKEY",
+    52: "TLSA",
+    65: "HTTPS",
+    255: "ANY",
+}
+
+_DNS_RCODE_NAMES: dict[int, str] = {
+    0: "NOERROR",
+    1: "FORMERR",
+    2: "SERVFAIL",
+    3: "NXDOMAIN",
+    4: "NOTIMP",
+    5: "REFUSED",
+    6: "YXDOMAIN",
+    7: "YXRRSET",
+    8: "NXRRSET",
+    9: "NOTAUTH",
+    10: "NOTZONE",
+}
+
+
+def _dns_label(
+    qry_name: str | None,
+    qry_type: int | None,
+    is_response: bool,
+    rcode: int | None,
+    answer_count: int | None,
+) -> str:
+    type_name = _DNS_QUERY_TYPES.get(qry_type) if qry_type is not None else None
+    type_str = type_name or (f"TYPE{qry_type}" if qry_type is not None else "")
+    name = qry_name.rstrip(".") if qry_name else ""
+    base = f"DNS {type_str} {name}".strip() or "DNS"
+    if not is_response:
+        return base
+    rcode_name = _DNS_RCODE_NAMES.get(rcode) if rcode is not None else None
+    if rcode and rcode != 0:
+        return f"{base} · {rcode_name or f'rcode {rcode}'}"
+    if answer_count:
+        return f"{base} · NOERROR ({answer_count} ans)"
+    return f"{base} · NOERROR"
+
+
 def _label_for_endpoint(endpoint: dict[str, Any] | None) -> str:
     if not endpoint:
         return "unknown"
@@ -513,7 +615,12 @@ def _event_name(packet: dict[str, Any]) -> str:
 
     gtpv2_type = _to_int(fields.get("gtpv2.message_type"))
     if gtpv2_type is not None:
-        return _gtpv2_message_label(gtpv2_type)
+        label = _gtpv2_message_label(gtpv2_type)
+        if gtpv2_type not in _GTPV2_REQUEST_CODES:
+            cause = _to_int(_find_nested_field(fields, ("gtpv2.cause",)))
+            if cause is not None:
+                label = f"{label}{_gtpv2_cause_suffix(cause)}"
+        return label
 
     nas_eps_type = _to_int(
         fields.get("nas_eps.message_type")
@@ -543,6 +650,23 @@ def _event_name(packet: dict[str, Any]) -> str:
     pfcp_type = fields.get("pfcp.message_type")
     if pfcp_type not in (None, ""):
         return str(pfcp_type)
+
+    dns_flag_response = _to_int(_find_nested_field(fields, ("dns.flags.response",)))
+    dns_qry_name = _to_text(_find_nested_field(fields, ("dns.qry.name",)))
+    if dns_flag_response is not None or dns_qry_name:
+        qry_type = _to_int(_find_nested_field(fields, ("dns.qry.type",)))
+        rcode = _to_int(_find_nested_field(fields, ("dns.flags.rcode",)))
+        answers = _to_int(
+            fields.get("dns.count.answers")
+            or _find_nested_field(fields, ("dns.count.answers",))
+        )
+        return _dns_label(
+            qry_name=dns_qry_name,
+            qry_type=qry_type,
+            is_response=dns_flag_response == 1,
+            rcode=rcode,
+            answer_count=answers,
+        )
 
     # Last resort: use frame_protocols to identify the application protocol even when
     # the analysis profile only extracts transport-layer fields (e.g. lte-core + SIP pcap)
@@ -582,6 +706,22 @@ def _event_status(packet: dict[str, Any], event_name: str) -> str:
     http_status = _to_int(fields.get("http.response.code") or fields.get("http2.headers.status"))
     if http_status is not None and http_status >= 400:
         return "error"
+
+    # GTPv2 cause ≥ 64 is an error (3GPP TS 29.274 clause 8.4) — cause lives
+    # nested inside "Cause:..." sub-dicts when Diameter/GTPv2 is verbatim.
+    gtpv2_cause = _to_int(_find_nested_field(fields, ("gtpv2.cause",)))
+    if gtpv2_cause is not None and gtpv2_cause >= 64:
+        return "error"
+
+    # DNS rcode > 0 (NXDOMAIN, SERVFAIL, REFUSED, …) = error
+    dns_rcode = _to_int(_find_nested_field(fields, ("dns.flags.rcode",)))
+    if dns_rcode is not None and dns_rcode != 0:
+        return "error"
+    dns_response = _to_int(_find_nested_field(fields, ("dns.flags.response",)))
+    if dns_response == 1:
+        return "response"
+    if dns_response == 0:
+        return "request"
 
     diameter_request = _bool_from_field(fields.get("diameter.flags.request"))
     if diameter_request is None:
@@ -719,6 +859,7 @@ def _correlation_id(packet: dict[str, Any]) -> str | None:
         "nas_eps.procedure_transaction_id",
         "ngap.AMF_UE_NGAP_ID",
         "ngap.RAN_UE_NGAP_ID",
+        "dns.id",
     )
     for key in candidates:
         value = _to_text(fields.get(key))

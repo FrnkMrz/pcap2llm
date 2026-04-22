@@ -488,6 +488,202 @@ def test_render_flow_svg_includes_tooltip_and_accessibility_nodes() -> None:
     assert "<title>#1 | AIR" in svg
 
 
+def test_gtpv2_response_label_carries_cause_name_on_error() -> None:
+    packet = _packet_with_fields(
+        1,
+        "SGW",
+        "MME",
+        "",
+        {
+            "gtpv2.message_type": "33",
+            # tshark represents cause nested inside a named container key
+            "Cause: Missing or unknown APN (78)": {"gtpv2.cause": "78"},
+        },
+    )
+    del packet["message"]["fields"]["message_name"]
+
+    flow = build_flow_model(
+        [packet],
+        capture_file="sample.pcapng",
+        profile="lte-s11",
+        privacy_profile=None,
+    )
+
+    assert flow["events"][0]["message_name"] == (
+        "Create Session Response (33) · Cause 78 (Missing or unknown APN)"
+    )
+    assert flow["events"][0]["status"] == "error"
+
+
+def test_gtpv2_response_label_compact_for_success_cause() -> None:
+    packet = _packet_with_fields(
+        1,
+        "SGW",
+        "MME",
+        "",
+        {
+            "gtpv2.message_type": "33",
+            "Cause: Request accepted (16)": {"gtpv2.cause": "16"},
+        },
+    )
+    del packet["message"]["fields"]["message_name"]
+
+    flow = build_flow_model(
+        [packet],
+        capture_file="sample.pcapng",
+        profile="lte-s11",
+        privacy_profile=None,
+    )
+
+    assert flow["events"][0]["message_name"] == "Create Session Response (33) · Cause 16"
+    assert flow["events"][0]["status"] == "response"
+
+
+def test_gtpv2_request_label_never_gets_cause_suffix() -> None:
+    packet = _packet_with_fields(
+        1,
+        "MME",
+        "SGW",
+        "",
+        {"gtpv2.message_type": "32"},
+    )
+    del packet["message"]["fields"]["message_name"]
+
+    flow = build_flow_model(
+        [packet],
+        capture_file="sample.pcapng",
+        profile="lte-s11",
+        privacy_profile=None,
+    )
+
+    assert flow["events"][0]["message_name"] == "Create Session Request (32)"
+
+
+def test_dns_query_label_uses_name_and_type() -> None:
+    packet = _packet_with_fields(
+        1,
+        "UE",
+        "DNS",
+        "",
+        {
+            "dns.id": "0xcafe",
+            "dns.flags_tree": {"dns.flags.response": "0"},
+            "Queries": {
+                "example.com: type A, class IN": {
+                    "dns.qry.name": "example.com",
+                    "dns.qry.type": "1",
+                }
+            },
+        },
+    )
+    del packet["message"]["fields"]["message_name"]
+
+    flow = build_flow_model(
+        [packet],
+        capture_file="sample.pcapng",
+        profile="lte-dns",
+        privacy_profile=None,
+    )
+
+    event = flow["events"][0]
+    assert event["message_name"] == "DNS A example.com"
+    assert event["status"] == "request"
+    assert event["correlation_id"] == "dns.id:0xcafe"
+
+
+def test_dns_nxdomain_response_is_flagged_as_error() -> None:
+    packet = _packet_with_fields(
+        1,
+        "DNS",
+        "UE",
+        "",
+        {
+            "dns.id": "0xcafe",
+            "dns.flags_tree": {"dns.flags.response": "1", "dns.flags.rcode": "3"},
+            "dns.count.answers": "0",
+            "Queries": {
+                "missing.example.com: type A, class IN": {
+                    "dns.qry.name": "missing.example.com",
+                    "dns.qry.type": "1",
+                }
+            },
+        },
+    )
+    del packet["message"]["fields"]["message_name"]
+
+    flow = build_flow_model(
+        [packet],
+        capture_file="sample.pcapng",
+        profile="lte-dns",
+        privacy_profile=None,
+    )
+
+    event = flow["events"][0]
+    assert event["message_name"] == "DNS A missing.example.com · NXDOMAIN"
+    assert event["status"] == "error"
+
+
+def test_dns_noerror_response_shows_answer_count() -> None:
+    packet = _packet_with_fields(
+        1,
+        "DNS",
+        "UE",
+        "",
+        {
+            "dns.id": "0x1234",
+            "dns.flags_tree": {"dns.flags.response": "1", "dns.flags.rcode": "0"},
+            "dns.count.answers": "2",
+            "Queries": {
+                "example.com: type A, class IN": {
+                    "dns.qry.name": "example.com",
+                    "dns.qry.type": "1",
+                }
+            },
+        },
+    )
+    del packet["message"]["fields"]["message_name"]
+
+    flow = build_flow_model(
+        [packet],
+        capture_file="sample.pcapng",
+        profile="lte-dns",
+        privacy_profile=None,
+    )
+
+    event = flow["events"][0]
+    assert event["message_name"] == "DNS A example.com · NOERROR (2 ans)"
+    assert event["status"] == "response"
+
+
+def test_dns_naptr_query_falls_back_to_type_number_if_unknown() -> None:
+    packet = _packet_with_fields(
+        1,
+        "UE",
+        "DNS",
+        "",
+        {
+            "dns.flags_tree": {"dns.flags.response": "0"},
+            "Queries": {
+                "apn.epc.mnc001.mcc001.3gppnetwork.org: type NAPTR, class IN": {
+                    "dns.qry.name": "apn.epc.mnc001.mcc001.3gppnetwork.org",
+                    "dns.qry.type": "35",
+                }
+            },
+        },
+    )
+    del packet["message"]["fields"]["message_name"]
+
+    flow = build_flow_model(
+        [packet],
+        capture_file="sample.pcapng",
+        profile="lte-dns",
+        privacy_profile=None,
+    )
+
+    event = flow["events"][0]
+    assert event["message_name"] == "DNS NAPTR apn.epc.mnc001.mcc001.3gppnetwork.org"
+
+
 def test_render_flow_svg_shows_repeat_packet_range_in_label() -> None:
     packets = [
         _packet(1, "MME", "HSS", "AIR"),

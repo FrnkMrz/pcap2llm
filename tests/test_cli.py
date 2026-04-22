@@ -370,3 +370,79 @@ def test_ask_gemini_dry_run_outputs_plan(tmp_path: Path) -> None:
     assert payload["mode"] == "gemini"
     assert payload["profile"] == "(auto from discovery)"
     assert payload["privacy_profile"] == "llm-telecom-safe"
+
+
+def test_visualize_command_renders_svg_from_flow_json(tmp_path: Path) -> None:
+    from pcap2llm.visualize import build_flow_model
+
+    packets = [
+        {
+            "packet_no": 1,
+            "time_rel_ms": 0.0,
+            "time_epoch": "1712390001.0",
+            "top_protocol": "diameter",
+            "src": {"alias": "MME", "role": "mme"},
+            "dst": {"alias": "HSS", "role": "hss"},
+            "anomalies": [],
+            "message": {"protocol": "diameter", "fields": {"message_name": "AIR"}},
+        }
+    ]
+    flow = build_flow_model(
+        packets,
+        capture_file="test.pcap",
+        profile="lte-core",
+        privacy_profile=None,
+    )
+    flow_path = tmp_path / "flow.json"
+    flow_path.write_text(json.dumps(flow), encoding="utf-8")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["visualize", str(flow_path)])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "ok"
+    assert payload["events"] == 1
+    assert payload["nodes"] == 2
+    svg_path = tmp_path / "flow.svg"
+    assert svg_path.exists()
+    assert "<svg" in svg_path.read_text(encoding="utf-8")
+
+
+def test_visualize_command_respects_custom_out_and_width(tmp_path: Path) -> None:
+    from pcap2llm.visualize import build_flow_model
+
+    packets = [
+        {
+            "packet_no": 1,
+            "time_rel_ms": 0.0,
+            "time_epoch": "1712390001.0",
+            "top_protocol": "diameter",
+            "src": {"alias": "MME", "role": "mme"},
+            "dst": {"alias": "HSS", "role": "hss"},
+            "anomalies": [],
+            "message": {"protocol": "diameter", "fields": {"message_name": "AIR"}},
+        }
+    ]
+    flow = build_flow_model(
+        packets,
+        capture_file="test.pcap",
+        profile="lte-core",
+        privacy_profile=None,
+    )
+    flow_path = tmp_path / "flow.json"
+    flow_path.write_text(json.dumps(flow), encoding="utf-8")
+    out_path = tmp_path / "custom_output.svg"
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        ["visualize", str(flow_path), "--out", str(out_path), "--width", "800"],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["svg"] == str(out_path)
+    assert out_path.exists()
+    svg = out_path.read_text(encoding="utf-8")
+    assert 'width="800"' in svg

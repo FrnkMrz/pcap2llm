@@ -1651,4 +1651,41 @@ def session_finalize_command(
     )
 
 
+@app.command("visualize")
+def visualize_command(
+    flow_json: Path = typer.Argument(..., exists=True, readable=True, help="Input flow.json artifact produced by analyze --render-flow-svg."),
+    out: Path | None = typer.Option(None, "--out", help="Output SVG path (default: same directory and stem as input, with .svg extension)."),
+    width: int = typer.Option(1600, "--width", help="SVG canvas width in pixels."),
+) -> None:
+    """Re-render a flow.svg from an existing flow.json without re-running the full pipeline."""
+    try:
+        flow = json.loads(flow_json.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        typer.echo(f"Error reading {flow_json}: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    from pcap2llm.visualize import render_flow_svg as _render_flow_svg
+
+    svg_text = _render_flow_svg(flow, width=width)
+
+    out_path = out if out is not None else flow_json.with_suffix(".svg")
+    try:
+        out_path.write_text(svg_text, encoding="utf-8")
+    except OSError as exc:
+        typer.echo(f"Error writing SVG to {out_path}: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(
+        json.dumps(
+            {
+                "status": "ok",
+                "svg": str(out_path),
+                "events": flow.get("event_count_rendered", 0),
+                "nodes": len(flow.get("nodes") or []),
+            },
+            indent=2,
+        )
+    )
+
+
 app.add_typer(session_app, name="session")

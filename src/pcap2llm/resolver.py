@@ -516,6 +516,7 @@ class EndpointResolver:
             or override
             or hostname
             or entry.get("hostname")
+            or dedup_ports
         )
         if detection_context:
             detection = _detect_network_element(

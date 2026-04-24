@@ -275,6 +275,13 @@ class TestNetworkElementDetection:
         assert ep.labels["network_element_confidence"] == 50
         assert ep.labels["network_element_source"] == "protocol"
 
+    def test_protocol_detection_without_mapping_context(self) -> None:
+        resolver = EndpointResolver()
+        ep = resolver.resolve("10.0.0.2", service_port=38412)
+        assert ep.labels["network_element_type"] == "AMF"
+        assert ep.labels["network_element_confidence"] == 50
+        assert ep.labels["network_element_source"] == "protocol"
+
     def test_unknown_detection(self, tmp_path: Path) -> None:
         csv_map = tmp_path / "network_element_mapping.csv"
         csv_map.write_text(
@@ -283,6 +290,13 @@ class TestNetworkElementDetection:
             encoding="utf-8",
         )
         resolver = EndpointResolver(network_element_mapping_file=csv_map)
+        ep = resolver.resolve("10.0.0.3", service_port=9999)
+        assert ep.labels["network_element_type"] == "unknown"
+        assert ep.labels["network_element_confidence"] == 0
+        assert ep.labels["network_element_source"] == "unknown"
+
+    def test_unknown_detection_without_mapping_context(self) -> None:
+        resolver = EndpointResolver()
         ep = resolver.resolve("10.0.0.3", service_port=9999)
         assert ep.labels["network_element_type"] == "unknown"
         assert ep.labels["network_element_confidence"] == 0

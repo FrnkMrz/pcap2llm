@@ -4,7 +4,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from pcap2llm.web.jobs import JobStore
-from pcap2llm.web.models import JobRecord
 from pcap2llm.web.security import WebValidationError, ensure_within
 
 
@@ -116,3 +115,21 @@ def test_cleanup_old_jobs_respects_disable(tmp_path: Path) -> None:
     deleted_neg = store.cleanup_old_jobs(max_age_days=-5)
     assert deleted_neg == 0
     assert store.job_root(rec_old.job_id).exists()
+
+
+def test_get_stats_orders_recent_jobs_by_created_at(tmp_path: Path) -> None:
+    store = JobStore(tmp_path / "web_runs")
+    rec_old = store.create("old_trace.pcapng")
+    rec_new = store.create("new_trace.pcapng")
+
+    old_loaded = store.load(rec_old.job_id)
+    new_loaded = store.load(rec_new.job_id)
+    old_loaded.created_at = "2026-04-24T10:00:00Z"
+    new_loaded.created_at = "2026-04-24T11:00:00Z"
+    store.save(old_loaded)
+    store.save(new_loaded)
+
+    stats = store.get_stats()
+    recent = stats["recent_jobs"]
+    assert recent[0]["filename"] == "new_trace.pcapng"
+    assert recent[1]["filename"] == "old_trace.pcapng"

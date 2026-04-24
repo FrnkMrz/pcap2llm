@@ -1,6 +1,4 @@
 from __future__ import annotations
-
-import json
 from pathlib import Path
 
 from pcap2llm.web.models import SecurityProfile
@@ -38,9 +36,9 @@ def test_profile_store_save_and_update(tmp_path: Path) -> None:
 
 def test_profile_store_list_all(tmp_path: Path) -> None:
     store = ProfileStore(tmp_path)
-    p1 = store.create("Zebra Profile", "Last alphabetically")
-    p2 = store.create("Alpha Profile", "First alphabetically")
-    p3 = store.create("Beta Profile", "Middle alphabetically")
+    store.create("Zebra Profile", "Last alphabetically")
+    store.create("Alpha Profile", "First alphabetically")
+    store.create("Beta Profile", "Middle alphabetically")
 
     all_profiles = store.list_all()
     assert len(all_profiles) == 3

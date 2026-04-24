@@ -434,7 +434,7 @@ def test_zip_download_contains_job_files(tmp_path: Path) -> None:
     job_id = upload.headers["location"].split("/")[-1]
 
     store = JobStore(tmp_path / "web_runs")
-    record = store.load(job_id)
+    store.load(job_id)
     (store.artifacts_dir(job_id) / "sample_summary.json").write_text("{}", encoding="utf-8")
     (store.discovery_dir(job_id) / "discover_trace.json").write_text("{}", encoding="utf-8")
     (store.logs_dir(job_id) / "stderr.log").write_text("err", encoding="utf-8")

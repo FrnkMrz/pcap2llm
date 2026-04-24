@@ -41,12 +41,20 @@
       ],
       "src": {
         "ip": "10.50.0.1",
-        "labels": {}
+        "labels": {
+          "network_element_type": "unknown",
+          "network_element_confidence": 0,
+          "network_element_source": "unknown"
+        }
       },
       "dst": {
         "ip": "10.50.0.2",
         "role": "http",
-        "labels": {}
+        "labels": {
+          "network_element_type": "unknown",
+          "network_element_confidence": 0,
+          "network_element_source": "unknown"
+        }
       },
       "transport": {
         "proto": "tcp",
@@ -86,12 +94,22 @@
       "src": {
         "ip": "10.50.0.3",
         "role": "diameter",
-        "labels": {}
+        "labels": {
+          "network_element_type": "DRA",
+          "network_element_confidence": 50,
+          "network_element_source": "protocol",
+          "network_element_warning": "Protocol-port heuristic is ambiguous (DRA/HSS)"
+        }
       },
       "dst": {
         "ip": "10.50.0.4",
         "role": "diameter",
-        "labels": {}
+        "labels": {
+          "network_element_type": "DRA",
+          "network_element_confidence": 50,
+          "network_element_source": "protocol",
+          "network_element_warning": "Protocol-port heuristic is ambiguous (DRA/HSS)"
+        }
       },
       "transport": {
         "proto": "sctp",
@@ -130,12 +148,20 @@
       ],
       "src": {
         "ip": "10.50.0.1",
-        "labels": {}
+        "labels": {
+          "network_element_type": "unknown",
+          "network_element_confidence": 0,
+          "network_element_source": "unknown"
+        }
       },
       "dst": {
         "ip": "10.50.0.2",
         "role": "http",
-        "labels": {}
+        "labels": {
+          "network_element_type": "unknown",
+          "network_element_confidence": 0,
+          "network_element_source": "unknown"
+        }
       },
       "transport": {
         "proto": "tcp",
@@ -175,12 +201,22 @@
       "src": {
         "ip": "10.50.0.3",
         "role": "diameter",
-        "labels": {}
+        "labels": {
+          "network_element_type": "DRA",
+          "network_element_confidence": 50,
+          "network_element_source": "protocol",
+          "network_element_warning": "Protocol-port heuristic is ambiguous (DRA/HSS)"
+        }
       },
       "dst": {
         "ip": "10.50.0.4",
         "role": "diameter",
-        "labels": {}
+        "labels": {
+          "network_element_type": "DRA",
+          "network_element_confidence": 50,
+          "network_element_source": "protocol",
+          "network_element_warning": "Protocol-port heuristic is ambiguous (DRA/HSS)"
+        }
       },
       "transport": {
         "proto": "sctp",

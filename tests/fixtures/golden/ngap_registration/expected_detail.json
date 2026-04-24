@@ -43,12 +43,22 @@
       "src": {
         "ip": "10.30.0.1",
         "role": "ngap",
-        "labels": {}
+        "labels": {
+          "network_element_type": "AMF",
+          "network_element_confidence": 50,
+          "network_element_source": "protocol",
+          "network_element_warning": "Protocol-port heuristic is ambiguous (AMF/gNodeB)"
+        }
       },
       "dst": {
         "ip": "10.30.0.2",
         "role": "ngap",
-        "labels": {}
+        "labels": {
+          "network_element_type": "AMF",
+          "network_element_confidence": 50,
+          "network_element_source": "protocol",
+          "network_element_warning": "Protocol-port heuristic is ambiguous (AMF/gNodeB)"
+        }
       },
       "transport": {
         "proto": "sctp",
@@ -88,12 +98,22 @@
       "src": {
         "ip": "10.30.0.1",
         "role": "ngap",
-        "labels": {}
+        "labels": {
+          "network_element_type": "AMF",
+          "network_element_confidence": 50,
+          "network_element_source": "protocol",
+          "network_element_warning": "Protocol-port heuristic is ambiguous (AMF/gNodeB)"
+        }
       },
       "dst": {
         "ip": "10.30.0.2",
         "role": "ngap",
-        "labels": {}
+        "labels": {
+          "network_element_type": "AMF",
+          "network_element_confidence": 50,
+          "network_element_source": "protocol",
+          "network_element_warning": "Protocol-port heuristic is ambiguous (AMF/gNodeB)"
+        }
       },
       "transport": {
         "proto": "sctp",

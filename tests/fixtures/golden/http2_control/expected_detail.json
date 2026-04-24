@@ -43,11 +43,19 @@
       "src": {
         "ip": "10.40.0.1",
         "role": "tls",
-        "labels": {}
+        "labels": {
+          "network_element_type": "unknown",
+          "network_element_confidence": 0,
+          "network_element_source": "unknown"
+        }
       },
       "dst": {
         "ip": "10.40.0.2",
-        "labels": {}
+        "labels": {
+          "network_element_type": "unknown",
+          "network_element_confidence": 0,
+          "network_element_source": "unknown"
+        }
       },
       "transport": {
         "proto": "tcp",
@@ -88,11 +96,19 @@
       "src": {
         "ip": "10.40.0.1",
         "role": "tls",
-        "labels": {}
+        "labels": {
+          "network_element_type": "unknown",
+          "network_element_confidence": 0,
+          "network_element_source": "unknown"
+        }
       },
       "dst": {
         "ip": "10.40.0.2",
-        "labels": {}
+        "labels": {
+          "network_element_type": "unknown",
+          "network_element_confidence": 0,
+          "network_element_source": "unknown"
+        }
       },
       "transport": {
         "proto": "tcp",

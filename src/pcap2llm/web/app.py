@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import shutil
+from contextlib import asynccontextmanager
 from io import BytesIO, StringIO
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -12,7 +13,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp
 
 from pcap2llm.error_codes import map_error
 from pcap2llm.privacy_profiles import list_privacy_profiles
@@ -20,7 +21,7 @@ from pcap2llm.profiles import list_profile_names
 
 from .config import WebSettings, load_settings
 from .jobs import JobStore
-from .models import AnalyzeOptions, JobRecord, SecurityProfile, now_utc_iso
+from .models import AnalyzeOptions, JobRecord, now_utc_iso
 from .pcap_runner import Pcap2LlmRunner
 from .profiles import ProfileStore
 from .security import WebValidationError, reject_nested_filename, sanitize_filename, validate_capture_filename, validate_profile_name, validate_string_length
@@ -43,7 +44,17 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     settings = settings or load_settings()
     settings.workdir.mkdir(parents=True, exist_ok=True)
 
-    app = FastAPI(title="pcap2llm Web GUI")
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        """Run startup cleanup via lifespan to stay compatible with current FastAPI."""
+        if settings.cleanup_enabled:
+            store: JobStore = app.state.store
+            deleted = store.cleanup_old_jobs(settings.cleanup_max_age_days)
+            if deleted > 0:
+                print(f"[Cleanup] Removed {deleted} old job(s) (older than {settings.cleanup_max_age_days} days)")
+        yield
+
+    app = FastAPI(title="pcap2llm Web GUI", lifespan=lifespan)
     app.add_middleware(SecurityHeadersMiddleware)
     app.state.settings = settings
     app.state.store = JobStore(settings.workdir)
@@ -57,22 +68,14 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     templates = Jinja2Templates(directory=str(web_dir / "templates"))
     app.mount("/static", StaticFiles(directory=str(web_dir / "static")), name="static")
 
-    @app.on_event("startup")
-    async def startup_cleanup() -> None:
-        """Run cleanup of old jobs on application startup if enabled."""
-        if settings.cleanup_enabled:
-            store: JobStore = app.state.store
-            deleted = store.cleanup_old_jobs(settings.cleanup_max_age_days)
-            if deleted > 0:
-                print(f"[Cleanup] Removed {deleted} old job(s) (older than {settings.cleanup_max_age_days} days)")
-
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request) -> HTMLResponse:
         store: JobStore = request.app.state.store
         jobs = store.list_all()
         return templates.TemplateResponse(
-            "index.html",
-            {
+            request=request,
+            name="index.html",
+            context={
                 "request": request,
                 "settings": settings,
                 "jobs": jobs,
@@ -93,7 +96,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             "job_stats": job_stats,
             "profile_stats": profile_stats,
         }
-        return templates.TemplateResponse("dashboard.html", context)
+        return templates.TemplateResponse(request=request, name="dashboard.html", context=context)
 
     @app.post("/jobs")
     async def create_job(
@@ -177,7 +180,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             "settings": settings,
             "analyze_defaults": analyze_defaults,
         }
-        return templates.TemplateResponse("job.html", context)
+        return templates.TemplateResponse(request=request, name="job.html", context=context)
 
     @app.post("/jobs/{job_id}/discover")
     async def run_discover(request: Request, job_id: str) -> RedirectResponse:
@@ -456,7 +459,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             "network_options": ["internal-only", "vpn", "public"],
             "logging_levels": ["basic", "detailed", "security-events"],
         }
-        return templates.TemplateResponse("profiles.html", context)
+        return templates.TemplateResponse(request=request, name="profiles.html", context=context)
 
     @app.get("/api/profiles")
     async def api_list_profiles(request: Request) -> JSONResponse:

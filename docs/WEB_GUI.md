@@ -20,6 +20,21 @@ Default-URL:
 http://127.0.0.1:8765
 ```
 
+## Lokaler Standard-Check
+
+Fuer lokale Aenderungen an der Web-GUI hat sich dieser Ablauf als kleinster sinnvoller Standard bewaehrt:
+
+```bash
+python3 -m venv .venv
+./.venv/bin/pip install -e '.[dev]'
+./.venv/bin/ruff check .
+./.venv/bin/python -m pytest tests/web/test_jobs.py tests/web/test_profiles.py tests/web/test_security_validation.py tests/web/test_pcap_runner.py tests/web/test_profiles_routes.py tests/web/test_web_upload.py
+./.venv/bin/python -m pytest tests/test_resolver_extended.py
+bash scripts/smoke_test_web_gui.sh
+```
+
+Der Smoke-Run startet die Web-GUI lokal, prueft die wichtigsten HTML-Routen und testet einen echten Upload bis zur Job-Seite.
+
 ## Ablauf
 
 1. Capture hochladen (.pcap/.pcapng)

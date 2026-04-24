@@ -6,6 +6,27 @@ The format is intentionally simple and optimized for humans reading repo history
 
 ## Unreleased
 
+### Fixed — 2026-04-24 (web runtime and local smoke checks)
+
+- **Web GUI runtime compatibility**:
+  - fixed `TemplateResponse(...)` calls to match the current FastAPI/Starlette
+    signature, restoring `/`, `/dashboard`, `/jobs/<id>`, and `/profiles`.
+  - replaced deprecated startup hooks with a lifespan handler for the automatic
+    cleanup pass.
+
+- **Resolver network-element gating**:
+  - protocol/port-only detection and `unknown` fallback now also activate
+    without hostname or CSV mapping context, matching the documented detection
+    order.
+
+- **Local and CI verification**:
+  - added `httpx` to `.[dev]` so the FastAPI test client works from a clean
+    local environment.
+  - added `scripts/smoke_test_web_gui.sh` and wired it into CI as a lightweight
+    runtime smoke check after the test suite.
+  - dashboard recent jobs are now sorted by actual creation time.
+  - command previews now shell-quote paths with spaces correctly.
+
 ### Added — 2026-04-24 (web GUI productivity pass)
 
 - **Web GUI dashboard and navigation**:

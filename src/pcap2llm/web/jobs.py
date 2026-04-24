@@ -231,8 +231,9 @@ class JobStore:
             "recent_jobs": [],
             "total_disk_usage_mb": 0,
         }
+        recent_jobs: list[dict[str, str]] = []
 
-        for job_dir in sorted(self.workdir.iterdir(), reverse=True):
+        for job_dir in self.workdir.iterdir():
             if not job_dir.is_dir():
                 continue
 
@@ -244,14 +245,14 @@ class JobStore:
                 status = record.status
                 stats["jobs_by_status"][status] = stats["jobs_by_status"].get(status, 0) + 1
 
-                # Recent 5 jobs
-                if len(stats["recent_jobs"]) < 5:
-                    stats["recent_jobs"].append({
+                recent_jobs.append(
+                    {
                         "job_id": record.job_id,
                         "status": record.status,
                         "filename": record.input_filename,
                         "created_at": record.created_at,
-                    })
+                    }
+                )
 
                 # Disk usage
                 total_size = sum(f.stat().st_size for f in job_dir.rglob("*") if f.is_file())
@@ -259,5 +260,7 @@ class JobStore:
             except Exception:
                 continue
 
+        recent_jobs.sort(key=lambda item: item["created_at"], reverse=True)
+        stats["recent_jobs"] = recent_jobs[:5]
         stats["total_disk_usage_mb"] = round(stats["total_disk_usage_mb"], 2)
         return stats

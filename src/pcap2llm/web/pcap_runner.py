@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -95,7 +96,7 @@ class Pcap2LlmRunner:
         return cmd
 
     def build_command_preview(self, capture_path: Path, options: AnalyzeOptions, out_dir: Path) -> str:
-        return " ".join(self.build_analyze_command(capture_path, options, out_dir))
+        return shlex.join(self.build_analyze_command(capture_path, options, out_dir))
 
     def _run(self, cmd: list[str], *, logs_dir: Path, artifacts_dir: Path) -> RunResult:
         logs_dir.mkdir(parents=True, exist_ok=True)

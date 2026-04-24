@@ -115,3 +115,18 @@ def test_run_uses_no_shell_and_maps_failures(tmp_path: Path, monkeypatch) -> Non
     assert (logs_dir / "stdout.log").exists()
     assert (logs_dir / "stderr.log").read_text(encoding="utf-8") == "boom"
     assert (logs_dir / "command.json").exists()
+
+
+def test_build_command_preview_shell_quotes_paths_with_spaces(tmp_path: Path) -> None:
+    runner = Pcap2LlmRunner(command_timeout_seconds=30)
+    capture = tmp_path / "input dir" / "sample trace.pcapng"
+    out_dir = tmp_path / "output dir"
+
+    preview = runner.build_command_preview(
+        capture,
+        AnalyzeOptions(profile="lte-core", privacy_profile="share"),
+        out_dir,
+    )
+
+    assert f"'{capture}'" in preview
+    assert f"'{out_dir}'" in preview

@@ -46,6 +46,10 @@ jobs:
       - name: Tests
         run: pytest -q
 
+      - name: Web smoke test
+        if: matrix.python-version == '3.12'
+        run: bash scripts/smoke_test_web_gui.sh
+
       - name: Upload failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4

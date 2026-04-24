@@ -42,11 +42,21 @@
       ],
       "src": {
         "ip": "10.1.0.1",
-        "labels": {}
+        "labels": {
+          "network_element_type": "MME",
+          "network_element_confidence": 50,
+          "network_element_source": "protocol",
+          "network_element_warning": "Protocol-port heuristic is ambiguous (MME/eNodeB)"
+        }
       },
       "dst": {
         "ip": "10.1.0.2",
-        "labels": {}
+        "labels": {
+          "network_element_type": "MME",
+          "network_element_confidence": 50,
+          "network_element_source": "protocol",
+          "network_element_warning": "Protocol-port heuristic is ambiguous (MME/eNodeB)"
+        }
       },
       "transport": {
         "proto": "sctp",
@@ -85,11 +95,21 @@
       ],
       "src": {
         "ip": "10.1.0.1",
-        "labels": {}
+        "labels": {
+          "network_element_type": "MME",
+          "network_element_confidence": 50,
+          "network_element_source": "protocol",
+          "network_element_warning": "Protocol-port heuristic is ambiguous (MME/eNodeB)"
+        }
       },
       "dst": {
         "ip": "10.1.0.2",
-        "labels": {}
+        "labels": {
+          "network_element_type": "MME",
+          "network_element_confidence": 50,
+          "network_element_source": "protocol",
+          "network_element_warning": "Protocol-port heuristic is ambiguous (MME/eNodeB)"
+        }
       },
       "transport": {
         "proto": "sctp",

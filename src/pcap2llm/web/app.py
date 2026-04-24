@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import csv
 import json
 import shutil
-from io import BytesIO
+from io import BytesIO, StringIO
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -67,13 +68,32 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request) -> HTMLResponse:
+        store: JobStore = request.app.state.store
+        jobs = store.list_all()
         return templates.TemplateResponse(
             "index.html",
             {
                 "request": request,
                 "settings": settings,
+                "jobs": jobs,
             },
         )
+
+    @app.get("/dashboard", response_class=HTMLResponse)
+    async def dashboard(request: Request) -> HTMLResponse:
+        """Dashboard with job and profile statistics."""
+        store: JobStore = request.app.state.store
+        profile_store: ProfileStore = request.app.state.profile_store
+
+        job_stats = store.get_stats()
+        profile_stats = profile_store.get_stats()
+
+        context = {
+            "request": request,
+            "job_stats": job_stats,
+            "profile_stats": profile_stats,
+        }
+        return templates.TemplateResponse("dashboard.html", context)
 
     @app.post("/jobs")
     async def create_job(
@@ -369,11 +389,40 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             shutil.rmtree(root)
         return RedirectResponse(url="/", status_code=303)
 
+    @app.post("/jobs/bulk-delete")
+    async def bulk_delete_jobs(request: Request) -> RedirectResponse:
+        """Delete multiple jobs at once."""
+        store: JobStore = request.app.state.store
+        form_data = await request.form()
+        job_ids = form_data.getlist("job_id")
+        
+        for job_id in job_ids:
+            try:
+                reject_nested_filename(job_id)
+            except WebValidationError:
+                continue
+            root = store.job_root(job_id)
+            if root.exists():
+                shutil.rmtree(root)
+        
+        return RedirectResponse(url="/", status_code=303)
+
     @app.post("/admin/cleanup")
     async def admin_cleanup(request: Request, max_age_days: int | None = None) -> JSONResponse:
         """Manually trigger cleanup of old jobs. Returns count of deleted jobs."""
         store: JobStore = request.app.state.store
-        age = max_age_days if max_age_days and max_age_days > 0 else settings.cleanup_max_age_days
+        age = max_age_days
+        if age is None:
+            try:
+                payload = await request.json()
+                if isinstance(payload, dict):
+                    maybe_age = payload.get("max_age_days")
+                    if isinstance(maybe_age, int):
+                        age = maybe_age
+            except Exception:
+                age = None
+
+        age = age if age and age > 0 else settings.cleanup_max_age_days
         deleted = store.cleanup_old_jobs(age)
         return JSONResponse(
             {
@@ -415,6 +464,51 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         profile_store: ProfileStore = request.app.state.profile_store
         profiles = profile_store.list_all()
         return JSONResponse([p.to_dict() for p in profiles])
+
+    @app.get("/profiles/export")
+    async def export_profiles(request: Request, fmt: str = "json") -> StreamingResponse:
+        """Export all profiles in JSON or CSV format."""
+        profile_store: ProfileStore = request.app.state.profile_store
+        profiles = profile_store.list_all()
+
+        if fmt == "json":
+            payload = [p.to_dict() for p in profiles]
+            body = json.dumps(payload, indent=2)
+            headers = {
+                "Content-Disposition": 'attachment; filename="security_profiles.json"'
+            }
+            return StreamingResponse(iter([body]), media_type="application/json", headers=headers)
+
+        if fmt == "csv":
+            out = StringIO()
+            fieldnames = [
+                "id",
+                "name",
+                "description",
+                "status",
+                "owner",
+                "comment",
+                "auth_password",
+                "auth_mfa",
+                "auth_certificate",
+                "auth_access_level",
+                "session_timeout_minutes",
+                "network_access",
+                "logging_level",
+                "created_at",
+                "updated_at",
+            ]
+            writer = csv.DictWriter(out, fieldnames=fieldnames)
+            writer.writeheader()
+            for profile in profiles:
+                row = profile.to_dict()
+                writer.writerow({key: row.get(key) for key in fieldnames})
+            headers = {
+                "Content-Disposition": 'attachment; filename="security_profiles.csv"'
+            }
+            return StreamingResponse(iter([out.getvalue()]), media_type="text/csv", headers=headers)
+
+        raise HTTPException(status_code=400, detail="Unsupported format. Use fmt=json or fmt=csv.")
 
     @app.post("/profiles")
     async def create_profile(
@@ -528,6 +622,54 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         """Delete a security profile."""
         profile_store: ProfileStore = request.app.state.profile_store
         profile_store.delete(profile_id)
+        return RedirectResponse(url="/profiles", status_code=303)
+
+    @app.post("/profiles/{profile_id}/duplicate")
+    async def duplicate_profile(request: Request, profile_id: str) -> RedirectResponse:
+        """Duplicate an existing profile with a unique copied name."""
+        profile_store: ProfileStore = request.app.state.profile_store
+        try:
+            original = profile_store.load(profile_id)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Profile not found.")
+
+        base_name = f"{original.name} Copy"
+        candidate = base_name
+        suffix = 2
+        while profile_store.exists_by_name(candidate):
+            candidate = f"{base_name} {suffix}"
+            suffix += 1
+
+        clone = profile_store.create(candidate, original.description)
+        clone.status = original.status
+        clone.owner = original.owner
+        clone.comment = original.comment
+        clone.auth_password = original.auth_password
+        clone.auth_mfa = original.auth_mfa
+        clone.auth_certificate = original.auth_certificate
+        clone.auth_access_level = original.auth_access_level
+        clone.auth_allowed_actions = list(original.auth_allowed_actions)
+        clone.session_timeout_minutes = original.session_timeout_minutes
+        clone.network_access = original.network_access
+        clone.logging_level = original.logging_level
+        profile_store.save(clone)
+
+        return RedirectResponse(url=f"/profiles?id={clone.id}", status_code=303)
+
+    @app.post("/profiles/actions/bulk-delete")
+    async def bulk_delete_profiles(request: Request) -> RedirectResponse:
+        """Delete multiple profiles at once."""
+        profile_store: ProfileStore = request.app.state.profile_store
+        form_data = await request.form()
+        profile_ids = form_data.getlist("profile_id")
+        
+        for profile_id in profile_ids:
+            try:
+                reject_nested_filename(profile_id)
+            except WebValidationError:
+                continue
+            profile_store.delete(profile_id)
+        
         return RedirectResponse(url="/profiles", status_code=303)
 
     return app

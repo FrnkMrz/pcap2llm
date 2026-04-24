@@ -70,3 +70,13 @@ class ProfileStore:
 
     def _profile_path(self, profile_id: str) -> Path:
         return self.profiles_dir / f"{profile_id}.json"
+
+    def get_stats(self) -> dict[str, int]:
+        """Get profile statistics."""
+        profiles = self.list_all()
+        active_count = sum(1 for p in profiles if p.status == "active")
+        return {
+            "total_profiles": len(profiles),
+            "active_profiles": active_count,
+            "inactive_profiles": len(profiles) - active_count,
+        }

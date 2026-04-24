@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard">
+  <h2>Dashboard</h2>
+
+  <!-- Job Statistics -->
+  <section class="stat-section">
+    <h3>Jobs Overview</h3>
+    <div class="stat-cards">
+      <div class="stat-card">
+        <div class="stat-label">Total Jobs</div>
+        <div class="stat-value">{{ job_stats.total_jobs }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Completed</div>
+        <div class="stat-value stat-success">{{ job_stats.jobs_by_status.get('done', 0) }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">In Progress</div>
+        <div class="stat-value stat-info">{{ job_stats.jobs_by_status.get('discovering', 0) + job_stats.jobs_by_status.get('analyzing', 0) }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Failed</div>
+        <div class="stat-value stat-error">{{ job_stats.jobs_by_status.get('failed', 0) }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Uploaded</div>
+        <div class="stat-value stat-warning">{{ job_stats.jobs_by_status.get('uploaded', 0) }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Disk Usage (MB)</div>
+        <div class="stat-value">{{ "%.2f"|format(job_stats.total_disk_usage_mb) }}</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Profile Statistics -->
+  <section class="stat-section">
+    <h3>Security Profiles</h3>
+    <div class="stat-cards">
+      <div class="stat-card">
+        <div class="stat-label">Total Profiles</div>
+        <div class="stat-value">{{ profile_stats.total_profiles }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Active</div>
+        <div class="stat-value stat-success">{{ profile_stats.active_profiles }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Inactive</div>
+        <div class="stat-value stat-warning">{{ profile_stats.inactive_profiles }}</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Recent Jobs -->
+  {% if job_stats.recent_jobs %}
+  <section class="recent-section">
+    <h3>Recent Jobs</h3>
+    <table class="recent-table">
+      <thead>
+        <tr>
+          <th>Filename</th>
+          <th>Status</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for job in job_stats.recent_jobs %}
+        <tr>
+          <td><a href="/jobs/{{ job.job_id }}">{{ job.filename }}</a></td>
+          <td class="status-{{ job.status }}">{{ job.status }}</td>
+          <td>{{ job.created_at }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  <!-- Quick Actions -->
+  <section class="actions-section">
+    <h3>Quick Actions</h3>
+    <div class="action-buttons">
+      <a href="/" class="btn btn-primary">New Analysis</a>
+      <a href="/profiles" class="btn btn-secondary">Manage Profiles</a>
+      <form method="post" action="/admin/cleanup" style="display: inline;">
+        <button type="submit" class="btn btn-warning">Clean Old Jobs</button>
+      </form>
+    </div>
+  </section>
+</div>
+
+<style>
+  .dashboard {
+    max-width: 1200px;
+    margin: 2rem auto;
+  }
+
+  .dashboard h2 {
+    font-size: 2rem;
+    margin-bottom: 2rem;
+    color: var(--accent);
+  }
+
+  .stat-section {
+    margin-bottom: 3rem;
+  }
+
+  .stat-section h3 {
+    font-size: 1.25rem;
+    color: var(--ink);
+    margin-bottom: 1rem;
+    border-bottom: 2px solid #2f6d5f;
+    padding-bottom: 0.5rem;
+  }
+
+  .stat-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .stat-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .stat-label {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--accent);
+  }
+
+  .stat-success {
+    color: #27ae60;
+  }
+
+  .stat-error {
+    color: #e74c3c;
+  }
+
+  .stat-warning {
+    color: #f39c12;
+  }
+
+  .stat-info {
+    color: #3498db;
+  }
+
+  .recent-section {
+    margin-bottom: 3rem;
+  }
+
+  .recent-section h3 {
+    font-size: 1.25rem;
+    color: var(--ink);
+    margin-bottom: 1rem;
+    border-bottom: 2px solid #2f6d5f;
+    padding-bottom: 0.5rem;
+  }
+
+  .recent-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--panel);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .recent-table thead tr {
+    background: color-mix(in srgb, var(--panel) 85%, #e9ecea 15%);
+    border-bottom: 2px solid var(--line);
+  }
+
+  .recent-table th {
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .recent-table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .recent-table tr:hover {
+    background: color-mix(in srgb, var(--panel) 92%, #f0f3f1 8%);
+  }
+
+  .recent-table a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  .recent-table a:hover {
+    text-decoration: underline;
+  }
+
+  .status-done {
+    color: #27ae60;
+    font-weight: 600;
+  }
+
+  .status-failed {
+    color: #e74c3c;
+    font-weight: 600;
+  }
+
+  .status-discovering,
+  .status-analyzing {
+    color: #3498db;
+    font-weight: 600;
+  }
+
+  .status-uploaded {
+    color: #f39c12;
+    font-weight: 600;
+  }
+
+  .actions-section {
+    margin-bottom: 3rem;
+    background: color-mix(in srgb, var(--panel) 90%, #f0f3f1 10%);
+    border-radius: 8px;
+    padding: 2rem;
+  }
+
+  .actions-section h3 {
+    font-size: 1.25rem;
+    color: #333;
+    margin-bottom: 1.5rem;
+  }
+
+  .action-buttons {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .btn-primary {
+    background-color: #2f6d5f;
+    color: white;
+  }
+
+  .btn-primary:hover {
+    background-color: #245147;
+  }
+
+  .btn-secondary {
+    background-color: #95a5a6;
+    color: white;
+  }
+
+  .btn-secondary:hover {
+    background-color: #7f8c8d;
+  }
+
+  .btn-warning {
+    background-color: #f39c12;
+    color: white;
+  }
+
+  .btn-warning:hover {
+    background-color: #d68910;
+  }
+
+  @media (max-width: 768px) {
+    .dashboard {
+      margin: 1rem;
+    }
+
+    .stat-cards {
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+    }
+
+    .stat-card {
+      padding: 1rem;
+    }
+
+    .stat-value {
+      font-size: 1.5rem;
+    }
+
+    .recent-table {
+      font-size: 0.9rem;
+    }
+
+    .recent-table th,
+    .recent-table td {
+      padding: 0.75rem 0.5rem;
+    }
+
+    .action-buttons {
+      flex-direction: column;
+    }
+
+    .btn {
+      width: 100%;
+      text-align: center;
+    }
+  }
+</style>
+{% endblock %}

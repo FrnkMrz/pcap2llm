@@ -6,7 +6,12 @@
 <div class="profiles-section">
   <div class="profiles-header">
     <h1>Security Profiles</h1>
-    <button class="btn-primary" onclick="newProfile()">+ New Profile</button>
+    <div class="header-buttons">
+      <a class="btn-secondary" href="/profiles/export?fmt=json">Export JSON</a>
+      <a class="btn-secondary" href="/profiles/export?fmt=csv">Export CSV</a>
+      <button class="btn-primary" onclick="toggleBulkDelete()" type="button">Bulk Delete</button>
+      <button class="btn-primary" onclick="newProfile()">+ New Profile</button>
+    </div>
   </div>
 
   <div class="profiles-layout">
@@ -21,19 +26,29 @@
       />
 
       <div class="profile-items">
+        <form id="bulkDeleteForm" method="post" action="/profiles/actions/bulk-delete" style="display: none;">
+          <div class="bulk-delete-actions">
+            <button type="button" onclick="toggleBulkDelete()" class="btn-secondary">Cancel</button>
+            <button type="submit" class="btn-danger" onclick="return confirm('Delete selected profiles?');">Delete Selected</button>
+            <span class="bulk-count"><span id="bulk-selected-count">0</span> selected</span>
+          </div>
+        </form>
         {% for profile in profiles %}
-          <div
-            class="profile-item {% if selected_profile and selected_profile.id == profile.id %}active{% endif %}"
-            onclick="selectProfile('{{ profile.id }}')"
-            data-profile-id="{{ profile.id }}"
-          >
-            <div class="profile-item-header">
-              <span class="profile-name">{{ profile.name }}</span>
-              <span class="profile-status {% if profile.status == 'active' %}status-active{% else %}status-inactive{% endif %}">
-                {{ profile.status }}
-              </span>
+          <div class="profile-item-wrapper" data-has-checkbox>
+            <input type="checkbox" class="profile-checkbox" name="profile_id" value="{{ profile.id }}" form="bulkDeleteForm" />
+            <div
+              class="profile-item {% if selected_profile and selected_profile.id == profile.id %}active{% endif %}"
+              onclick="selectProfile('{{ profile.id }}')"
+              data-profile-id="{{ profile.id }}"
+            >
+              <div class="profile-item-header">
+                <span class="profile-name">{{ profile.name }}</span>
+                <span class="profile-status {% if profile.status == 'active' %}status-active{% else %}status-inactive{% endif %}">
+                  {{ profile.status }}
+                </span>
+              </div>
+              <div class="profile-item-desc">{{ profile.description }}</div>
             </div>
-            <div class="profile-item-desc">{{ profile.description }}</div>
           </div>
         {% endfor %}
       </div>
@@ -204,6 +219,13 @@
             <button type="reset" class="btn-secondary">Reset Changes</button>
             <button
               type="button"
+              class="btn-secondary"
+              onclick="document.getElementById('duplicateForm').submit()"
+            >
+              Duplicate Profile
+            </button>
+            <button
+              type="button"
               class="btn-danger"
               onclick="if(confirm('Delete this profile?')) document.getElementById('deleteForm').submit()"
             >
@@ -214,6 +236,7 @@
 
         <!-- Hidden delete form -->
         <form id="deleteForm" method="POST" action="/profiles/{{ selected_profile.id }}/delete" style="display: none;"></form>
+        <form id="duplicateForm" method="POST" action="/profiles/{{ selected_profile.id }}/duplicate" style="display: none;"></form>
 
         <!-- Metadata -->
         <div class="form-metadata">
@@ -232,14 +255,39 @@
 </div>
 
 <script>
-  const profilesData = {{ profiles | tojson }};
+  let bulkDeleteMode = false;
 
   function selectProfile(profileId) {
+    if (bulkDeleteMode) {
+      const checkbox = document.querySelector(`input[value="${profileId}"]`);
+      if (checkbox) checkbox.checked = !checkbox.checked;
+      updateBulkCount();
+      return;
+    }
     const url = new URL(window.location);
     url.searchParams.set("id", profileId);
-    // In a real implementation, you'd use fetch to load profile and update form.
-    // For now, we just reload the page.
     window.location.replace(url.toString());
+  }
+
+  function toggleBulkDelete() {
+    bulkDeleteMode = !bulkDeleteMode;
+    const form = document.getElementById("bulkDeleteForm");
+    const wrappers = document.querySelectorAll("[data-has-checkbox]");
+    
+    if (bulkDeleteMode) {
+      form.style.display = "flex";
+      wrappers.forEach(w => w.classList.add("bulk-mode"));
+    } else {
+      form.style.display = "none";
+      wrappers.forEach(w => w.classList.remove("bulk-mode"));
+      document.querySelectorAll(".profile-checkbox").forEach(cb => cb.checked = false);
+    }
+    updateBulkCount();
+  }
+
+  function updateBulkCount() {
+    const checked = document.querySelectorAll(".profile-checkbox:checked").length;
+    document.getElementById("bulk-selected-count").textContent = checked;
   }
 
   function filterProfiles() {
@@ -250,7 +298,7 @@
       const name = item.querySelector(".profile-name").textContent.toLowerCase();
       const desc = item.querySelector(".profile-item-desc").textContent.toLowerCase();
       const matches = name.includes(searchInput) || desc.includes(searchInput);
-      item.style.display = matches ? "" : "none";
+      item.parentElement.style.display = matches ? "" : "none";
     });
   }
 
@@ -472,6 +520,80 @@
     .form-row {
       grid-template-columns: 1fr;
     }
+  }
+
+  .header-buttons {
+    display: flex;
+    gap: 10px;
+  }
+
+  .profile-item-wrapper {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    transition: background-color 0.2s;
+  }
+
+  .profile-item-wrapper.bulk-mode {
+    background-color: #e8f5e9;
+    padding: 4px;
+    border-radius: 4px;
+  }
+
+  .profile-checkbox {
+    margin-top: 10px;
+    cursor: pointer;
+  }
+
+  .profile-item-wrapper[data-has-checkbox] .profile-item {
+    flex: 1;
+  }
+
+  .bulk-delete-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 10px;
+    background: #fff3e0;
+    border: 1px solid #ffb74d;
+    border-radius: 4px;
+    margin-bottom: 10px;
+  }
+
+  .bulk-count {
+    margin-left: auto;
+    font-weight: 600;
+    color: #333;
+  }
+
+  .btn-danger {
+    background-color: #e74c3c;
+    color: white;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.2s;
+  }
+
+  .btn-danger:hover {
+    background-color: #c0392b;
+  }
+
+  .btn-secondary {
+    background-color: #95a5a6;
+    color: white;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.2s;
+  }
+
+  .btn-secondary:hover {
+    background-color: #7f8c8d;
   }
 </style>
 {% endblock %}

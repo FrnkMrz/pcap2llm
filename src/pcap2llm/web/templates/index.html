@@ -15,4 +15,56 @@
     <button type="submit">Upload and continue</button>
   </form>
 </section>
+
+{% if jobs %}
+<section class="panel">
+  <h2>Recent Jobs</h2>
+  <form method="post" action="/jobs/bulk-delete" class="jobs-list-form">
+    <div class="jobs-actions">
+      <button type="submit" class="btn btn-danger" onclick="return confirm('Delete selected jobs?');">Delete Selected</button>
+      <span class="jobs-count"><span id="selected-count">0</span> selected</span>
+    </div>
+    <table class="jobs-table">
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="select-all" /></th>
+          <th>Filename</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for job in jobs %}
+        <tr>
+          <td><input type="checkbox" name="job_id" value="{{ job.job_id }}" class="job-checkbox" /></td>
+          <td><a href="/jobs/{{ job.job_id }}">{{ job.input_filename }}</a></td>
+          <td class="status-{{ job.status }}">{{ job.status }}</td>
+          <td>{{ job.created_at }}</td>
+          <td><a href="/jobs/{{ job.job_id }}" class="link-button">View</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </form>
+</section>
+
+<script>
+document.getElementById('select-all').addEventListener('change', function() {
+  const checkboxes = document.querySelectorAll('.job-checkbox');
+  checkboxes.forEach(cb => cb.checked = this.checked);
+  updateSelectedCount();
+});
+
+document.querySelectorAll('.job-checkbox').forEach(cb => {
+  cb.addEventListener('change', updateSelectedCount);
+});
+
+function updateSelectedCount() {
+  const checked = document.querySelectorAll('.job-checkbox:checked').length;
+  document.getElementById('selected-count').textContent = checked;
+}
+</script>
+{% endif %}
 {% endblock %}
+

@@ -45,6 +45,18 @@ class JobStore:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(record.to_dict(), indent=2), encoding="utf-8")
 
+    def list_all(self) -> list[JobRecord]:
+        records: list[JobRecord] = []
+        for job_dir in self.workdir.iterdir():
+            if not job_dir.is_dir():
+                continue
+            try:
+                records.append(self.load(job_dir.name))
+            except Exception:
+                continue
+        records.sort(key=lambda item: item.created_at, reverse=True)
+        return records
+
     def set_status(
         self,
         job_id: str,
@@ -210,3 +222,42 @@ class JobStore:
                 continue
 
         return deleted_count
+
+    def get_stats(self) -> dict[str, int | list]:
+        """Get dashboard statistics."""
+        stats = {
+            "total_jobs": 0,
+            "jobs_by_status": {},
+            "recent_jobs": [],
+            "total_disk_usage_mb": 0,
+        }
+
+        for job_dir in sorted(self.workdir.iterdir(), reverse=True):
+            if not job_dir.is_dir():
+                continue
+
+            try:
+                record = self.load(job_dir.name)
+                stats["total_jobs"] += 1
+
+                # Count by status
+                status = record.status
+                stats["jobs_by_status"][status] = stats["jobs_by_status"].get(status, 0) + 1
+
+                # Recent 5 jobs
+                if len(stats["recent_jobs"]) < 5:
+                    stats["recent_jobs"].append({
+                        "job_id": record.job_id,
+                        "status": record.status,
+                        "filename": record.input_filename,
+                        "created_at": record.created_at,
+                    })
+
+                # Disk usage
+                total_size = sum(f.stat().st_size for f in job_dir.rglob("*") if f.is_file())
+                stats["total_disk_usage_mb"] += total_size / (1024 * 1024)
+            except Exception:
+                continue
+
+        stats["total_disk_usage_mb"] = round(stats["total_disk_usage_mb"], 2)
+        return stats

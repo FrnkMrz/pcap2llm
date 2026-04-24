@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import io
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -307,3 +306,70 @@ def test_profile_session_timeout_limits(tmp_path: Path) -> None:
         follow_redirects=False,
     )
     assert response.status_code == 400
+
+
+def test_duplicate_profile_route_creates_copy(tmp_path: Path) -> None:
+    settings = WebSettings(workdir=tmp_path / "web_runs")
+    client = TestClient(create_app(settings))
+
+    create_resp = client.post(
+        "/profiles",
+        data={"name": "Base Profile", "description": "Original profile"},
+        follow_redirects=False,
+    )
+    profile_id = create_resp.headers["location"].split("id=")[1]
+
+    duplicate_resp = client.post(f"/profiles/{profile_id}/duplicate", follow_redirects=False)
+    assert duplicate_resp.status_code == 303
+
+    profiles = client.get("/api/profiles").json()
+    assert len(profiles) == 2
+    names = {p["name"] for p in profiles}
+    assert "Base Profile" in names
+    assert any(name.startswith("Base Profile Copy") for name in names)
+
+
+def test_export_profiles_json_and_csv(tmp_path: Path) -> None:
+    settings = WebSettings(workdir=tmp_path / "web_runs")
+    client = TestClient(create_app(settings))
+
+    client.post(
+        "/profiles",
+        data={"name": "Exportable", "description": "Export me"},
+        follow_redirects=False,
+    )
+
+    json_resp = client.get("/profiles/export?fmt=json")
+    assert json_resp.status_code == 200
+    assert "attachment; filename=\"security_profiles.json\"" in json_resp.headers.get("content-disposition", "")
+    assert json_resp.json()[0]["name"] == "Exportable"
+
+    csv_resp = client.get("/profiles/export?fmt=csv")
+    assert csv_resp.status_code == 200
+    assert "attachment; filename=\"security_profiles.csv\"" in csv_resp.headers.get("content-disposition", "")
+    assert "name,description,status" in csv_resp.text
+    assert "Exportable" in csv_resp.text
+
+
+def test_bulk_delete_profiles_route(tmp_path: Path) -> None:
+    settings = WebSettings(workdir=tmp_path / "web_runs")
+    client = TestClient(create_app(settings))
+
+    first = client.post(
+        "/profiles",
+        data={"name": "A", "description": "First"},
+        follow_redirects=False,
+    ).headers["location"].split("id=")[1]
+    second = client.post(
+        "/profiles",
+        data={"name": "B", "description": "Second"},
+        follow_redirects=False,
+    ).headers["location"].split("id=")[1]
+
+    response = client.post(
+        "/profiles/actions/bulk-delete",
+        data={"profile_id": [first, second]},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert client.get("/api/profiles").json() == []

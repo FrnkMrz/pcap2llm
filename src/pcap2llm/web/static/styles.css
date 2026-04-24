@@ -8,6 +8,16 @@
   --error: #a11f1f;
 }
 
+:root[data-theme="dark"] {
+  --bg: #0f1515;
+  --ink: #d8e1df;
+  --muted: #93a2a0;
+  --panel: #182121;
+  --line: #2b3a38;
+  --accent: #6eb8a5;
+  --error: #ff7d7d;
+}
+
 * { box-sizing: border-box; }
 body {
   margin: 0;
@@ -19,7 +29,7 @@ body {
 .site-header {
   padding: 1.2rem 1rem;
   border-bottom: 1px solid var(--line);
-  background: #eaf2ee;
+  background: color-mix(in srgb, var(--panel) 85%, #dfeae4 15%);
 }
 .site-header h1 { margin: 0; font-size: 1.4rem; }
 .site-header a { color: inherit; text-decoration: none; }
@@ -105,6 +115,21 @@ pre {
   margin-top: 0.75rem;
 }
 
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.theme-toggle {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  border-radius: 6px;
+  padding: 0.4rem 0.7rem;
+}
+
 .nav-link {
   text-decoration: none;
   color: var(--accent);
@@ -121,4 +146,205 @@ pre {
 
 @media (max-width: 760px) {
   .meta-grid { grid-template-columns: 1fr; }
+  .header-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .site-nav {
+    flex-wrap: wrap;
+  }
 }
+
+/* Jobs List Styles */
+.jobs-list-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.jobs-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.75rem;
+  background: #e3f2fd;
+  border-radius: 4px;
+}
+
+.jobs-count {
+  margin-left: auto;
+  font-weight: 600;
+  color: #333;
+}
+
+.jobs-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.jobs-table thead tr {
+  background: #f5f5f5;
+  border-bottom: 2px solid #ddd;
+}
+
+.jobs-table th {
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: #333;
+}
+
+.jobs-table td {
+  padding: 1rem;
+  border-bottom: 1px solid #eee;
+}
+
+.jobs-table tr:hover {
+  background: #f9f9f9;
+}
+
+.jobs-table a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.jobs-table a:hover {
+  text-decoration: underline;
+}
+
+.jobs-table input[type="checkbox"] {
+  cursor: pointer;
+  margin: 0;
+}
+
+.status-uploaded {
+  color: #f39c12;
+  font-weight: 600;
+}
+
+.status-discovering,
+.status-analyzing {
+  color: #3498db;
+  font-weight: 600;
+}
+
+.status-completed,
+.status-done {
+  color: #27ae60;
+  font-weight: 600;
+}
+
+.status-failed {
+  color: #e74c3c;
+  font-weight: 600;
+}
+
+/* Button Styles */
+button {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+button[type="submit"] {
+  background-color: var(--accent);
+  color: white;
+  border: none;
+  padding: 0.6rem 1rem;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+button[type="submit"]:hover {
+  background-color: #1f5145;
+}
+
+.btn {
+  display: inline-block;
+  padding: 0.6rem 1rem;
+  border-radius: 4px;
+  border: none;
+  text-decoration: none;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-primary {
+  background-color: var(--accent);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #1f5145;
+}
+
+.btn-secondary {
+  background-color: #95a5a6;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background-color: #7f8c8d;
+}
+
+.btn-warning {
+  background-color: #f39c12;
+  color: white;
+}
+
+.btn-warning:hover {
+  background-color: #d68910;
+}
+
+.btn-danger {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.btn-danger:hover {
+  background-color: #c0392b;
+}
+
+.link-button {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 900px) {
+  .jobs-table,
+  .jobs-table thead,
+  .jobs-table tbody,
+  .jobs-table th,
+  .jobs-table td,
+  .jobs-table tr {
+    display: block;
+  }
+
+  .jobs-table thead {
+    display: none;
+  }
+
+  .jobs-table tr {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+    padding: 0.4rem;
+    background: var(--panel);
+  }
+
+  .jobs-table td {
+    border: none;
+    padding: 0.35rem 0.6rem;
+  }
+}
+

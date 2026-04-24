@@ -10,13 +10,38 @@
     <header class="site-header">
       <h1><a href="/">pcap2llm Web GUI</a></h1>
       <p>Local processing only. No external upload, no telemetry.</p>
-      <nav class="site-nav">
-        <a href="/" class="nav-link">Jobs</a>
-        <a href="/profiles" class="nav-link">Security Profiles</a>
-      </nav>
+      <div class="header-row">
+        <nav class="site-nav">
+          <a href="/dashboard" class="nav-link">Dashboard</a>
+          <a href="/" class="nav-link">Jobs</a>
+          <a href="/profiles" class="nav-link">Security Profiles</a>
+        </nav>
+        <button id="theme-toggle" type="button" class="theme-toggle" aria-label="Toggle color theme">Dark Mode</button>
+      </div>
     </header>
     <main class="container">
       {% block content %}{% endblock %}
     </main>
+    <script>
+      (function () {
+        const key = "pcap2llm-theme";
+        const root = document.documentElement;
+        const toggle = document.getElementById("theme-toggle");
+        const stored = localStorage.getItem(key);
+        const preferredDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const initial = stored || (preferredDark ? "dark" : "light");
+
+        root.setAttribute("data-theme", initial);
+        if (toggle) {
+          toggle.textContent = initial === "dark" ? "Light Mode" : "Dark Mode";
+          toggle.addEventListener("click", function () {
+            const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+            root.setAttribute("data-theme", next);
+            localStorage.setItem(key, next);
+            toggle.textContent = next === "dark" ? "Light Mode" : "Dark Mode";
+          });
+        }
+      })();
+    </script>
   </body>
 </html>

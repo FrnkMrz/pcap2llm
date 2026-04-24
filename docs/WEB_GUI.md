@@ -124,6 +124,10 @@ Bei Discovery/Analyze werden folgende Dateien geschrieben:
 - Die Analyze-Form merkt sich pro Job die zuletzt verwendeten Werte.
 - Bei Fehlern wird neben der Meldung auch ein maschinenlesbarer Fehlercode angezeigt.
 - Manuelles Aufraeumen: `Delete job` entfernt den kompletten Job-Ordner.
+- Dashboard verfuegbar unter `/dashboard` mit Job-/Profil-Statistiken und Recent Jobs.
+- Jobs koennen auf der Startseite per Multi-Select gesammelt geloescht werden.
+- Dark-Mode Toggle in der Kopfzeile (persistiert im Browser via `localStorage`).
+- Responsive Tabellenansicht fuer kleinere Displays.
 
 ## Automatische Bereinigung (Cleanup)
 
@@ -169,6 +173,9 @@ Die Seite `http://127.0.0.1:8765/profiles` verwaltet zentrale Sicherheitsprofile
 - **Profil bearbeiten:** Links auf Profil klicken, rechts Formular ausfuellen
 - **Profil speichern:** Button "Save Profile" unter dem Formular
 - **Profil loeschen:** Button "Delete Profile" mit Sicherheitsabfrage
+- **Profil duplizieren:** Button "Duplicate Profile" uebernimmt alle Einstellungen in ein neues Profil
+- **Bulk Delete:** Mehrere Profile markieren und gesammelt loeschen
+- **Export:** Profile als JSON oder CSV herunterladen
 - **Profile durchsuchen:** Suchfeld links zum Filtern nach Name/Beschreibung
 
 ### Profil-Einstellungen
@@ -206,6 +213,16 @@ Die Seite `http://127.0.0.1:8765/profiles` verwaltet zentrale Sicherheitsprofile
 **Alle Profile als JSON auflisten:**
 ```bash
 curl http://127.0.0.1:8765/api/profiles
+```
+
+**Profile exportieren (JSON):**
+```bash
+curl -L "http://127.0.0.1:8765/profiles/export?fmt=json" -o security_profiles.json
+```
+
+**Profile exportieren (CSV):**
+```bash
+curl -L "http://127.0.0.1:8765/profiles/export?fmt=csv" -o security_profiles.csv
 ```
 
 Antwort:

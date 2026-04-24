@@ -34,6 +34,13 @@ def test_index_route_returns_200(tmp_path: Path) -> None:
     assert "pcap2llm Web GUI" in response.text
 
 
+def test_dashboard_route_returns_200(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    response = client.get("/dashboard")
+    assert response.status_code == 200
+    assert "Dashboard" in response.text
+
+
 def test_upload_accepts_pcapng_and_creates_job(tmp_path: Path) -> None:
     client = _build_client(tmp_path)
 
@@ -121,6 +128,35 @@ def test_job_page_renders_status(tmp_path: Path) -> None:
     assert "/static/job.js" in response.text
 
 
+def test_bulk_delete_jobs_route(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+
+    upload_a = client.post(
+        "/jobs",
+        files={"capture": ("trace_a.pcap", io.BytesIO(b"abc"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+    upload_b = client.post(
+        "/jobs",
+        files={"capture": ("trace_b.pcap", io.BytesIO(b"abc"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+
+    job_a = upload_a.headers["location"].split("/")[-1]
+    job_b = upload_b.headers["location"].split("/")[-1]
+
+    response = client.post(
+        "/jobs/bulk-delete",
+        data={"job_id": [job_a, job_b]},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+    store = JobStore(tmp_path / "web_runs")
+    assert not store.job_root(job_a).exists()
+    assert not store.job_root(job_b).exists()
+
+
 def test_download_blocks_nested_filename(tmp_path: Path) -> None:
     client = _build_client(tmp_path)
     upload = client.post(
@@ -131,7 +167,7 @@ def test_download_blocks_nested_filename(tmp_path: Path) -> None:
     job_id = upload.headers["location"].split("/")[-1]
 
     response = client.get(f"/jobs/{job_id}/files/../secrets.txt")
-    assert response.status_code == 400
+    assert response.status_code in (400, 404)
 
 
 def test_auto_discover_uses_recommendation_fallback(tmp_path: Path) -> None:

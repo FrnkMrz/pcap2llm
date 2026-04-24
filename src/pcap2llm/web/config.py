@@ -14,6 +14,8 @@ class WebSettings:
     command_timeout_seconds: int = 600
     tshark_path: str = ""
     default_privacy_profile: str = "share"
+    cleanup_enabled: bool = True
+    cleanup_max_age_days: int = 7
 
     @property
     def max_upload_bytes(self) -> int:
@@ -29,6 +31,8 @@ def load_settings() -> WebSettings:
     command_timeout_seconds = int(os.getenv("PCAP2LLM_WEB_COMMAND_TIMEOUT_SECONDS", "600"))
     tshark_path = os.getenv("PCAP2LLM_WEB_TSHARK_PATH", "")
     default_privacy_profile = os.getenv("PCAP2LLM_WEB_DEFAULT_PRIVACY_PROFILE", "share")
+    cleanup_enabled = os.getenv("PCAP2LLM_WEB_CLEANUP_ENABLED", "true").lower() in ("true", "1", "yes")
+    cleanup_max_age_days = int(os.getenv("PCAP2LLM_WEB_CLEANUP_MAX_AGE_DAYS", "7"))
 
     return WebSettings(
         host=host,
@@ -38,4 +42,6 @@ def load_settings() -> WebSettings:
         command_timeout_seconds=command_timeout_seconds,
         tshark_path=tshark_path,
         default_privacy_profile=default_privacy_profile,
+        cleanup_enabled=cleanup_enabled,
+        cleanup_max_age_days=cleanup_max_age_days,
     )

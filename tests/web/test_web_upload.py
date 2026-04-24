@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import zipfile
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -293,6 +294,70 @@ def test_job_page_persists_last_analyze_form_values(tmp_path: Path) -> None:
     assert 'value="200"' in page.text
     assert 'value="lte-s11" selected' in page.text
     assert 'value="lab" selected' in page.text
+
+
+def test_admin_cleanup_endpoint_deletes_old_jobs(tmp_path: Path) -> None:
+    settings = WebSettings(
+        host="127.0.0.1",
+        port=8765,
+        workdir=tmp_path / "web_runs",
+        max_upload_mb=250,
+        command_timeout_seconds=30,
+        default_privacy_profile="share",
+        cleanup_enabled=True,
+        cleanup_max_age_days=7,
+    )
+    client = TestClient(create_app(settings))
+
+    # Create an old job
+    store = JobStore(tmp_path / "web_runs")
+    rec_old = store.create("old_trace.pcapng")
+    rec_old_loaded = store.load(rec_old.job_id)
+    old_time = datetime.now(timezone.utc) - timedelta(days=10)
+    rec_old_loaded.updated_at = old_time.isoformat()
+    store.save(rec_old_loaded)
+
+    # Call admin cleanup endpoint
+    response = client.post("/admin/cleanup")
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["deleted_jobs"] == 1
+    assert payload["max_age_days"] == 7
+    assert not store.job_root(rec_old.job_id).exists()
+
+
+def test_admin_cleanup_endpoint_respects_max_age_override(tmp_path: Path) -> None:
+    settings = WebSettings(
+        host="127.0.0.1",
+        port=8765,
+        workdir=tmp_path / "web_runs",
+        max_upload_mb=250,
+        command_timeout_seconds=30,
+        default_privacy_profile="share",
+        cleanup_enabled=True,
+        cleanup_max_age_days=7,
+    )
+    client = TestClient(create_app(settings))
+
+    # Create a job that's 3 days old
+    store = JobStore(tmp_path / "web_runs")
+    rec_3days = store.create("trace_3days.pcapng")
+    rec_3days_loaded = store.load(rec_3days.job_id)
+    old_time = datetime.now(timezone.utc) - timedelta(days=3)
+    rec_3days_loaded.updated_at = old_time.isoformat()
+    store.save(rec_3days_loaded)
+
+    # Cleanup with strict max_age_days=1 should delete it
+    response = client.post("/admin/cleanup", json={"max_age_days": 1})
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["deleted_jobs"] == 1
+    assert payload["max_age_days"] == 1
+    assert not store.job_root(rec_3days.job_id).exists()
 
 
 def test_analyze_failure_exposes_error_code(tmp_path: Path) -> None:

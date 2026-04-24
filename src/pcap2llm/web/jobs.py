@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -177,3 +179,34 @@ class JobStore:
         if size_bytes < 1024 * 1024:
             return f"{size_bytes / 1024:.1f} KiB"
         return f"{size_bytes / (1024 * 1024):.1f} MiB"
+
+    def cleanup_old_jobs(self, max_age_days: int) -> int:
+        """Delete job directories older than max_age_days. Returns count of deleted jobs."""
+        if max_age_days <= 0:
+            return 0
+
+        deleted_count = 0
+        cutoff_time = datetime.now(timezone.utc) - timedelta(days=max_age_days)
+
+        for job_dir in self.workdir.iterdir():
+            if not job_dir.is_dir():
+                continue
+
+            job_json_path = job_dir / "job.json"
+            if not job_json_path.exists():
+                continue
+
+            try:
+                record = self.load(job_dir.name)
+                # Parse updated_at ISO 8601 string to datetime with timezone
+                updated_at_str = record.updated_at
+                updated_at = datetime.fromisoformat(updated_at_str.replace("Z", "+00:00"))
+                
+                if updated_at < cutoff_time:
+                    shutil.rmtree(job_dir)
+                    deleted_count += 1
+            except Exception:
+                # Skip jobs with invalid timestamps or other issues
+                continue
+
+        return deleted_count

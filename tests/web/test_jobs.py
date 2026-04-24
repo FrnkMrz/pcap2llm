@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from pcap2llm.web.jobs import JobStore
+from pcap2llm.web.models import JobRecord
 from pcap2llm.web.security import WebValidationError, ensure_within
 
 
@@ -54,3 +56,63 @@ def test_ensure_within_blocks_outside_path(tmp_path: Path) -> None:
         assert False, "expected WebValidationError"
     except WebValidationError:
         pass
+
+
+def test_cleanup_old_jobs_removes_old_records(tmp_path: Path) -> None:
+    """Test that cleanup_old_jobs removes jobs older than max_age_days."""
+    store = JobStore(tmp_path / "web_runs")
+
+    # Create two jobs
+    rec_old = store.create("old_trace.pcapng")
+    rec_new = store.create("new_trace.pcapng")
+
+    # Manually set old job's updated_at to 10 days ago
+    rec_old_loaded = store.load(rec_old.job_id)
+    old_time = datetime.now(timezone.utc) - timedelta(days=10)
+    rec_old_loaded.updated_at = old_time.isoformat()
+    store.save(rec_old_loaded)
+
+    # Cleanup jobs older than 7 days
+    deleted = store.cleanup_old_jobs(max_age_days=7)
+
+    assert deleted == 1
+    assert not store.job_root(rec_old.job_id).exists()
+    assert store.job_root(rec_new.job_id).exists()
+
+
+def test_cleanup_old_jobs_preserves_recent_records(tmp_path: Path) -> None:
+    """Test that cleanup_old_jobs preserves recent jobs."""
+    store = JobStore(tmp_path / "web_runs")
+
+    # Create jobs
+    rec1 = store.create("trace_1.pcapng")
+    rec2 = store.create("trace_2.pcapng")
+
+    # Both are recent (just created), so cleanup should delete neither
+    deleted = store.cleanup_old_jobs(max_age_days=7)
+
+    assert deleted == 0
+    assert store.job_root(rec1.job_id).exists()
+    assert store.job_root(rec2.job_id).exists()
+
+
+def test_cleanup_old_jobs_respects_disable(tmp_path: Path) -> None:
+    """Test that cleanup with max_age_days=0 or negative is disabled."""
+    store = JobStore(tmp_path / "web_runs")
+
+    # Create an old job
+    rec_old = store.create("old_trace.pcapng")
+    rec_old_loaded = store.load(rec_old.job_id)
+    old_time = datetime.now(timezone.utc) - timedelta(days=100)
+    rec_old_loaded.updated_at = old_time.isoformat()
+    store.save(rec_old_loaded)
+
+    # Cleanup with max_age_days=0 should do nothing
+    deleted_zero = store.cleanup_old_jobs(max_age_days=0)
+    assert deleted_zero == 0
+    assert store.job_root(rec_old.job_id).exists()
+
+    # Cleanup with max_age_days=-5 should do nothing
+    deleted_neg = store.cleanup_old_jobs(max_age_days=-5)
+    assert deleted_neg == 0
+    assert store.job_root(rec_old.job_id).exists()

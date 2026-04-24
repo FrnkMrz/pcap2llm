@@ -38,6 +38,15 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     templates = Jinja2Templates(directory=str(web_dir / "templates"))
     app.mount("/static", StaticFiles(directory=str(web_dir / "static")), name="static")
 
+    @app.on_event("startup")
+    async def startup_cleanup() -> None:
+        """Run cleanup of old jobs on application startup if enabled."""
+        if settings.cleanup_enabled:
+            store: JobStore = app.state.store
+            deleted = store.cleanup_old_jobs(settings.cleanup_max_age_days)
+            if deleted > 0:
+                print(f"[Cleanup] Removed {deleted} old job(s) (older than {settings.cleanup_max_age_days} days)")
+
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request) -> HTMLResponse:
         return templates.TemplateResponse(
@@ -341,6 +350,20 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         if root.exists():
             shutil.rmtree(root)
         return RedirectResponse(url="/", status_code=303)
+
+    @app.post("/admin/cleanup")
+    async def admin_cleanup(request: Request, max_age_days: int | None = None) -> JSONResponse:
+        """Manually trigger cleanup of old jobs. Returns count of deleted jobs."""
+        store: JobStore = request.app.state.store
+        age = max_age_days if max_age_days and max_age_days > 0 else settings.cleanup_max_age_days
+        deleted = store.cleanup_old_jobs(age)
+        return JSONResponse(
+            {
+                "status": "ok",
+                "deleted_jobs": deleted,
+                "max_age_days": age,
+            }
+        )
 
     return app
 

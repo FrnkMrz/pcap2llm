@@ -60,6 +60,8 @@ http://127.0.0.1:8765
 - `PCAP2LLM_WEB_COMMAND_TIMEOUT_SECONDS` (default `600`)
 - `PCAP2LLM_WEB_TSHARK_PATH` (optional)
 - `PCAP2LLM_WEB_DEFAULT_PRIVACY_PROFILE` (default `share`)
+- `PCAP2LLM_WEB_CLEANUP_ENABLED` (default `true`) — Automatisches Loeschen alter Jobs aktivieren
+- `PCAP2LLM_WEB_CLEANUP_MAX_AGE_DAYS` (default `7`) — Jobs aelter als N Tage loeschen
 
 ## Job-Layout
 
@@ -101,9 +103,42 @@ Bei Discovery/Analyze werden folgende Dateien geschrieben:
 - Bei Fehlern wird neben der Meldung auch ein maschinenlesbarer Fehlercode angezeigt.
 - Manuelles Aufraeumen: `Delete job` entfernt den kompletten Job-Ordner.
 
+## Automatische Bereinigung (Cleanup)
+
+**Aktiviert per Default.** Beim App-Start werden Jobs geloescht, die aelter als `PCAP2LLM_WEB_CLEANUP_MAX_AGE_DAYS` sind (Standard: 7 Tage).
+
+### Cleanup deaktivieren
+
+```bash
+export PCAP2LLM_WEB_CLEANUP_ENABLED=false
+pcap2llm-web
+```
+
+### Cleanup-Verhalten konfigurieren
+
+```bash
+export PCAP2LLM_WEB_CLEANUP_MAX_AGE_DAYS=14  # Jobs aelter als 14 Tage loeschen
+export PCAP2LLM_WEB_CLEANUP_ENABLED=true
+pcap2llm-web
+```
+
+### Manuelles Cleanup triggernn (API)
+
+```bash
+curl -X POST http://127.0.0.1:8765/admin/cleanup
+# Antwort: {"status": "ok", "deleted_jobs": 2, "max_age_days": 7}
+```
+
+Mit allen Tagen:
+```bash
+curl -X POST http://127.0.0.1:8765/admin/cleanup -H "Content-Type: application/json" -d '{"max_age_days": 1}'
+# Antwort: {"status": "ok", "deleted_jobs": 5, "max_age_days": 1}
+```
+
+Wenn `PCAP2LLM_WEB_CLEANUP_ENABLED=false`, laeuft das Startup-Cleanup nicht, aber die Admin-API ist immer noch verfuegbar.
+
 ## Aktuelle Grenzen des Mockups
 
 - Keine Benutzerverwaltung
 - Keine Datenbank
-- Keine automatische Bereinigung alter Jobs
 - Keine externe LLM-Integration

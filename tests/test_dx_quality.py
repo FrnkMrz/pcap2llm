@@ -334,6 +334,7 @@ class TestPrivacyModeHelp:
         help_text = self._help_text()
         for keyword in ("keep", "mask", "pseudonymize", "encrypt", "remove"):
             assert keyword in help_text, f"Expected '{keyword}' in privacy mode help text"
+        assert "keep-tac" in help_text or "keep_tac_mask_seri" in help_text
 
     def test_mode_help_shows_aliases(self) -> None:
         help_text = self._help_text()

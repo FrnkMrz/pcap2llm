@@ -384,7 +384,7 @@ def test_job_page_renders_privacy_profiles_as_visible_options(tmp_path: Path) ->
     assert page.status_code == 200
     assert 'name="privacy_profile"' in page.text
     assert 'type="radio" name="privacy_profile" value="share" checked' in page.text
-    assert "Safe for sharing with external parties or cross-team review." in page.text
+    assert 'data-tooltip="Safe for sharing with external parties or cross-team review.' in page.text
     assert '<select name="privacy_profile"' not in page.text
 
 
@@ -413,6 +413,10 @@ def test_job_page_prefills_local_support_file_defaults(tmp_path: Path) -> None:
     (local_root / "hosts").write_text("10.0.0.1 mme\n", encoding="utf-8")
     (local_root / "Subnets").write_text("10.0.0.0/24 CORE\n", encoding="utf-8")
     (local_root / "ss7pcs").write_text("0-5093 VZB\n", encoding="utf-8")
+    (local_root / "network_element_mapping.csv").write_text(
+        "type,value,network_element_type\nsubnet,10.0.0.0/24,AMF\n",
+        encoding="utf-8",
+    )
 
     settings = WebSettings(
         host="127.0.0.1",
@@ -437,7 +441,41 @@ def test_job_page_prefills_local_support_file_defaults(tmp_path: Path) -> None:
     assert f'Hosts: <code>{local_root / "hosts"}</code>' in page.text
     assert f'Subnets: <code>{local_root / "Subnets"}</code>' in page.text
     assert f'SS7 PCS: <code>{local_root / "ss7pcs"}</code>' in page.text
-    assert "Advanced Inputs" in page.text
+    assert f'Net element CSV: <code>{local_root / "network_element_mapping.csv"}</code>' in page.text
+    assert "More Options" in page.text
+
+
+def test_job_page_shows_discovery_name_resolution_usage(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    upload = client.post(
+        "/jobs",
+        files={"capture": ("trace.pcap", io.BytesIO(b"abc"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+    job_id = upload.headers["location"].split("/")[-1]
+
+    store = JobStore(tmp_path / "web_runs")
+    (store.discovery_dir(job_id) / "discover_trace.json").write_text(
+        json.dumps(
+            {
+                "name_resolution": {
+                    "hosts_file_used": True,
+                    "mapping_file_used": False,
+                    "subnets_file_used": True,
+                    "ss7pcs_file_used": False,
+                    "resolved_peer_count": 7,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    page = client.get(f"/jobs/{job_id}")
+    assert page.status_code == 200
+    assert "Name resolution used" in page.text
+    assert "Hosts file: yes" in page.text
+    assert "Subnets file: yes" in page.text
+    assert "Resolved peers: 7" in page.text
 
 
 def test_analyze_uses_local_support_file_defaults_when_form_is_blank(tmp_path: Path) -> None:
@@ -445,6 +483,10 @@ def test_analyze_uses_local_support_file_defaults_when_form_is_blank(tmp_path: P
     local_root.mkdir()
     (local_root / "hosts").write_text("10.0.0.1 mme\n", encoding="utf-8")
     (local_root / "ss7pcs").write_text("0-5093 VZB\n", encoding="utf-8")
+    (local_root / "network_element_mapping.csv").write_text(
+        "type,value,network_element_type\nsubnet,10.0.0.0/24,AMF\n",
+        encoding="utf-8",
+    )
 
     settings = WebSettings(
         host="127.0.0.1",
@@ -487,6 +529,44 @@ def test_analyze_uses_local_support_file_defaults_when_form_is_blank(tmp_path: P
     options = captured["options"]
     assert options.hosts_file == str(local_root / "hosts")
     assert options.ss7pcs_file == str(local_root / "ss7pcs")
+    assert options.network_element_mapping_file == str(local_root / "network_element_mapping.csv")
+
+
+def test_job_page_shows_detected_network_element_types(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    upload = client.post(
+        "/jobs",
+        files={"capture": ("trace.pcap", io.BytesIO(b"abc"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+    job_id = upload.headers["location"].split("/")[-1]
+
+    store = JobStore(tmp_path / "web_runs")
+    (store.artifacts_dir(job_id) / "sample_detail.json").write_text(
+        json.dumps(
+            {
+                "messages": [
+                    {
+                        "src": {"labels": {"network_element_type": "AMF", "network_element_source": "protocol"}},
+                        "dst": {"labels": {"network_element_type": "gNodeB", "network_element_source": "protocol"}},
+                    },
+                    {
+                        "src": {"labels": {"network_element_type": "AMF", "network_element_source": "subnet_mapping"}},
+                        "dst": {"labels": {"network_element_type": "unknown", "network_element_source": "unknown"}},
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    page = client.get(f"/jobs/{job_id}")
+    assert page.status_code == 200
+    assert "Detected network element types" in page.text
+    assert "AMF: 2" in page.text
+    assert "gNodeB: 1" in page.text
+    assert "protocol 2" in page.text
+    assert "subnet_mapping 1" in page.text
 
 
 def test_admin_cleanup_endpoint_deletes_old_jobs(tmp_path: Path) -> None:
@@ -630,6 +710,36 @@ def test_job_page_keeps_discovery_logs_visible_after_analyze(tmp_path: Path) -> 
     assert "discover ok" in response.text
     assert "Analyze" in response.text
     assert "analyze ok" in response.text
+    assert f"/jobs/{job_id}/files/logs/discovery_stdout.log" in response.text
+    assert f"/jobs/{job_id}/files/logs/analyze_stdout.log" in response.text
+    assert "<summary>" in response.text
+    assert ">Logs<" in response.text
+
+
+def test_job_page_hides_log_files_from_downloads_list(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    upload = client.post(
+        "/jobs",
+        files={"capture": ("trace.pcap", io.BytesIO(b"abc"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+    job_id = upload.headers["location"].split("/")[-1]
+
+    store = JobStore(tmp_path / "web_runs")
+    (store.artifacts_dir(job_id) / "sample_summary.json").write_text("{}", encoding="utf-8")
+    (store.discovery_dir(job_id) / "discover_trace.json").write_text("{}", encoding="utf-8")
+    (store.logs_dir(job_id) / "analyze_stdout.log").write_text("analyze ok", encoding="utf-8")
+    (store.logs_dir(job_id) / "analyze_stderr.log").write_text("", encoding="utf-8")
+    (store.logs_dir(job_id) / "analyze_command.json").write_text("{}", encoding="utf-8")
+
+    response = client.get(f"/jobs/{job_id}")
+    assert response.status_code == 200
+    assert f"/jobs/{job_id}/files/artifacts/sample_summary.json" in response.text
+    assert f"/jobs/{job_id}/files/discovery/discover_trace.json" in response.text
+    assert f"/jobs/{job_id}/files/logs/analyze_stdout.log" in response.text
+    assert f"/jobs/{job_id}/files/logs/analyze_command.json" in response.text
+    assert "/files/artifacts/analyze_stdout.log" not in response.text
+    assert "/files/discovery/analyze_stdout.log" not in response.text
 
 
 def test_delete_job_removes_workspace(tmp_path: Path) -> None:
@@ -648,3 +758,38 @@ def test_delete_job_removes_workspace(tmp_path: Path) -> None:
     assert response.status_code == 303
     assert response.headers["location"] == "/"
     assert not store.job_root(job_id).exists()
+
+
+def test_delete_all_outputs_keeps_job_and_capture(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    upload = client.post(
+        "/jobs",
+        files={"capture": ("trace.pcap", io.BytesIO(b"abc"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+    job_id = upload.headers["location"].split("/")[-1]
+
+    store = JobStore(tmp_path / "web_runs")
+    record = store.load(job_id)
+    (store.artifacts_dir(job_id) / "sample_summary.json").write_text("{}", encoding="utf-8")
+    (store.discovery_dir(job_id) / "discover_trace.json").write_text("{}", encoding="utf-8")
+    (store.logs_dir(job_id) / "analyze_stdout.log").write_text("ok", encoding="utf-8")
+    record.status = "done"
+    record.recommended_profiles = [{"profile": "lte-core"}]
+    record.suspected_domains = ["lte"]
+    record.artifacts = ["sample_summary.json"]
+    store.save(record)
+
+    response = client.post(f"/jobs/{job_id}/outputs/delete", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == f"/jobs/{job_id}"
+
+    updated = store.load(job_id)
+    assert updated.status == "uploaded"
+    assert updated.recommended_profiles == []
+    assert updated.suspected_domains == []
+    assert updated.artifacts == []
+    assert store.capture_path(updated).exists()
+    assert list(store.artifacts_dir(job_id).iterdir()) == []
+    assert list(store.discovery_dir(job_id).iterdir()) == []
+    assert list(store.logs_dir(job_id).iterdir()) == []

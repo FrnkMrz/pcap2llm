@@ -24,6 +24,7 @@ def build_dry_run_payload(
     mapping_file: Path | None,
     subnets_file: Path | None,
     ss7pcs_file: Path | None,
+    network_element_mapping_file: Path | None,
     command: list[str],
     llm_mode: bool,
     effective_verbatim_protocols: list[str],
@@ -62,6 +63,7 @@ def build_dry_run_payload(
         "mapping_file": str(mapping_file) if mapping_file else None,
         "subnets_file": str(subnets_file) if subnets_file else None,
         "ss7pcs_file": str(ss7pcs_file) if ss7pcs_file else None,
+        "network_element_mapping_file": str(network_element_mapping_file) if network_element_mapping_file else None,
         "command": command,
     }
 

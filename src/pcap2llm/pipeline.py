@@ -123,6 +123,7 @@ def analyze_capture(
     mapping_file: Path | None = None,
     subnets_file: Path | None = None,
     ss7pcs_file: Path | None = None,
+    network_element_mapping_file: Path | None = None,
     extra_args: list[str] | None = None,
     two_pass: bool = False,
     max_packets: int = _DEFAULT_MAX_PACKETS,
@@ -185,6 +186,7 @@ def analyze_capture(
         mapping_file=mapping_file,
         subnets_file=subnets_file,
         ss7pcs_file=ss7pcs_file,
+        network_element_mapping_file=network_element_mapping_file,
     )
 
     # Normalise privacy_modes so the rest of the pipeline always sees a dict.

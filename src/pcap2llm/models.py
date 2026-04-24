@@ -15,6 +15,7 @@ class ProtectionMode(str, Enum):
     PSEUDONYMIZE = "pseudonymize"
     ENCRYPT = "encrypt"
     REMOVE = "remove"
+    KEEP_TAC_MASK_SERIAL = "keep_tac_mask_serial"
 
 
 DATA_CLASSES = [

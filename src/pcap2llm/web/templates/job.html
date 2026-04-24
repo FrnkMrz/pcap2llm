@@ -17,11 +17,24 @@
   <p class="mono">Error code: <span data-job-error-code>{% if job.last_error_code %}{{ job.last_error_code }}{% endif %}</span></p>
 </section>
 
-<section class="panel">
+<section class="panel" id="discovery" data-discovery-panel>
   <h2>Discovery</h2>
-  <form method="post" action="/jobs/{{ job.job_id }}/discover">
+  <form method="post" action="/jobs/{{ job.job_id }}/discover" data-run-action="discovery">
     <button type="submit">Run discovery</button>
   </form>
+  <p class="run-feedback" data-run-feedback="discovery"></p>
+  {% if name_resolution_usage %}
+    <div class="discovery-usage">
+      <strong>Name resolution used</strong>
+      <ul>
+        <li>Hosts file: {{ "yes" if name_resolution_usage.hosts_file_used else "no" }}</li>
+        <li>Mapping file: {{ "yes" if name_resolution_usage.mapping_file_used else "no" }}</li>
+        <li>Subnets file: {{ "yes" if name_resolution_usage.subnets_file_used else "no" }}</li>
+        <li>SS7 PCS file: {{ "yes" if name_resolution_usage.ss7pcs_file_used else "no" }}</li>
+        <li>Resolved peers: {{ name_resolution_usage.resolved_peer_count }}</li>
+      </ul>
+    </div>
+  {% endif %}
   {% if job.suspected_domains %}
     <p><strong>Suspected domains:</strong> {{ job.suspected_domains | join(", ") }}</p>
   {% endif %}
@@ -47,7 +60,7 @@
 
 <section class="panel">
   <h2>Analyze</h2>
-  <form method="post" action="/jobs/{{ job.job_id }}/analyze" class="stack" enctype="multipart/form-data">
+  <form method="post" action="/jobs/{{ job.job_id }}/analyze" class="stack" enctype="multipart/form-data" data-run-action="analyze">
     <label>
       Profile
       <select name="profile" required>
@@ -67,16 +80,15 @@
           <input type="radio" name="privacy_profile" value="{{ pp.value }}" {% if selected_privacy == pp.value %}checked{% endif %} required />
           <span class="privacy-profile-copy">
             <strong>{{ pp.name }} <small class="privacy-profile-kind">{{ pp.kind }}</small></strong>
-            <span>{{ pp.description }}</span>
-            <small class="privacy-profile-summary">{{ pp.summary }}</small>
+            <span class="tooltip-chip" tabindex="0" data-tooltip="{{ pp.description }} {{ pp.summary }}">i</span>
           </span>
         </label>
         {% endfor %}
       </div>
     </label>
 
-    <label>Display filter <input type="text" name="display_filter" value="{{ analyze_defaults.display_filter }}" placeholder="diameter || gtpv2" /></label>
-    {% set has_support_defaults = analyze_defaults.hosts_file or analyze_defaults.mapping_file or analyze_defaults.subnets_file or analyze_defaults.ss7pcs_file or analyze_defaults.tshark_path %}
+    <label>Filter <input type="text" name="display_filter" value="{{ analyze_defaults.display_filter }}" placeholder="diameter || gtpv2" /></label>
+    {% set has_support_defaults = analyze_defaults.hosts_file or analyze_defaults.mapping_file or analyze_defaults.subnets_file or analyze_defaults.ss7pcs_file or analyze_defaults.network_element_mapping_file or analyze_defaults.tshark_path %}
     {% if has_support_defaults %}
     <div class="support-defaults">
       <strong>Aktive lokale Defaults</strong>
@@ -85,46 +97,95 @@
         {% if analyze_defaults.mapping_file %}<li>Mapping: <code>{{ analyze_defaults.mapping_file }}</code></li>{% endif %}
         {% if analyze_defaults.subnets_file %}<li>Subnets: <code>{{ analyze_defaults.subnets_file }}</code></li>{% endif %}
         {% if analyze_defaults.ss7pcs_file %}<li>SS7 PCS: <code>{{ analyze_defaults.ss7pcs_file }}</code></li>{% endif %}
+        {% if analyze_defaults.network_element_mapping_file %}<li>Net element CSV: <code>{{ analyze_defaults.network_element_mapping_file }}</code></li>{% endif %}
         {% if analyze_defaults.tshark_path %}<li>TShark: <code>{{ analyze_defaults.tshark_path }}</code></li>{% endif %}
       </ul>
     </div>
     {% endif %}
 
     <details class="advanced-options">
-      <summary>Advanced Inputs</summary>
+      <summary>More Options</summary>
       <div class="advanced-options-grid">
-        <label>Max packets <input type="number" name="max_packets" min="1" value="{{ analyze_defaults.max_packets }}" /></label>
-        <label>Max capture size MiB <input type="number" name="max_capture_size_mb" min="0" value="{{ analyze_defaults.max_capture_size_mb }}" placeholder="250" /></label>
-        <label>Oversize factor <input type="number" name="oversize_factor" min="0" step="0.1" value="{{ analyze_defaults.oversize_factor }}" placeholder="10" /></label>
-        <label>Flow title <input type="text" name="flow_title" value="{{ analyze_defaults.flow_title }}" placeholder="Optional flow title" /></label>
-        <label>Flow max events <input type="number" name="flow_max_events" min="0" value="{{ analyze_defaults.flow_max_events }}" /></label>
-        <label>Flow SVG width <input type="number" name="flow_svg_width" min="400" step="100" value="{{ analyze_defaults.flow_svg_width }}" placeholder="1600" /></label>
-        <label>Hosts file <input type="text" name="hosts_file" value="{{ analyze_defaults.hosts_file }}" placeholder="Optional path" /></label>
-        <label>Hosts upload <input type="file" name="hosts_file_upload" /></label>
-        <label>Mapping file <input type="text" name="mapping_file" value="{{ analyze_defaults.mapping_file }}" placeholder="Optional path" /></label>
-        <label>Mapping upload <input type="file" name="mapping_file_upload" /></label>
-        <label>Subnets file <input type="text" name="subnets_file" value="{{ analyze_defaults.subnets_file }}" placeholder="Optional path" /></label>
-        <label>Subnets upload <input type="file" name="subnets_file_upload" /></label>
-        <label>SS7 PCS file <input type="text" name="ss7pcs_file" value="{{ analyze_defaults.ss7pcs_file }}" placeholder="Optional path" /></label>
-        <label>SS7 PCS upload <input type="file" name="ss7pcs_file_upload" /></label>
-        <label>TShark path <input type="text" name="tshark_path" value="{{ analyze_defaults.tshark_path }}" /></label>
+        <section class="advanced-group">
+          <h3>Capture Limits</h3>
+          <div class="advanced-group-grid">
+            <label>Packet limit <input type="number" name="max_packets" min="1" value="{{ analyze_defaults.max_packets }}" /></label>
+          </div>
+        </section>
+        <section class="advanced-group">
+          <h3>Flow View</h3>
+          <div class="advanced-group-grid">
+            <label>Title <input type="text" name="flow_title" value="{{ analyze_defaults.flow_title }}" placeholder="Optional title" /></label>
+            <label>Max events <input type="number" name="flow_max_events" min="0" value="{{ analyze_defaults.flow_max_events }}" /></label>
+            <label>Width <input type="number" name="flow_svg_width" min="400" step="100" value="{{ analyze_defaults.flow_svg_width }}" placeholder="1600" /></label>
+          </div>
+        </section>
+        <section class="advanced-group">
+          <h3>Helper Files</h3>
+          <div class="advanced-group-grid">
+            <label>Hosts file <input type="text" name="hosts_file" value="{{ analyze_defaults.hosts_file }}" placeholder="Optional path" /></label>
+            <label>Hosts upload <input type="file" name="hosts_file_upload" /></label>
+            <label>Mapping file <input type="text" name="mapping_file" value="{{ analyze_defaults.mapping_file }}" placeholder="Optional path" /></label>
+            <label>Mapping upload <input type="file" name="mapping_file_upload" /></label>
+            <label>Subnets file <input type="text" name="subnets_file" value="{{ analyze_defaults.subnets_file }}" placeholder="Optional path" /></label>
+            <label>Subnets upload <input type="file" name="subnets_file_upload" /></label>
+            <label>SS7 PCS file <input type="text" name="ss7pcs_file" value="{{ analyze_defaults.ss7pcs_file }}" placeholder="Optional path" /></label>
+            <label>SS7 PCS upload <input type="file" name="ss7pcs_file_upload" /></label>
+          </div>
+        </section>
+        <section class="advanced-group">
+          <h3>Network Elements</h3>
+          <div class="advanced-group-grid">
+            <label>Net element CSV <input type="text" name="network_element_mapping_file" value="{{ analyze_defaults.network_element_mapping_file }}" placeholder="type,value,network_element_type" /></label>
+            <label>Net element upload <input type="file" name="network_element_mapping_file_upload" accept=".csv,text/csv" /></label>
+          </div>
+          <p class="advanced-help">CSV header: <code>type,value,network_element_type</code>. Supports <code>ip</code> and <code>subnet</code>.</p>
+        </section>
       </div>
     </details>
 
-    <label class="inline"><input type="checkbox" name="all_packets" value="true" {% if analyze_defaults.all_packets %}checked{% endif %} /> all-packets</label>
-    <label class="inline"><input type="checkbox" name="fail_on_truncation" value="true" {% if analyze_defaults.fail_on_truncation %}checked{% endif %} /> fail-on-truncation</label>
-    <label class="inline"><input type="checkbox" name="render_flow_svg" value="true" {% if analyze_defaults.render_flow_svg %}checked{% endif %} /> render-flow-svg</label>
-    <label class="inline"><input type="checkbox" name="collapse_repeats" value="true" {% if analyze_defaults.collapse_repeats %}checked{% endif %} /> collapse-repeats</label>
-    <label class="inline"><input type="checkbox" name="two_pass" value="true" {% if analyze_defaults.two_pass %}checked{% endif %} /> two-pass</label>
+    <div class="toggle-group">
+      <label class="inline"><input type="checkbox" name="all_packets" value="true" {% if analyze_defaults.all_packets %}checked{% endif %} /> Include all packets</label>
+      <label class="inline"><input type="checkbox" name="fail_on_truncation" value="true" {% if analyze_defaults.fail_on_truncation %}checked{% endif %} /> Stop on truncation</label>
+      <label class="inline"><input type="checkbox" name="render_flow_svg" value="true" {% if analyze_defaults.render_flow_svg %}checked{% endif %} /> Render flow diagram</label>
+      <label class="inline"><input type="checkbox" name="collapse_repeats" value="true" {% if analyze_defaults.collapse_repeats %}checked{% endif %} /> Merge repeated messages</label>
+      <label class="inline"><input type="checkbox" name="two_pass" value="true" {% if analyze_defaults.two_pass %}checked{% endif %} /> Two-pass analysis</label>
+    </div>
 
     <p class="mono">Command preview: {{ preview }}</p>
     <button type="submit">Run analysis</button>
   </form>
+  <p class="run-feedback" data-run-feedback="analyze"></p>
+  {% if network_element_overview %}
+  <div class="network-elements-summary">
+    <strong>Detected network element types</strong>
+    <ul>
+      {% for item in network_element_overview.types %}
+      <li>{{ item.name }}: {{ item.count }}</li>
+      {% endfor %}
+    </ul>
+    {% if network_element_overview.sources %}
+    <p class="mono">Sources:
+      {% for item in network_element_overview.sources %}
+        {{ item.name }} {{ item.count }}{% if not loop.last %}, {% endif %}
+      {% endfor %}
+    </p>
+    {% endif %}
+    {% if network_element_overview.warnings %}
+    <p class="mono">Warnings: {{ network_element_overview.warnings | join("; ") }}</p>
+    {% endif %}
+  </div>
+  {% endif %}
 </section>
 
 <section class="panel">
   <h2>Downloads</h2>
-  <p><a href="/jobs/{{ job.job_id }}/files.zip">Download all as ZIP</a></p>
+  <div class="downloads-actions">
+    <a href="/jobs/{{ job.job_id }}/files.zip">Download all as ZIP</a>
+    <form method="post" action="/jobs/{{ job.job_id }}/outputs/delete" onsubmit="return confirm('Delete all generated outputs for this job? The uploaded capture stays available.');">
+      <button type="submit" class="danger-button">Delete All</button>
+    </form>
+  </div>
   {% if downloads %}
   <ul>
     {% for item in downloads %}
@@ -149,20 +210,36 @@
   {% endif %}
 </section>
 
-<section class="panel">
-  <h2>Logs</h2>
+<details class="panel logs-panel" id="logs" data-logbook>
+  <summary>
+    <span>Logs</span>
+    {% if log_sections %}
+    <small>{{ log_sections | length }} section{{ "" if log_sections | length == 1 else "s" }}</small>
+    {% endif %}
+  </summary>
   {% if log_sections %}
     {% for section in log_sections %}
-    <h3>{{ section.label }}</h3>
-    <h4>{{ section.stdout_name }}</h4>
-    <pre>{{ section.stdout }}</pre>
-    <h4>{{ section.stderr_name }}</h4>
-    <pre>{{ section.stderr }}</pre>
+    <section class="log-section">
+      <div class="log-header">
+        <h3>{{ section.label }}</h3>
+        <div class="log-links">
+          {% if section.command_name %}
+          <a href="/jobs/{{ job.job_id }}/files/logs/{{ section.command_name }}">{{ section.command_name }}</a>
+          {% endif %}
+          <a href="/jobs/{{ job.job_id }}/files/logs/{{ section.stdout_name }}">{{ section.stdout_name }}</a>
+          <a href="/jobs/{{ job.job_id }}/files/logs/{{ section.stderr_name }}">{{ section.stderr_name }}</a>
+        </div>
+      </div>
+      <h4>{{ section.stdout_name }}</h4>
+      <pre>{{ section.stdout if section.stdout else "(empty)" }}</pre>
+      <h4>{{ section.stderr_name }}</h4>
+      <pre>{{ section.stderr if section.stderr else "(empty)" }}</pre>
+    </section>
     {% endfor %}
   {% else %}
   <p>No logs yet.</p>
   {% endif %}
-</section>
+</details>
 </div>
 <style>
   [data-job-id] {
@@ -171,6 +248,10 @@
 
   .panel {
     min-width: 0;
+  }
+
+  .panel-highlight {
+    box-shadow: 0 0 0 2px rgba(18, 81, 163, 0.18);
   }
 
   .support-defaults {
@@ -194,6 +275,24 @@
 
   .support-defaults code {
     word-break: break-all;
+  }
+
+  .discovery-usage {
+    border: 1px solid #d7dee8;
+    border-radius: 8px;
+    padding: 12px 14px;
+    background: #f8fbff;
+    margin: 10px 0;
+  }
+
+  .discovery-usage strong {
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  .discovery-usage ul {
+    margin: 0;
+    padding-left: 18px;
   }
 
   .mono,
@@ -231,40 +330,166 @@
     margin-top: 12px;
   }
 
+  .advanced-group {
+    border: 1px solid #d7dee8;
+    border-radius: 8px;
+    padding: 12px 14px;
+    background: #fbfcfe;
+  }
+
+  .advanced-group h3 {
+    margin: 0 0 10px;
+    font-size: 0.95rem;
+  }
+
+  .advanced-group-grid {
+    display: grid;
+    gap: 12px;
+  }
+
+  .advanced-help {
+    margin: 10px 0 0;
+    color: #617385;
+    font-size: 0.9rem;
+  }
+
+  .downloads-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+
+  .downloads-actions form {
+    margin: 0;
+  }
+
+  .logs-panel {
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .logs-panel > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    cursor: pointer;
+    font-weight: 600;
+    list-style: none;
+  }
+
+  .logs-panel > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .logs-panel > summary small {
+    color: #6a7a8b;
+    font-weight: 500;
+  }
+
+  .logs-panel[open] > summary {
+    border-bottom: 1px solid #d7dee8;
+  }
+
+  .logs-panel > :not(summary) {
+    padding: 0 16px 16px;
+  }
+
+  .log-section + .log-section {
+    border-top: 1px solid #e3eaf2;
+    padding-top: 16px;
+    margin-top: 16px;
+  }
+
+  .log-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .log-header h3 {
+    margin: 0;
+  }
+
+  .log-links {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 0.9rem;
+  }
+
+  .toggle-group {
+    display: grid;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .network-elements-summary {
+    border: 1px solid #d7dee8;
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: #f8fbff;
+    margin-top: 12px;
+  }
+
+  .network-elements-summary strong {
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  .network-elements-summary ul {
+    margin: 0 0 8px;
+    padding-left: 18px;
+  }
+
+  .run-feedback {
+    min-height: 1.1rem;
+    margin: 8px 0 0;
+    color: #536273;
+    font-size: 0.9rem;
+  }
+
   .privacy-profile-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
     margin-top: 8px;
   }
 
   .privacy-profile-option {
     display: grid;
     grid-template-columns: auto 1fr;
-    gap: 10px;
+    gap: 8px;
     align-items: start;
     border: 1px solid #d7dee8;
     border-radius: 8px;
-    padding: 12px 14px;
+    padding: 8px 10px;
     background: #fff;
     cursor: pointer;
-    min-height: 96px;
+    min-height: 44px;
     transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
   }
 
   .privacy-profile-option input {
-    margin-top: 4px;
+    margin-top: 3px;
     accent-color: #1251a3;
   }
 
   .privacy-profile-copy {
-    display: grid;
-    gap: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
   }
 
   .privacy-profile-copy strong {
-    font-size: 0.98rem;
-    line-height: 1.2;
+    font-size: 0.84rem;
+    line-height: 1.15;
   }
 
   .privacy-profile-copy span {
@@ -276,8 +501,54 @@
   .privacy-profile-kind,
   .privacy-profile-summary {
     color: #6a7a8b;
-    font-size: 0.8rem;
+    font-size: 0.74rem;
     font-weight: 500;
+  }
+
+  .tooltip-chip {
+    display: inline-grid;
+    place-items: center;
+    width: 1rem;
+    height: 1rem;
+    border: 1px solid #b6c4d2;
+    border-radius: 999px;
+    color: #617385;
+    font-size: 0.72rem;
+    line-height: 1;
+    position: relative;
+    cursor: help;
+    flex: 0 0 auto;
+  }
+
+  .tooltip-chip::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    right: 0;
+    top: calc(100% + 8px);
+    width: 220px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #13202c;
+    color: #f5f8fb;
+    font-size: 0.8rem;
+    line-height: 1.35;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-4px);
+    transition: opacity 0.16s ease, transform 0.16s ease;
+    white-space: normal;
+    z-index: 10;
+  }
+
+  .tooltip-chip:hover::after,
+  .tooltip-chip:focus-visible::after {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .danger-button {
+    background: #b23a3a;
   }
 
   .privacy-profile-option:hover {
@@ -297,7 +568,10 @@
   }
 
   html[data-theme="dark"] .support-defaults,
-  html[data-theme="dark"] .advanced-options {
+  html[data-theme="dark"] .advanced-options,
+  html[data-theme="dark"] .discovery-usage,
+  html[data-theme="dark"] .advanced-group,
+  html[data-theme="dark"] .logs-panel[open] > summary {
     background: #13202c;
     border-color: #304355;
   }
@@ -318,12 +592,28 @@
   }
 
   @media (max-width: 820px) {
+    .log-header {
+      flex-direction: column;
+    }
+
     .privacy-profile-grid {
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .privacy-profile-option {
       min-height: unset;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .privacy-profile-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 420px) {
+    .privacy-profile-grid {
+      grid-template-columns: 1fr;
     }
   }
 </style>

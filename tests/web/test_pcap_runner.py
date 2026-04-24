@@ -32,6 +32,7 @@ def test_build_analyze_command_selected_flags(tmp_path: Path) -> None:
             mapping_file="mapping.yaml",
             subnets_file="subnets.txt",
             ss7pcs_file="ss7pcs.txt",
+            network_element_mapping_file="network_element_mapping.csv",
             tshark_path="tshark",
             two_pass=True,
         ),
@@ -56,6 +57,7 @@ def test_build_analyze_command_selected_flags(tmp_path: Path) -> None:
     assert "--mapping-file" in cmd and "mapping.yaml" in cmd
     assert "--subnets-file" in cmd and "subnets.txt" in cmd
     assert "--ss7pcs-file" in cmd and "ss7pcs.txt" in cmd
+    assert "--network-element-mapping-file" in cmd and "network_element_mapping.csv" in cmd
     assert "--tshark-path" in cmd and "tshark" in cmd
     assert "--two-pass" in cmd
 
@@ -84,6 +86,7 @@ def test_build_analyze_command_omits_unset_optional_flags(tmp_path: Path) -> Non
     assert "--mapping-file" not in cmd
     assert "--subnets-file" not in cmd
     assert "--ss7pcs-file" not in cmd
+    assert "--network-element-mapping-file" not in cmd
     assert "--no-collapse-repeats" not in cmd
 
 

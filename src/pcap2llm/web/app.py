@@ -4,6 +4,7 @@ import csv
 import html
 import json
 import shutil
+from collections import Counter
 from contextlib import asynccontextmanager
 from io import BytesIO, StringIO
 from pathlib import Path
@@ -176,6 +177,8 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             "job": record,
             "profiles": list_profile_names(),
             "privacy_profiles": _privacy_profile_options(profile_store),
+            "name_resolution_usage": _discovery_name_resolution(store.discovery_dir(job_id)),
+            "network_element_overview": _network_element_overview(store.artifacts_dir(job_id)),
             "default_profiles": ["lte-core", "5g-core", "volte-ims-core", "vonr-ims-core", "2g3g-ss7-geran"],
             "preview": preview,
             "artifacts": store.sorted_artifacts(record),
@@ -221,10 +224,12 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         mapping_file: str = Form(""),
         subnets_file: str = Form(""),
         ss7pcs_file: str = Form(""),
+        network_element_mapping_file: str = Form(""),
         hosts_file_upload: UploadFile | None = File(None),
         mapping_file_upload: UploadFile | None = File(None),
         subnets_file_upload: UploadFile | None = File(None),
         ss7pcs_file_upload: UploadFile | None = File(None),
+        network_element_mapping_file_upload: UploadFile | None = File(None),
         tshark_path: str = Form(""),
         two_pass: bool = Form(False),
     ) -> RedirectResponse:
@@ -271,6 +276,14 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 uploaded=ss7pcs_file_upload,
                 default_path=local_support_defaults["ss7pcs_file"],
             )
+            network_element_mapping_path = await _resolve_support_file(
+                store=store,
+                record=record,
+                label="network-element-mapping",
+                raw_path=network_element_mapping_file,
+                uploaded=network_element_mapping_file_upload,
+                default_path=local_support_defaults["network_element_mapping_file"],
+            )
 
             options = AnalyzeOptions(
                 profile=profile,
@@ -290,6 +303,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 mapping_file=mapping_path,
                 subnets_file=subnets_path,
                 ss7pcs_file=ss7pcs_path,
+                network_element_mapping_file=network_element_mapping_path,
                 tshark_path=tshark_path.strip() or None,
                 two_pass=two_pass,
             )
@@ -316,6 +330,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             "mapping_file": mapping_file.strip(),
             "subnets_file": subnets_file.strip(),
             "ss7pcs_file": ss7pcs_file.strip(),
+            "network_element_mapping_file": network_element_mapping_file.strip(),
             "tshark_path": tshark_path.strip(),
             "two_pass": two_pass,
         }
@@ -473,6 +488,15 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         }
         return StreamingResponse(buffer, media_type="application/zip", headers=headers)
 
+    @app.post("/jobs/{job_id}/outputs/delete")
+    async def delete_job_outputs(request: Request, job_id: str) -> RedirectResponse:
+        store: JobStore = request.app.state.store
+        try:
+            store.clear_generated_outputs(job_id)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Job not found.")
+        return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
+
     @app.post("/jobs/{job_id}/delete")
     async def delete_job(request: Request, job_id: str) -> RedirectResponse:
         store: JobStore = request.app.state.store
@@ -546,7 +570,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             "privacy_profiles": _builtin_privacy_profiles(),
             "selected_profile": selected_profile,
             "data_classes": DATA_CLASSES,
-            "protection_modes": ["keep", "mask", "pseudonymize", "encrypt", "remove"],
+            "protection_modes": _profile_mode_options(),
         }
         return templates.TemplateResponse(request=request, name="profiles.html", context=context)
 
@@ -849,6 +873,69 @@ def _latest_json(folder: Path) -> Path | None:
     return files[0] if files else None
 
 
+def _discovery_name_resolution(folder: Path) -> dict[str, bool | int] | None:
+    latest = _latest_json(folder)
+    if latest is None:
+        return None
+    payload = _load_json_file(latest)
+    name_resolution = payload.get("name_resolution", {})
+    if not isinstance(name_resolution, dict):
+        return None
+    flags = {
+        "hosts_file_used": bool(name_resolution.get("hosts_file_used")),
+        "mapping_file_used": bool(name_resolution.get("mapping_file_used")),
+        "subnets_file_used": bool(name_resolution.get("subnets_file_used")),
+        "ss7pcs_file_used": bool(name_resolution.get("ss7pcs_file_used")),
+        "resolved_peer_count": int(name_resolution.get("resolved_peer_count", 0) or 0),
+    }
+    if any(bool(flags[key]) for key in ("hosts_file_used", "mapping_file_used", "subnets_file_used", "ss7pcs_file_used")):
+        return flags
+    return None
+
+
+def _network_element_overview(folder: Path) -> dict[str, object] | None:
+    detail_candidates = sorted(folder.glob("*detail.json"))
+    if not detail_candidates:
+        return None
+    payload = _load_json_file(detail_candidates[-1])
+    messages = payload.get("messages", [])
+    if not isinstance(messages, list):
+        return None
+
+    type_counts: Counter[str] = Counter()
+    source_counts: Counter[str] = Counter()
+    warnings: set[str] = set()
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        for endpoint_key in ("src", "dst"):
+            endpoint = message.get(endpoint_key, {})
+            if not isinstance(endpoint, dict):
+                continue
+            labels = endpoint.get("labels", {})
+            if not isinstance(labels, dict):
+                continue
+            element_type = labels.get("network_element_type")
+            if element_type:
+                type_counts[str(element_type)] += 1
+            source = labels.get("network_element_source")
+            if source:
+                source_counts[str(source)] += 1
+            warning = labels.get("network_element_warning")
+            if warning:
+                warnings.add(str(warning))
+
+    if not type_counts:
+        return None
+
+    return {
+        "detail_name": detail_candidates[-1].name,
+        "types": [{"name": name, "count": count} for name, count in type_counts.most_common()],
+        "sources": [{"name": name, "count": count} for name, count in source_counts.most_common()],
+        "warnings": sorted(warnings),
+    }
+
+
 
 def _first_matching(folder: Path, suffix: str) -> str | None:
     for path in sorted(folder.glob(f"*{suffix}")):
@@ -874,10 +961,13 @@ def _collect_log_sections(logs_dir: Path) -> list[dict[str, str]]:
     ):
         stdout = _read_log(logs_dir / f"{prefix}_stdout.log")
         stderr = _read_log(logs_dir / f"{prefix}_stderr.log")
-        if stdout or stderr:
+        command_path = logs_dir / f"{prefix}_command.json"
+        command_name = command_path.name if command_path.exists() else ""
+        if stdout or stderr or command_name:
             sections.append(
                 {
                     "label": label,
+                    "command_name": command_name,
                     "stdout_name": f"{prefix}_stdout.log",
                     "stderr_name": f"{prefix}_stderr.log",
                     "stdout": stdout,
@@ -894,6 +984,7 @@ def _collect_log_sections(logs_dir: Path) -> list[dict[str, str]]:
         return [
             {
                 "label": "Run",
+                "command_name": "",
                 "stdout_name": "stdout.log",
                 "stderr_name": "stderr.log",
                 "stdout": stdout,
@@ -959,6 +1050,7 @@ def _build_analyze_defaults(record: JobRecord, local_support_defaults: dict[str,
         "mapping_file": local_support_defaults["mapping_file"],
         "subnets_file": local_support_defaults["subnets_file"],
         "ss7pcs_file": local_support_defaults["ss7pcs_file"],
+        "network_element_mapping_file": local_support_defaults["network_element_mapping_file"],
         "tshark_path": "",
         "two_pass": False,
     }
@@ -995,6 +1087,7 @@ def _build_preview_options(
         mapping_file=_string_or_none(analyze_defaults.get("mapping_file")),
         subnets_file=_string_or_none(analyze_defaults.get("subnets_file")),
         ss7pcs_file=_string_or_none(analyze_defaults.get("ss7pcs_file")),
+        network_element_mapping_file=_string_or_none(analyze_defaults.get("network_element_mapping_file")),
         tshark_path=_string_or_none(analyze_defaults.get("tshark_path")),
         two_pass=bool(analyze_defaults.get("two_pass")),
     )
@@ -1016,6 +1109,9 @@ def _local_support_file_defaults(settings: WebSettings) -> dict[str, str]:
         "mapping_file": mapping_path,
         "subnets_file": str(local_root / "Subnets") if (local_root / "Subnets").exists() else "",
         "ss7pcs_file": str(local_root / "ss7pcs") if (local_root / "ss7pcs").exists() else "",
+        "network_element_mapping_file": str(local_root / "network_element_mapping.csv")
+        if (local_root / "network_element_mapping.csv").exists()
+        else "",
     }
 
 
@@ -1036,6 +1132,13 @@ def _privacy_profile_options(profile_store: ProfileStore) -> list[dict[str, str]
                 "summary": _privacy_mode_summary(profile.modes),
             }
         )
+    return options
+
+
+def _profile_mode_options() -> dict[str, list[str]]:
+    base = ["keep", "mask", "pseudonymize", "encrypt", "remove"]
+    options = {data_class: list(base) for data_class in DATA_CLASSES}
+    options["imei"] = [*base, "keep_tac_mask_serial"]
     return options
 
 

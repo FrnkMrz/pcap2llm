@@ -164,6 +164,13 @@ _MODE_HELP = (
     "encrypt requires PCAP2LLM_VAULT_KEY; vault.json stores metadata only."
 )
 
+_IMEI_MODE_HELP = (
+    "Privacy mode: keep | mask | pseudonymize | encrypt | remove | keep_tac_mask_serial  "
+    "(alias: off=keep, redact=mask, keep-tac=keep_tac_mask_serial). "
+    "keep_tac_mask_serial keeps the IMEI TAC prefix visible and masks the serial suffix. "
+    "encrypt requires PCAP2LLM_VAULT_KEY; vault.json stores metadata only."
+)
+
 
 def _privacy_overrides(
     ip_mode: str | None,
@@ -281,6 +288,7 @@ def _merge_verbatim_protocols(
 _LOCAL_HOSTS_DEFAULT = Path(".local/hosts")
 _LOCAL_SUBNETS_DEFAULT = Path(".local/Subnets")
 _LOCAL_SS7PCS_DEFAULT = Path(".local/ss7pcs")
+_LOCAL_NETWORK_ELEMENT_MAPPING_DEFAULT = Path(".local/network_element_mapping.csv")
 
 
 def _resolve_hosts_file(
@@ -356,6 +364,28 @@ def _resolve_ss7pcs_file(
     return None
 
 
+def _resolve_network_element_mapping_file(
+    cli_arg: Path | None,
+    config_data: dict,
+) -> Path | None:
+    """Return the effective network-element mapping CSV path."""
+    if cli_arg is not None:
+        return cli_arg
+    if config_data.get("network_element_mapping_file"):
+        return Path(config_data["network_element_mapping_file"])
+    if _LOCAL_NETWORK_ELEMENT_MAPPING_DEFAULT.exists():
+        logger.info(
+            "Using local network element mapping CSV from %s",
+            _LOCAL_NETWORK_ELEMENT_MAPPING_DEFAULT,
+        )
+        return _LOCAL_NETWORK_ELEMENT_MAPPING_DEFAULT
+    logger.debug(
+        "No local network element mapping CSV found at default path %s; continuing without network element CSV",
+        _LOCAL_NETWORK_ELEMENT_MAPPING_DEFAULT,
+    )
+    return None
+
+
 def _capture_sha256(capture: Path) -> str | None:
     try:
         return sha256(capture.read_bytes()).hexdigest()
@@ -400,6 +430,11 @@ def inspect_command(
     hosts_file: Path | None = typer.Option(None, "--hosts-file", help="Wireshark hosts-style mapping file."),
     subnets_file: Path | None = typer.Option(None, "--subnets-file", help="Whitespace-delimited CIDR fallback file."),
     ss7pcs_file: Path | None = typer.Option(None, "--ss7pcs-file", help="Whitespace-delimited SS7 point-code alias file."),
+    network_element_mapping_file: Path | None = typer.Option(
+        None,
+        "--network-element-mapping-file",
+        help="CSV for network element type hints (header: type,value,network_element_type).",
+    ),
     out: Path | None = typer.Option(None, "--out", help="Optional file path or output directory for inspect artifacts."),
     format: str = typer.Option("json", "--format", help="Output format: json or markdown."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show the planned tshark command without executing."),
@@ -610,6 +645,11 @@ def analyze_command(
     hosts_file: Path | None = typer.Option(None, "--hosts-file", help="Wireshark hosts-style mapping file."),
     subnets_file: Path | None = typer.Option(None, "--subnets-file", help="Whitespace-delimited CIDR fallback file."),
     ss7pcs_file: Path | None = typer.Option(None, "--ss7pcs-file", help="Whitespace-delimited SS7 point-code alias file."),
+    network_element_mapping_file: Path | None = typer.Option(
+        None,
+        "--network-element-mapping-file",
+        help="CSV for network element type hints (header: type,value,network_element_type).",
+    ),
     out_dir: Path = typer.Option(Path("artifacts"), "--out", help="Artifact output directory."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Validate options and print the plan only."),
     two_pass: bool | None = typer.Option(None, "--two-pass/--no-two-pass", help="Override tshark two-pass mode."),
@@ -702,7 +742,7 @@ def analyze_command(
     subscriber_id_mode: str | None = typer.Option(None, "--subscriber-id-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
     msisdn_mode: str | None = typer.Option(None, "--msisdn-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
     imsi_mode: str | None = typer.Option(None, "--imsi-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
-    imei_mode: str | None = typer.Option(None, "--imei-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
+    imei_mode: str | None = typer.Option(None, "--imei-mode", help=_IMEI_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
     email_mode: str | None = typer.Option(None, "--email-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
     dn_mode: str | None = typer.Option(None, "--dn-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
     token_mode: str | None = typer.Option(None, "--token-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
@@ -756,6 +796,7 @@ def analyze_command(
     effective_mapping = _resolve_mapping_file(mapping_file, config_data)
     effective_subnets = _resolve_subnets_file(subnets_file, config_data)
     effective_ss7pcs = _resolve_ss7pcs_file(ss7pcs_file, config_data)
+    effective_network_element_mapping = _resolve_network_element_mapping_file(network_element_mapping_file, config_data)
     effective_filter = display_filter or config_data.get("display_filter")
     effective_max_packets = 0 if all_packets else max_packets
 
@@ -776,6 +817,7 @@ def analyze_command(
                 mapping_file=effective_mapping,
                 subnets_file=effective_subnets,
                 ss7pcs_file=effective_ss7pcs,
+                network_element_mapping_file=effective_network_element_mapping,
                 command=runner.build_export_command(
                     capture,
                     display_filter=effective_filter,
@@ -813,6 +855,7 @@ def analyze_command(
                 "mapping_file": str(effective_mapping) if effective_mapping else None,
                 "subnets_file": str(effective_subnets) if effective_subnets else None,
                 "ss7pcs_file": str(effective_ss7pcs) if effective_ss7pcs else None,
+                "network_element_mapping_file": str(effective_network_element_mapping) if effective_network_element_mapping else None,
                 "command": runner.build_export_command(
                     capture,
                     display_filter=effective_filter,
@@ -837,6 +880,7 @@ def analyze_command(
                 mapping_file=effective_mapping,
                 subnets_file=effective_subnets,
                 ss7pcs_file=effective_ss7pcs,
+                network_element_mapping_file=effective_network_element_mapping,
                 extra_args=extra_args,
                 two_pass=effective_two_pass,
                 max_packets=effective_max_packets,

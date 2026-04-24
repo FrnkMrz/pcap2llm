@@ -61,6 +61,33 @@ def test_analyze_dry_run_outputs_local_ss7pcs_file(tmp_path: Path) -> None:
     assert payload["ss7pcs_file"] == str(local_ss7pcs)
 
 
+def test_analyze_dry_run_outputs_local_network_element_mapping_file(tmp_path: Path) -> None:
+    runner = CliRunner()
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+    local_mapping = tmp_path / "network_element_mapping.csv"
+    local_mapping.write_text(
+        "type,value,network_element_type\nsubnet,10.0.0.0/24,AMF\n",
+        encoding="utf-8",
+    )
+
+    with patch("pcap2llm.cli._LOCAL_NETWORK_ELEMENT_MAPPING_DEFAULT", local_mapping):
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                str(capture),
+                "--dry-run",
+                "--profile",
+                "lte-core",
+            ],
+        )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["network_element_mapping_file"] == str(local_mapping)
+
+
 def test_init_config_writes_file(tmp_path: Path) -> None:
     runner = CliRunner()
     config_path = tmp_path / "pcap2llm.config.yaml"

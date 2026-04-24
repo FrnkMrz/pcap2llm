@@ -22,7 +22,9 @@ def test_profiles_page_loads(tmp_path: Path) -> None:
     assert "Privacy Profiles" in response.text
     assert "Built-in Privacy Profiles" in response.text
     assert "llm-telecom-safe" in response.text
-    assert "Duplicate as Local Profile" in response.text
+    assert "Duplicate as local profile" in response.text
+    assert "Export JSON" not in response.text
+    assert "Bulk Delete" not in response.text
 
 
 def test_profiles_page_explains_empty_local_profiles(tmp_path: Path) -> None:
@@ -100,6 +102,20 @@ def test_update_profile_via_form_updates_modes(tmp_path: Path) -> None:
     assert profile.modes["ip"] == "mask"
     assert profile.modes["imsi"] == "remove"
     assert profile.modes["email"] == "pseudonymize"
+
+
+def test_profiles_editor_shows_imei_tac_mode(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    create_resp = client.post(
+        "/profiles",
+        data={"name": "IMEI Profile", "description": "IMEI handling"},
+        follow_redirects=False,
+    )
+    profile_id = create_resp.headers["location"].split("id=")[1]
+
+    response = client.get(f"/profiles?id={profile_id}")
+    assert response.status_code == 200
+    assert "keep_tac_mask_serial" in response.text
 
 
 def test_update_profile_rejects_invalid_mode(tmp_path: Path) -> None:

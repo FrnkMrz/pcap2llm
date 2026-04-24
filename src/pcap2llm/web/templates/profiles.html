@@ -10,9 +10,6 @@
       <p class="profiles-subtitle">Choose a built-in policy or create a local profile with explicit handling for each data class.</p>
     </div>
     <div class="header-actions">
-      <a class="btn-secondary" href="/profiles/export?fmt=json">Export JSON</a>
-      <a class="btn-secondary" href="/profiles/export?fmt=csv">Export CSV</a>
-      <button class="btn-primary" type="button" onclick="toggleBulkDelete()">Bulk Delete</button>
       <button class="btn-primary" type="button" onclick="newProfile()">+ New Profile</button>
     </div>
   </div>
@@ -29,10 +26,10 @@
           <strong>{{ profile.name }}</strong>
           <span class="kind-badge">Built-in</span>
         </div>
-        <p>{{ profile.description }}</p>
+        <p class="builtin-card-description">{{ profile.description }}</p>
         <small>{{ profile.summary }}</small>
         <form method="post" action="/profiles/privacy/{{ profile.name }}/duplicate">
-          <button type="submit" class="btn-secondary">Duplicate as Local Profile</button>
+          <button type="submit" class="builtin-duplicate-link">Duplicate as local profile</button>
         </form>
       </article>
       {% endfor %}
@@ -50,16 +47,9 @@
         onkeyup="filterProfiles()"
       />
 
-      <form id="bulkDeleteForm" method="post" action="/profiles/actions/bulk-delete" class="bulk-actions" style="display: none;">
-        <button type="button" class="btn-secondary" onclick="toggleBulkDelete()">Cancel</button>
-        <button type="submit" class="btn-danger" onclick="return confirm('Delete selected profiles?');">Delete Selected</button>
-        <span><span id="bulk-selected-count">0</span> selected</span>
-      </form>
-
       <div class="profile-list">
         {% for profile in profiles %}
-        <div class="profile-row" data-has-checkbox>
-          <input type="checkbox" class="profile-checkbox" name="profile_id" value="{{ profile.id }}" form="bulkDeleteForm" />
+        <div class="profile-row">
           <div
             class="profile-item {% if selected_profile and selected_profile.id == profile.id %}active{% endif %}"
             onclick="selectProfile('{{ profile.id }}')"
@@ -100,7 +90,7 @@
         <section class="modes-panel">
           <div class="modes-header">
             <h2>Data Handling Rules</h2>
-            <small>`keep`, `mask`, `pseudonymize`, `encrypt`, `remove`</small>
+            <small>`keep`, `mask`, `pseudonymize`, `encrypt`, `remove`, IMEI: `keep_tac_mask_serial`</small>
           </div>
           <div class="modes-table">
             {% for data_class in data_classes %}
@@ -112,7 +102,7 @@
                 <span class="sr-only">{{ data_class }} mode</span>
                 <select name="mode_{{ data_class }}">
                   {% set current_mode = selected_profile.modes.get(data_class, "keep") %}
-                  {% for mode in protection_modes %}
+                  {% for mode in protection_modes[data_class] %}
                   <option value="{{ mode }}" {% if current_mode == mode %}selected{% endif %}>{{ mode }}</option>
                   {% endfor %}
                 </select>
@@ -150,40 +140,10 @@
 </div>
 
 <script>
-  let bulkDeleteMode = false;
-
   function selectProfile(profileId) {
-    if (bulkDeleteMode) {
-      const checkbox = document.querySelector(`input[value="${profileId}"]`);
-      if (checkbox) {
-        checkbox.checked = !checkbox.checked;
-      }
-      updateBulkCount();
-      return;
-    }
     const url = new URL(window.location);
     url.searchParams.set("id", profileId);
     window.location.replace(url.toString());
-  }
-
-  function toggleBulkDelete() {
-    bulkDeleteMode = !bulkDeleteMode;
-    const form = document.getElementById("bulkDeleteForm");
-    const rows = document.querySelectorAll("[data-has-checkbox]");
-
-    form.style.display = bulkDeleteMode ? "flex" : "none";
-    rows.forEach((row) => row.classList.toggle("bulk-mode", bulkDeleteMode));
-    if (!bulkDeleteMode) {
-      document.querySelectorAll(".profile-checkbox").forEach((checkbox) => {
-        checkbox.checked = false;
-      });
-    }
-    updateBulkCount();
-  }
-
-  function updateBulkCount() {
-    const checked = document.querySelectorAll(".profile-checkbox:checked").length;
-    document.getElementById("bulk-selected-count").textContent = checked;
   }
 
   function filterProfiles() {
@@ -300,12 +260,28 @@
     gap: 8px;
   }
 
-  .builtin-card p,
+  .builtin-card-description {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+
   .profile-desc,
   .empty-state-card p {
     margin: 0;
     color: var(--muted);
     line-height: 1.45;
+  }
+
+  .builtin-duplicate-link {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--accent);
+    font-size: 0.9rem;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    justify-self: start;
   }
 
   .profiles-layout {
@@ -333,19 +309,8 @@
 
   .profile-row {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 8px;
+    grid-template-columns: minmax(0, 1fr);
     align-items: start;
-  }
-
-  .profile-row.bulk-mode {
-    padding: 6px;
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--accent) 10%, var(--panel) 90%);
-  }
-
-  .profile-checkbox {
-    margin-top: 14px;
   }
 
   .profile-item {
@@ -370,16 +335,6 @@
     gap: 8px;
     font-size: 0.82rem;
     color: var(--muted);
-  }
-
-  .bulk-actions {
-    align-items: center;
-    gap: 10px;
-    margin-top: 14px;
-    padding: 10px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--panel) 92%, #fff2df 8%);
   }
 
   .editor-form,

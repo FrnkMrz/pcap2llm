@@ -131,7 +131,7 @@ class JobStore:
 
     def list_download_entries(self, record: JobRecord) -> list[dict[str, str]]:
         entries: list[dict[str, str]] = []
-        for section in ("artifacts", "discovery", "logs"):
+        for section in ("artifacts", "discovery"):
             folder = self._section_folder(record.job_id, section)
             if not folder.exists():
                 continue
@@ -147,6 +147,23 @@ class JobStore:
                     }
                 )
         return entries
+
+    def clear_generated_outputs(self, job_id: str) -> JobRecord:
+        record = self.load(job_id)
+        for folder in (self.discovery_dir(job_id), self.artifacts_dir(job_id), self.logs_dir(job_id)):
+            if folder.exists():
+                shutil.rmtree(folder)
+            folder.mkdir(parents=True, exist_ok=True)
+
+        record.status = "uploaded"
+        record.updated_at = now_utc_iso()
+        record.recommended_profiles = []
+        record.suspected_domains = []
+        record.artifacts = []
+        record.last_error = None
+        record.last_error_code = None
+        self.save(record)
+        return record
 
     def sorted_artifacts(self, record: JobRecord) -> list[str]:
         artifact_dir = self.artifacts_dir(record.job_id)

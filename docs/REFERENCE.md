@@ -203,7 +203,7 @@ Per-class privacy overrides:
   --apn-dnn-mode          APN / DNN
   --diameter-identity-mode  Diameter identities
   --payload-text-mode     Payload text
-                          Values: keep | mask | pseudonymize | encrypt | remove
+                          Values: keep | mask | pseudonymize | encrypt | remove | keep_tac_mask_serial (IMEI only)
 
 TShark:
   --two-pass              Override two-pass dissection mode

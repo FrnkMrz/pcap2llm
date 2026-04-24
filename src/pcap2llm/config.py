@@ -23,6 +23,11 @@ def normalize_mode(value: str | None) -> str:
         "pseudonymize": ProtectionMode.PSEUDONYMIZE.value,
         "encrypt": ProtectionMode.ENCRYPT.value,
         "remove": ProtectionMode.REMOVE.value,
+        "keep_tac_mask_serial": ProtectionMode.KEEP_TAC_MASK_SERIAL.value,
+        "keep-tac-mask-serial": ProtectionMode.KEEP_TAC_MASK_SERIAL.value,
+        "keep_tac": ProtectionMode.KEEP_TAC_MASK_SERIAL.value,
+        "keep-tac": ProtectionMode.KEEP_TAC_MASK_SERIAL.value,
+        "tac": ProtectionMode.KEEP_TAC_MASK_SERIAL.value,
     }
     if normalized not in aliases:
         valid = ", ".join(mode.value for mode in ProtectionMode)

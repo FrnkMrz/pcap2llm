@@ -87,6 +87,9 @@ class Pcap2LlmRunner:
         if options.ss7pcs_file:
             cmd.extend(["--ss7pcs-file", options.ss7pcs_file])
 
+        if options.network_element_mapping_file:
+            cmd.extend(["--network-element-mapping-file", options.network_element_mapping_file])
+
         tshark_path = (options.tshark_path or self.default_tshark_path).strip()
         if tshark_path:
             cmd.extend(["--tshark-path", tshark_path])

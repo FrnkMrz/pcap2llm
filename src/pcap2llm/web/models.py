@@ -38,6 +38,7 @@ class AnalyzeOptions:
     mapping_file: str | None = None
     subnets_file: str | None = None
     ss7pcs_file: str | None = None
+    network_element_mapping_file: str | None = None
     tshark_path: str | None = None
     two_pass: bool = False
 

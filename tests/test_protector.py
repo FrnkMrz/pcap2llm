@@ -118,6 +118,23 @@ def test_free_text_payload_with_email_uri_and_token_is_masked() -> None:
     assert protected[0]["message"]["fields"]["payload.blob"] == "[redacted]"
 
 
+def test_imei_keep_tac_mask_serial_mode_preserves_tac_prefix() -> None:
+    protector = Protector({"imei": "keep_tac_mask_serial"})
+    packets = [
+        {
+            "message": {
+                "protocol": "ngap",
+                "fields": {
+                    "ngap.pei": "490154203237518",
+                },
+            },
+        }
+    ]
+
+    protected = protector.protect_packets(packets)
+    assert protected[0]["message"]["fields"]["ngap.pei"] == "49015420XXXXXXX"
+
+
 def test_mixed_case_nested_dns_hostname_is_caught() -> None:
     protector = Protector({"hostname": "mask"})
     packets = [

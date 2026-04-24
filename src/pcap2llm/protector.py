@@ -89,10 +89,21 @@ class Protector:
         self.pseudonyms[data_class][original] = alias
         return alias
 
+    @staticmethod
+    def _mask_imei_keep_tac(value: Any) -> Any:
+        text = str(value)
+        if len(text) <= 8:
+            return "[redacted]"
+        return f"{text[:8]}{'X' * (len(text) - 8)}"
+
     def _protect_scalar(self, data_class: str, value: Any) -> Any:
         mode = self.modes.get(data_class, "keep")
         if value is None or mode == "keep":
             return value
+        if mode == "keep_tac_mask_serial":
+            if data_class == "imei":
+                return self._mask_imei_keep_tac(value)
+            return "[redacted]"
         if mode == "mask":
             return "[redacted]"
         if mode == "remove":

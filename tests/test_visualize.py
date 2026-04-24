@@ -247,7 +247,7 @@ def test_render_flow_svg_omits_phase_band_and_keeps_repeat_marker() -> None:
 
     assert 'class="phases"' not in svg
     assert ">Authentication<" not in svg
-    assert ">#1<" in svg
+    assert ">#1 07:53:21<" in svg
     assert "AIR x2" in svg
 
 
@@ -551,7 +551,23 @@ def test_render_flow_svg_includes_tooltip_and_accessibility_nodes() -> None:
     assert 'role="img"' in svg
     assert '<title id="flow-title">Flow Test</title>' in svg
     assert '<desc id="flow-desc">' in svg
-    assert "<title>#1 | AIR" in svg
+    assert "first packet 06.04.2024" in svg
+    assert "<title>pkt #1 | MME → HSS | diameter | t=10.0 ms</title>" in svg
+    assert "<title>pkt #1 | AIR" not in svg
+
+
+def test_build_flow_model_adds_first_packet_date_to_subtitle() -> None:
+    packets = [_packet(1, "MME", "HSS", "AIR")]
+
+    flow = build_flow_model(
+        packets,
+        capture_file="sample.pcapng",
+        profile="lte-core",
+        privacy_profile=None,
+    )
+
+    assert flow["first_packet_date"] == "06.04.2024"
+    assert flow["subtitle"] == "lte-core | privacy-default | first packet 06.04.2024"
 
 
 def test_render_flow_svg_adds_wide_transparent_event_hover_target() -> None:

@@ -66,6 +66,15 @@ Der Smoke-Run startet die Web-GUI lokal, prueft die wichtigsten HTML-Routen und 
 - `tshark-path`
 - `two-pass`
 
+## Analyze-Optionen kurz erklaert
+
+- `max-packets`: begrenzt, wie viele Pakete in `detail.json` landen.
+- `Export all packets to detail.json`: hebt dieses Limit auf. Sinnvoll nur fuer kleine, bereits eng gefilterte Captures.
+- `Fail if the detail export would be cut off`: bricht den Lauf ab, wenn wegen `max-packets` nur ein Teil der exportierten Pakete in `detail.json` landen wuerde.
+- `Better TShark reassembly for fragmented traffic`: aktiviert TShark Two-Pass-Dissection. Das hilft besonders bei HTTP/2, SIP, Diameter oder anderer fragmentierter/reassemblierter Nutzlast, kostet aber etwas mehr Laufzeit.
+- `Render flow diagram`: erzeugt zusaetzlich `flow.json` und `flow.svg`.
+- `Merge repeated messages`: fasst direkt aufeinanderfolgende identische Events im Flow zu `xN` zusammen.
+
 ## Umgebungsvariablen
 
 - `PCAP2LLM_WEB_HOST` (default `127.0.0.1`)
@@ -150,6 +159,10 @@ Bei Discovery/Analyze werden getrennte Log-Dateien geschrieben:
 - `logs/analyze_stderr.log`
 - `logs/analyze_command.json`
 
+Auf der Job-Seite ist die Log-Sektion standardmaessig eingeklappt. Sie bleibt
+damit aus dem Weg, bis man sie fuer Fehlersuche oder Nachvollziehbarkeit
+bewusst oeffnet.
+
 ## Downloads
 
 - Konsolidierte Einzeldateien in der Job-Seite mit Kategorie (`artifacts`, `discovery`, `logs`) und Dateigroesse
@@ -166,6 +179,10 @@ Bei Discovery/Analyze werden getrennte Log-Dateien geschrieben:
 - Jobs koennen auf der Startseite per Multi-Select gesammelt geloescht werden.
 - Dark-Mode Toggle in der Kopfzeile (persistiert im Browser via `localStorage`).
 - Responsive Tabellenansicht fuer kleinere Displays.
+- Das Flow-Preview wird inline als interaktives SVG dargestellt, nicht als statisches Bild.
+- Hover im Flow-Preview funktioniert direkt auf der Job-Seite; im SVG selbst bleibt das gleiche Verhalten auch nach dem Download erhalten.
+- Das Flow-Preview ist als grosser, scrollbarer Viewer ausgelegt, damit breite Sequenzdiagramme ohne Browser-Zoom lesbar bleiben.
+- Privacy-Profile in der Analyze-Maske werden kompakter nach Inhalt statt als unnoetig breite Vollbreiten-Karten dargestellt.
 
 ## Automatische Bereinigung (Cleanup)
 

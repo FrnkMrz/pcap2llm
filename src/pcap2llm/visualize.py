@@ -52,6 +52,97 @@ def _truncate(text: str, max_len: int) -> str:
     return f"{value[:max_len - 3]}..."
 
 
+def _timestamp_datetime(value: Any) -> datetime | None:
+    text = _to_text(value)
+    if text is None:
+        return None
+    try:
+        return datetime.fromtimestamp(float(text), tz=timezone.utc)
+    except (TypeError, ValueError, OSError):
+        try:
+            normalized = text.replace("Z", "+00:00")
+            dt = datetime.fromisoformat(normalized)
+        except ValueError:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+
+
+def _format_timestamp_time(value: Any) -> str | None:
+    dt = _timestamp_datetime(value)
+    if dt is None:
+        return None
+    return dt.strftime("%H:%M:%S")
+
+
+def _format_timestamp_date(value: Any) -> str | None:
+    dt = _timestamp_datetime(value)
+    if dt is None:
+        return None
+    return dt.strftime("%d.%m.%Y")
+
+
+def _format_event_time_span(first_ms: float | None, last_ms: float | None) -> str | None:
+    if first_ms is None and last_ms is None:
+        return None
+    if first_ms is None:
+        return f"t={last_ms:.1f} ms"
+    if last_ms is None or abs(last_ms - first_ms) < 0.05:
+        return f"t={first_ms:.1f} ms"
+    return f"t={first_ms:.1f}-{last_ms:.1f} ms"
+
+
+def _event_tooltip_text(
+    event: dict[str, Any],
+    *,
+    src: str,
+    dst: str,
+    label_text: str,
+    packet_no: Any,
+    first_no: Any,
+    last_no: Any,
+    repeat_count: int,
+) -> str:
+    parts: list[str] = []
+
+    if repeat_count > 1 and first_no is not None and last_no is not None:
+        parts.append(f"pkts {first_no}-{last_no} (x{repeat_count})")
+    elif packet_no is not None:
+        parts.append(f"pkt #{packet_no}")
+    else:
+        parts.append("event")
+
+    parts.append(f"{src} → {dst}")
+
+    protocol = _to_text(event.get("protocol"))
+    if protocol and protocol.lower() != label_text.strip().lower():
+        parts.append(protocol)
+
+    status = _to_text(event.get("status"))
+    if status == "error":
+        parts.append("error")
+    elif status == "response":
+        parts.append("response")
+
+    time_span = _format_event_time_span(
+        _to_ms(event.get("first_relative_ms")),
+        _to_ms(event.get("last_relative_ms")),
+    )
+    if time_span:
+        parts.append(time_span)
+
+    correlation_id = _to_text(event.get("correlation_id"))
+    if correlation_id:
+        parts.append(f"corr={correlation_id}")
+
+    session_key = _to_text(event.get("session_key"))
+    if session_key:
+        parts.append(f"session={session_key}")
+
+    return " | ".join(parts)
+
+
 def _find_nested_field(container: Any, target_keys: tuple[str, ...], max_depth: int = 12) -> Any:
     """Walk nested dict/list structures and return the first value whose key is in target_keys.
 
@@ -1123,13 +1214,22 @@ def build_flow_model(
     if relative_values:
         time_span_ms = float(max(relative_values) - min(relative_values))
 
+    first_packet_date = None
+    if packets:
+        first_packet_date = _format_timestamp_date(packets[0].get("time_epoch"))
+
+    subtitle = f"{profile} | {privacy_profile or 'privacy-default'}"
+    if first_packet_date:
+        subtitle = f"{subtitle} | first packet {first_packet_date}"
+
     return {
         "capture_file": capture_file,
         "profile": profile,
         "privacy_profile": privacy_profile,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "title": title or "Signaling Flow",
-        "subtitle": f"{profile} | {privacy_profile or 'privacy-default'}",
+        "subtitle": subtitle,
+        "first_packet_date": first_packet_date,
         "packet_count_total": total_packets,
         "event_count_rendered": len(events),
         "event_count_uncollapsed": len(event_packets),
@@ -1164,6 +1264,7 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
     node_x: dict[str, int] = {}
     for i, node in enumerate(nodes):
         node_x[node["id"]] = left_margin + i * lane_spacing
+    node_label_by_id = {str(node["id"]): str(node.get("label") or node["id"]) for node in nodes}
 
     event_y: dict[str, int] = {}
     for idx, event in enumerate(events, start=1):
@@ -1241,6 +1342,8 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
         dst = event.get("dst_node")
         src_x = node_x.get(str(src), left_margin)
         dst_x = node_x.get(str(dst), src_x)
+        src_label = node_label_by_id.get(str(src), str(src))
+        dst_label = node_label_by_id.get(str(dst), str(dst))
 
         color = "#3d5a80"
         marker = "url(#arrow)"
@@ -1263,20 +1366,18 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
         status = escape(str(event.get("status") or ""))
         session_key = escape(str(event.get("session_key") or ""))
 
-        tooltip_parts = [f"#{packet_no}" if packet_no is not None else "event"]
-        if event.get("message_name"):
-            tooltip_parts.append(str(event.get("message_name")))
-        if repeat_count > 1:
-            tooltip_parts.append(f"repeat x{repeat_count} (pkts {first_no}–{last_no})")
-        tooltip_parts.append(f"{src} → {dst}")
-        if event.get("protocol"):
-            tooltip_parts.append(str(event.get("protocol")))
-        if event.get("relative_ms") is not None:
-            tooltip_parts.append(f"t={event.get('relative_ms')}")
-        if event.get("correlation_id"):
-            tooltip_parts.append(str(event.get("correlation_id")))
-        tooltip = escape(" | ".join(str(p) for p in tooltip_parts if p))
-        visible_tooltip = escape(_truncate(" | ".join(str(p) for p in tooltip_parts if p), 96))
+        tooltip_text = _event_tooltip_text(
+            event,
+            src=src_label,
+            dst=dst_label,
+            label_text=label_text,
+            packet_no=packet_no,
+            first_no=first_no,
+            last_no=last_no,
+            repeat_count=repeat_count,
+        )
+        tooltip = escape(tooltip_text)
+        visible_tooltip = escape(_truncate(tooltip_text, 96))
         event_attrs = (
             f'data-event-id="{escape(str(event.get("id")))}" data-packet-no="{escape(str(packet_no))}" '
             f'data-protocol="{protocol}" data-session-key="{session_key}" '
@@ -1316,7 +1417,13 @@ def render_flow_svg(flow: dict[str, Any], *, width: int = 1600) -> str:
             # any two consecutive labels regardless of direction combination
             label_y = y - 8
 
-        meta_label = f"#{packet_no}" if packet_no is not None else ""
+        packet_clock = _format_timestamp_time(event.get("timestamp"))
+        meta_parts = []
+        if packet_no is not None:
+            meta_parts.append(f"#{packet_no}")
+        if packet_clock:
+            meta_parts.append(packet_clock)
+        meta_label = " ".join(meta_parts)
         parts.append(
             f'<text x="{text_x}" y="{label_y}" text-anchor="{text_anchor}" font-family="Georgia, serif" '
             f'font-size="11" fill="#2c3647">{label}</text>'

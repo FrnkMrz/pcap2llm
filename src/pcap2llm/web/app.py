@@ -185,6 +185,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             "downloads": store.list_download_entries(record),
             "log_sections": _collect_log_sections(store.logs_dir(job_id)),
             "flow_svg": _first_matching(store.artifacts_dir(job_id), ".svg"),
+            "flow_svg_markup": _read_flow_svg_markup(store.artifacts_dir(job_id)),
             "settings": settings,
             "analyze_defaults": analyze_defaults,
         }
@@ -950,6 +951,20 @@ def _read_log(path: Path) -> str:
         return ""
     data = path.read_text(encoding="utf-8", errors="replace")
     return data[-8000:]
+
+
+def _read_flow_svg_markup(folder: Path) -> str | None:
+    filename = _first_matching(folder, ".svg")
+    if not filename:
+        return None
+    path = folder / filename
+    data = path.read_text(encoding="utf-8", errors="replace")
+    lowered = data.lower()
+    if not data.lstrip().startswith("<svg"):
+        return None
+    if "<script" in lowered or "javascript:" in lowered:
+        return None
+    return data
 
 
 def _collect_log_sections(logs_dir: Path) -> list[dict[str, str]]:

@@ -145,11 +145,14 @@
     </details>
 
     <div class="toggle-group">
-      <label class="inline"><input type="checkbox" name="all_packets" value="true" {% if analyze_defaults.all_packets %}checked{% endif %} /> Include all packets</label>
-      <label class="inline"><input type="checkbox" name="fail_on_truncation" value="true" {% if analyze_defaults.fail_on_truncation %}checked{% endif %} /> Stop on truncation</label>
+      <label class="inline"><input type="checkbox" name="all_packets" value="true" {% if analyze_defaults.all_packets %}checked{% endif %} /> Export all packets to detail.json</label>
+      <p class="toggle-help">Ignores the packet limit and writes every matching packet to <code>detail.json</code>. Useful only for small, already well-filtered captures.</p>
+      <label class="inline"><input type="checkbox" name="fail_on_truncation" value="true" {% if analyze_defaults.fail_on_truncation %}checked{% endif %} /> Fail if the detail export would be cut off</label>
+      <p class="toggle-help">Use this when truncation would make the result misleading. The run stops instead of silently exporting only the first N packets.</p>
       <label class="inline"><input type="checkbox" name="render_flow_svg" value="true" {% if analyze_defaults.render_flow_svg %}checked{% endif %} /> Render flow diagram</label>
       <label class="inline"><input type="checkbox" name="collapse_repeats" value="true" {% if analyze_defaults.collapse_repeats %}checked{% endif %} /> Merge repeated messages</label>
-      <label class="inline"><input type="checkbox" name="two_pass" value="true" {% if analyze_defaults.two_pass %}checked{% endif %} /> Two-pass analysis</label>
+      <label class="inline"><input type="checkbox" name="two_pass" value="true" {% if analyze_defaults.two_pass %}checked{% endif %} /> Better TShark reassembly for fragmented traffic</label>
+      <p class="toggle-help">Runs TShark in two-pass mode. This can improve decoding for HTTP/2, SIP, Diameter and other fragmented or reassembled traffic, but may take a bit longer.</p>
     </div>
 
     <p class="mono">Command preview: {{ preview }}</p>
@@ -178,7 +181,7 @@
   {% endif %}
 </section>
 
-<section class="panel">
+<section class="panel" data-results-panel>
   <h2>Downloads</h2>
   <div class="downloads-actions">
     <a href="/jobs/{{ job.job_id }}/files.zip">Download all as ZIP</a>
@@ -206,7 +209,14 @@
 
   {% if flow_svg %}
   <h3>Flow preview</h3>
-  <img src="/jobs/{{ job.job_id }}/files/{{ flow_svg }}" alt="Flow SVG" class="flow-preview" />
+  {% if flow_svg_markup %}
+  <div class="flow-preview-shell">
+    <div class="flow-preview-canvas">{{ flow_svg_markup | safe }}</div>
+  </div>
+  <p class="flow-preview-help">Hover arrows for details. Scroll inside the preview to inspect the full-size diagram.</p>
+  {% else %}
+  <a href="/jobs/{{ job.job_id }}/files/{{ flow_svg }}">Flow SVG preview unavailable inline</a>
+  {% endif %}
   {% endif %}
 </section>
 
@@ -365,6 +375,35 @@
     margin: 0;
   }
 
+  .flow-preview-shell {
+    border: 1px solid #d7dee8;
+    border-radius: 10px;
+    background:
+      linear-gradient(180deg, #f7fafc 0%, #eef3f8 100%);
+    padding: 12px;
+    overflow: auto;
+    min-height: 32rem;
+    max-height: 72vh;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  }
+
+  .flow-preview-canvas {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .flow-preview-canvas svg {
+    display: block;
+    max-width: none;
+    height: auto;
+  }
+
+  .flow-preview-help {
+    margin: 8px 0 0;
+    color: #617385;
+    font-size: 0.9rem;
+  }
+
   .logs-panel {
     padding: 0;
     overflow: hidden;
@@ -429,6 +468,13 @@
     margin-top: 4px;
   }
 
+  .toggle-help {
+    margin: -2px 0 2px 26px;
+    color: #617385;
+    font-size: 0.9rem;
+    line-height: 1.4;
+  }
+
   .network-elements-summary {
     border: 1px solid #d7dee8;
     border-radius: 8px;
@@ -455,8 +501,8 @@
   }
 
   .privacy-profile-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     margin-top: 8px;
   }
@@ -466,12 +512,13 @@
     grid-template-columns: auto 1fr;
     gap: 8px;
     align-items: start;
+    flex: 0 1 230px;
+    max-width: 280px;
     border: 1px solid #d7dee8;
     border-radius: 8px;
     padding: 8px 10px;
     background: #fff;
     cursor: pointer;
-    min-height: 44px;
     transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
   }
 
@@ -485,11 +532,13 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+    min-width: 0;
   }
 
   .privacy-profile-copy strong {
     font-size: 0.84rem;
     line-height: 1.15;
+    min-width: 0;
   }
 
   .privacy-profile-copy span {
@@ -571,7 +620,8 @@
   html[data-theme="dark"] .advanced-options,
   html[data-theme="dark"] .discovery-usage,
   html[data-theme="dark"] .advanced-group,
-  html[data-theme="dark"] .logs-panel[open] > summary {
+  html[data-theme="dark"] .logs-panel[open] > summary,
+  html[data-theme="dark"] .flow-preview-shell {
     background: #13202c;
     border-color: #304355;
   }
@@ -596,24 +646,19 @@
       flex-direction: column;
     }
 
-    .privacy-profile-grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+    .flow-preview-shell {
+      min-height: 24rem;
     }
 
     .privacy-profile-option {
-      min-height: unset;
+      flex-basis: 200px;
     }
   }
 
   @media (max-width: 560px) {
-    .privacy-profile-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-
-  @media (max-width: 420px) {
-    .privacy-profile-grid {
-      grid-template-columns: 1fr;
+    .privacy-profile-option {
+      flex-basis: 100%;
+      max-width: none;
     }
   }
 </style>

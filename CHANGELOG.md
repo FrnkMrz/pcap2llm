@@ -68,6 +68,38 @@ The format is intentionally simple and optimized for humans reading repo history
   - added example mapping file at `examples/network_element_mapping.csv`.
   - documentation map updated to include the new detection guide.
 
+### Changed — 2026-04-24 (web flow preview and analyze-form clarity)
+
+- **Web flow preview is now truly interactive**:
+  - the job page no longer renders `flow.svg` as a plain `<img>` thumbnail.
+  - instead it embeds a sanitized inline SVG preview so native SVG hover
+    behavior works directly in the browser preview.
+  - the preview is shown inside a larger scrollable viewport so wide signaling
+    diagrams stay readable without increasing browser zoom.
+  - redundant `Open full SVG` / `Download SVG` links were removed from the
+    preview block; artifact download remains available from the normal downloads list.
+
+- **Rendered flow timestamps are easier to read**:
+  - the left event gutter now shows packet number plus packet clock time in
+    `HH:mm:ss`.
+  - the flow subtitle now includes the date of the first packet.
+  - hover text now emphasizes contextual metadata (packet/range, direction,
+    protocol, timing, correlation) instead of simply repeating the arrow label.
+
+- **Analyze form wording is clearer**:
+  - `Include all packets` is now explained as exporting every matching packet to
+    `detail.json`, overriding the packet limit.
+  - `Stop on truncation` is now described as failing the run when the detail
+    export would otherwise be cut off.
+  - `Two-pass analysis` is now described in operational terms: better TShark
+    reassembly for fragmented traffic such as HTTP/2, SIP, or Diameter.
+
+- **Job page ergonomics improved**:
+  - privacy-profile choices in the analyze form now size themselves more
+    compactly to their content.
+  - the logs panel stays collapsed by default, and post-run auto-focus now
+    prefers the results section instead of automatically opening logs.
+
 ### Fixed — 2026-04-22 (flow usability and local reruns)
 
 - **SVG flow hover usability**:

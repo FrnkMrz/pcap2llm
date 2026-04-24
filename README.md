@@ -163,8 +163,13 @@ identical events when repeat collapse is enabled, and labels common telecom
 messages with protocol-specific detail: Diameter result codes, GTPv2 message
 names and causes, NGAP procedures, NAS-EPS/NAS-5GS message types, HTTP/2
 method/path or status, and DNS query/response names, rcodes, and answer counts.
-Error-ish outcomes such as Diameter result codes >= 3000, HTTP status >= 400,
-GTPv2 causes >= 64, and DNS rcode failures are highlighted in the SVG.
+The left event gutter now shows packet number plus packet clock time
+(`HH:mm:ss`), and the flow header includes the date of the first packet.
+Hover text is intentionally different from the arrow label: it focuses on
+packet/range, direction, protocol, timing, and correlation context instead of
+repeating the visible message label. Error-ish outcomes such as Diameter result
+codes >= 3000, HTTP status >= 400, GTPv2 causes >= 64, and DNS rcode failures
+are highlighted in the SVG.
 
 ## Documentation Map
 

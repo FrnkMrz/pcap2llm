@@ -235,8 +235,11 @@ Labels are protocol-aware when the extracted fields are available:
 - DNS query type/name, response rcode, answer count, and `dns.id` correlation
 
 The SVG includes browser hover tooltips on event rows, with a wider transparent
-hit target around each arrow plus an in-SVG tooltip fallback. Error events are
-marked in red.
+hit target around each arrow plus an in-SVG tooltip fallback. The left gutter
+shows packet number plus packet clock time (`HH:mm:ss`), and the subtitle adds
+the date of the first packet in the rendered flow. Hover text is context-heavy
+(packet/range, direction, protocol, timing, correlation) instead of simply
+repeating the visible arrow label. Error events are marked in red.
 If a profile did not extract a rich app-layer message name, the renderer falls
 back to `frame_protocols` for labels such as SIP, NGAP, NAS-5GS, S1AP, PFCP,
 GTPv1/GTPv2, Diameter, RADIUS, SCCP, MAP, or ISUP.

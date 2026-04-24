@@ -714,6 +714,49 @@ def test_job_page_keeps_discovery_logs_visible_after_analyze(tmp_path: Path) -> 
     assert f"/jobs/{job_id}/files/logs/analyze_stdout.log" in response.text
     assert "<summary>" in response.text
     assert ">Logs<" in response.text
+    assert '<details class="panel logs-panel" id="logs" data-logbook>' in response.text
+
+
+def test_job_page_renders_inline_flow_preview_markup(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    upload = client.post(
+        "/jobs",
+        files={"capture": ("trace.pcap", io.BytesIO(b"abc"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+    job_id = upload.headers["location"].split("/")[-1]
+
+    store = JobStore(tmp_path / "web_runs")
+    (store.artifacts_dir(job_id) / "sample_flow.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="200"><title>Flow</title><rect width="100%" height="100%" fill="#fff" /></svg>',
+        encoding="utf-8",
+    )
+
+    response = client.get(f"/jobs/{job_id}")
+    assert response.status_code == 200
+    assert 'class="flow-preview-shell"' in response.text
+    assert 'class="flow-preview-canvas"' in response.text
+    assert '<img src="/jobs/' not in response.text
+    assert '<svg xmlns="http://www.w3.org/2000/svg"' in response.text
+
+
+def test_job_page_explains_advanced_analysis_toggles(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    upload = client.post(
+        "/jobs",
+        files={"capture": ("trace.pcap", io.BytesIO(b"abc"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+    job_id = upload.headers["location"].split("/")[-1]
+
+    response = client.get(f"/jobs/{job_id}")
+    assert response.status_code == 200
+    assert "Export all packets to detail.json" in response.text
+    assert "Ignores the packet limit" in response.text
+    assert "Fail if the detail export would be cut off" in response.text
+    assert "The run stops instead of silently exporting only the first N packets" in response.text
+    assert "Better TShark reassembly for fragmented traffic" in response.text
+    assert "Runs TShark in two-pass mode" in response.text
 
 
 def test_job_page_hides_log_files_from_downloads_list(tmp_path: Path) -> None:

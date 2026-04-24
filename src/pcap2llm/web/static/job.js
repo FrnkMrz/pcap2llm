@@ -14,6 +14,7 @@
   const codeNode = document.querySelector("[data-job-error-code]");
   const logbookNode = document.querySelector("[data-logbook]");
   const discoveryNode = document.querySelector("[data-discovery-panel]");
+  const resultsNode = document.querySelector("[data-results-panel]");
   const progressing = new Set(["created", "uploaded", "discovering", "analyzing"]);
   let lastStatus = statusNode ? statusNode.textContent.trim() : "";
   const storageKey = "pcap2llm-job-run-focus";
@@ -42,9 +43,6 @@
     if (!target) {
       return;
     }
-    if (target.tagName === "DETAILS") {
-      target.open = true;
-    }
     target.scrollIntoView({ behavior: "smooth", block: "start" });
     target.classList.add("panel-highlight");
     window.setTimeout(() => target.classList.remove("panel-highlight"), 1600);
@@ -59,10 +57,10 @@
     if (feedback) {
       feedback.textContent = pending.action === "discovery"
         ? "Discovery running, jumping to discovery results when finished..."
-        : "Analysis running, jumping to logs when finished...";
+        : "Analysis running, showing results when finished...";
     }
     if (!progressing.has(lastStatus)) {
-      focusSection(pending.action === "discovery" ? discoveryNode || logbookNode : logbookNode);
+      focusSection(pending.action === "discovery" ? discoveryNode || resultsNode : resultsNode || discoveryNode || logbookNode);
       clearPendingAction();
     }
   }

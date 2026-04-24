@@ -44,36 +44,6 @@ py -3 -m venv .venv
 python -m pip install -e .[dev]
 ```
 
-## Optional Local Web GUI
-
-In addition to the CLI, `pcap2llm` also includes an optional locally hosted Web
-GUI for upload-driven review and reruns.
-
-Typical use cases:
-
-- upload a capture and run `discover` / `analyze` from the browser
-- inspect generated artifacts, logs, and flow previews on a per-job page
-- manage local privacy profiles through a dedicated UI
-
-Start it with:
-
-```bash
-pcap2llm-web
-```
-
-Default URL:
-
-```text
-http://127.0.0.1:8765
-```
-
-The Web GUI is a convenience layer over the same local workflow, not a separate
-analysis engine. For setup, behavior, job layout, dashboard, profile
-management, and cleanup details, see:
-
-- [`docs/WEB_GUI.md`](docs/WEB_GUI.md)
-- [`docs/DOCUMENTATION_MAP.md`](docs/DOCUMENTATION_MAP.md)
-
 ## Start With `inspect` Or `discover`?
 
 Use `inspect` when you already know the likely profile family and want a fast
@@ -200,6 +170,36 @@ packet/range, direction, protocol, timing, and correlation context instead of
 repeating the visible message label. Error-ish outcomes such as Diameter result
 codes >= 3000, HTTP status >= 400, GTPv2 causes >= 64, and DNS rcode failures
 are highlighted in the SVG.
+
+## Optional Local Web GUI
+
+In addition to the CLI, `pcap2llm` also includes an optional locally hosted Web
+GUI for upload-driven review and reruns.
+
+Typical use cases:
+
+- upload a capture and run `discover` / `analyze` from the browser
+- inspect generated artifacts, logs, and flow previews on a per-job page
+- manage local privacy profiles through a dedicated UI
+
+Start it with:
+
+```bash
+pcap2llm-web
+```
+
+Default URL:
+
+```text
+http://127.0.0.1:8765
+```
+
+The Web GUI is a convenience layer over the same local workflow, not a separate
+analysis engine. For setup, behavior, job layout, dashboard, profile
+management, and cleanup details, see:
+
+- [`docs/WEB_GUI.md`](docs/WEB_GUI.md)
+- [`docs/DOCUMENTATION_MAP.md`](docs/DOCUMENTATION_MAP.md)
 
 ## Documentation Map
 

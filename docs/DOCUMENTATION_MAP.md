@@ -70,6 +70,7 @@ Use it when you want to know:
 | [`PROFILE_SELECTION.md`](PROFILE_SELECTION.md) | operators, integrators | explain `recommend-profiles` and deterministic ranking | [`DISCOVERY.md`](DISCOVERY.md), [`PROFILES.md`](PROFILES.md), [`SESSIONS.md`](SESSIONS.md) |
 | [`SESSIONS.md`](SESSIONS.md) | integrators, automation authors | structured multi-run manifests and session reports | [`DISCOVERY.md`](DISCOVERY.md), [`PROFILE_SELECTION.md`](PROFILE_SELECTION.md), [`REFERENCE.md`](REFERENCE.md) |
 | [`WORKFLOWS.md`](WORKFLOWS.md) | operators | protocol-family troubleshooting flows and operator triage | [`PROFILES.md`](PROFILES.md), [`DISCOVERY.md`](DISCOVERY.md), [`LLM_TROUBLESHOOTING_WORKFLOW.md`](LLM_TROUBLESHOOTING_WORKFLOW.md) |
+| [`NETWORK_ELEMENT_DETECTION.md`](NETWORK_ELEMENT_DETECTION.md) | operators, integrators | deterministic endpoint type detection via IP/subnet/hostname/protocol signals | [`REFERENCE.md`](REFERENCE.md), [`WORKFLOWS.md`](WORKFLOWS.md), [`DISCOVERY.md`](DISCOVERY.md) |
 | [`LLM_TROUBLESHOOTING_WORKFLOW.md`](LLM_TROUBLESHOOTING_WORKFLOW.md) | operators, AI-assisted users | safe PCAP -> artifact -> external LLM workflow | [`PRIVACY_SHARING.md`](PRIVACY_SHARING.md), [`LLM_MODE.md`](LLM_MODE.md), [`DISCOVERY.md`](DISCOVERY.md) |
 | [`LLM_MODE.md`](LLM_MODE.md) | automation authors | strict machine-readable CLI contract for `analyze --llm-mode` | [`REFERENCE.md`](REFERENCE.md), [`LLM_TROUBLESHOOTING_WORKFLOW.md`](LLM_TROUBLESHOOTING_WORKFLOW.md), [`PROJECT_STATUS.md`](PROJECT_STATUS.md) |
 

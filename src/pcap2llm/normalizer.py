@@ -291,6 +291,16 @@ def inspect_raw_packets(
             row["hostname"] = endpoint.hostname
         if endpoint.role:
             row["role"] = endpoint.role
+        if endpoint.labels.get("network_element_type"):
+            row["network_element_type"] = endpoint.labels["network_element_type"]
+        if endpoint.labels.get("network_element_confidence") is not None:
+            row["network_element_confidence"] = endpoint.labels["network_element_confidence"]
+        if endpoint.labels.get("network_element_source"):
+            row["network_element_source"] = endpoint.labels["network_element_source"]
+        if endpoint.labels.get("network_element_warning"):
+            row["network_element_warning"] = endpoint.labels["network_element_warning"]
+        if endpoint.labels.get("network_element_override"):
+            row["network_element_override"] = endpoint.labels["network_element_override"]
         if endpoint.labels.get("ss7_point_code"):
             row["ss7_point_code"] = endpoint.labels["ss7_point_code"]
         if endpoint.labels.get("ss7_point_code_alias"):

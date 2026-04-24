@@ -224,3 +224,90 @@ class TestResolverNoMappings:
         resolver = EndpointResolver()
         ep = resolver.resolve(None)
         assert ep.ip is None
+
+
+class TestNetworkElementDetection:
+    def test_exact_ip_mapping_has_highest_priority(self, tmp_path: Path) -> None:
+        csv_map = tmp_path / "network_element_mapping.csv"
+        csv_map.write_text(
+            "type,value,network_element_type\n"
+            "ip,10.10.10.21,HSS\n"
+            "subnet,10.10.10.0/24,DRA\n",
+            encoding="utf-8",
+        )
+        resolver = EndpointResolver(network_element_mapping_file=csv_map)
+        ep = resolver.resolve("10.10.10.21", hostname="dra01", service_port=3868)
+        assert ep.labels["network_element_type"] == "HSS"
+        assert ep.labels["network_element_confidence"] == 100
+        assert ep.labels["network_element_source"] == "ip_mapping"
+        assert ep.labels.get("network_element_warning") == "Conflicting detection signals"
+
+    def test_subnet_mapping_used_when_no_exact_ip(self, tmp_path: Path) -> None:
+        csv_map = tmp_path / "network_element_mapping.csv"
+        csv_map.write_text(
+            "type,value,network_element_type\n"
+            "subnet,10.20.30.0/24,DRA\n",
+            encoding="utf-8",
+        )
+        resolver = EndpointResolver(network_element_mapping_file=csv_map)
+        ep = resolver.resolve("10.20.30.8")
+        assert ep.labels["network_element_type"] == "DRA"
+        assert ep.labels["network_element_confidence"] == 90
+        assert ep.labels["network_element_source"] == "subnet_mapping"
+
+    def test_hostname_pattern_detection(self) -> None:
+        resolver = EndpointResolver()
+        ep = resolver.resolve("10.0.0.1", hostname="mme-fra-a")
+        assert ep.labels["network_element_type"] == "MME"
+        assert ep.labels["network_element_confidence"] == 80
+        assert ep.labels["network_element_source"] == "hostname_pattern"
+
+    def test_protocol_detection_fallback(self, tmp_path: Path) -> None:
+        csv_map = tmp_path / "network_element_mapping.csv"
+        csv_map.write_text(
+            "type,value,network_element_type\n"
+            "subnet,10.10.0.0/24,DRA\n",
+            encoding="utf-8",
+        )
+        resolver = EndpointResolver(network_element_mapping_file=csv_map)
+        ep = resolver.resolve("10.0.0.2", service_port=38412)
+        assert ep.labels["network_element_type"] == "AMF"
+        assert ep.labels["network_element_confidence"] == 50
+        assert ep.labels["network_element_source"] == "protocol"
+
+    def test_unknown_detection(self, tmp_path: Path) -> None:
+        csv_map = tmp_path / "network_element_mapping.csv"
+        csv_map.write_text(
+            "type,value,network_element_type\n"
+            "subnet,10.10.0.0/24,DRA\n",
+            encoding="utf-8",
+        )
+        resolver = EndpointResolver(network_element_mapping_file=csv_map)
+        ep = resolver.resolve("10.0.0.3", service_port=9999)
+        assert ep.labels["network_element_type"] == "unknown"
+        assert ep.labels["network_element_confidence"] == 0
+        assert ep.labels["network_element_source"] == "unknown"
+
+    def test_manual_override_wins(self, tmp_path: Path) -> None:
+        csv_map = tmp_path / "network_element_mapping.csv"
+        csv_map.write_text(
+            "type,value,network_element_type\n"
+            "ip,10.10.10.21,DRA\n",
+            encoding="utf-8",
+        )
+        resolver = EndpointResolver(network_element_mapping_file=csv_map)
+        ep = resolver.resolve("10.10.10.21", network_element_override="HSS")
+        assert ep.labels["network_element_type"] == "HSS"
+        assert ep.labels["network_element_source"] == "manual_override"
+        assert ep.labels["network_element_confidence"] == 100
+
+    def test_invalid_network_element_csv_is_ignored_safely(self, tmp_path: Path) -> None:
+        csv_map = tmp_path / "network_element_mapping.csv"
+        csv_map.write_text(
+            "type,value,network_element_type\n"
+            "subnet,not-a-cidr,DRA\n",
+            encoding="utf-8",
+        )
+        resolver = EndpointResolver(network_element_mapping_file=csv_map)
+        ep = resolver.resolve("10.20.30.8")
+        assert "network_element_type" not in ep.labels

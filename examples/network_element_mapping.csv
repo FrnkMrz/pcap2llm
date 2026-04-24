@@ -1,0 +1,6 @@
+type,value,network_element_type
+ip,10.10.10.21,HSS
+ip,10.10.10.22,HSS
+subnet,10.20.30.0/24,DRA
+subnet,10.40.50.0/24,GGSN
+subnet,10.60.70.0/24,eNodeB

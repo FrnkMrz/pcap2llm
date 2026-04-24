@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+from datetime import datetime, timezone
 import ipaddress
 import logging
 from pathlib import Path
@@ -26,6 +28,60 @@ _PORT_ROLE_MAP: dict[int, str] = {
     8805: "pfcp",
     36422: "s1ap",
     38412: "ngap",
+}
+
+_SUPPORTED_NETWORK_ELEMENT_TYPES: set[str] = {
+    "HSS",
+    "UDM",
+    "DRA",
+    "GGSN",
+    "PGW",
+    "SGW",
+    "MME",
+    "AMF",
+    "SMF",
+    "UPF",
+    "MSS",
+    "MSC",
+    "eNodeB",
+    "gNodeB",
+    "DNS",
+    "Firewall",
+    "Router",
+}
+
+_CANONICAL_NETWORK_ELEMENT: dict[str, str] = {
+    item.lower(): item for item in _SUPPORTED_NETWORK_ELEMENT_TYPES
+}
+
+_HOSTNAME_PATTERNS: list[tuple[str, str]] = [
+    ("hss", "HSS"),
+    ("udm", "UDM"),
+    ("dra", "DRA"),
+    ("ggsn", "GGSN"),
+    ("pgw", "PGW"),
+    ("sgw", "SGW"),
+    ("mme", "MME"),
+    ("amf", "AMF"),
+    ("smf", "SMF"),
+    ("upf", "UPF"),
+    ("mss", "MSS"),
+    ("msc", "MSC"),
+    ("enb", "eNodeB"),
+    ("gnb", "gNodeB"),
+    ("dns", "DNS"),
+    ("firewall", "Firewall"),
+    ("fw", "Firewall"),
+    ("router", "Router"),
+]
+
+_PORT_NETWORK_ELEMENT_MAP: dict[int, tuple[str, list[str]]] = {
+    53: ("DNS", ["DNS"]),
+    3868: ("DRA", ["DRA", "HSS"]),
+    2123: ("SGW", ["SGW", "PGW", "MME"]),
+    2152: ("UPF", ["UPF"]),
+    36412: ("MME", ["MME", "eNodeB"]),
+    38412: ("AMF", ["AMF", "gNodeB"]),
 }
 
 
@@ -175,6 +231,155 @@ def _read_ss7pcs_file(path: Path) -> dict[str, dict[str, Any]]:
     return by_point_code
 
 
+def _load_network_element_mapping_csv(path: Path) -> tuple[dict[str, str], list[tuple[Any, str]]]:
+    """Load strict network element mappings from CSV.
+
+    Expected columns: ``type,value,network_element_type``
+    where ``type`` is ``ip`` or ``subnet``.
+    """
+    by_ip: dict[str, str] = {}
+    by_subnet: list[tuple[Any, str]] = []
+
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        expected = {"type", "value", "network_element_type"}
+        if not reader.fieldnames or set(reader.fieldnames) != expected:
+            raise ValueError(
+                "Invalid network element mapping header. Expected: type,value,network_element_type"
+            )
+
+        for idx, row in enumerate(reader, start=2):
+            kind = str(row.get("type", "")).strip().lower()
+            value = str(row.get("value", "")).strip()
+            element_raw = str(row.get("network_element_type", "")).strip()
+            element = _CANONICAL_NETWORK_ELEMENT.get(element_raw.lower())
+
+            if kind not in {"ip", "subnet"}:
+                raise ValueError(f"Invalid type at line {idx}: {kind}")
+            if not value:
+                raise ValueError(f"Missing value at line {idx}")
+            if not element:
+                raise ValueError(f"Unsupported network_element_type at line {idx}: {element_raw}")
+
+            if kind == "ip":
+                try:
+                    ip = str(ipaddress.ip_address(value))
+                except ValueError as exc:
+                    raise ValueError(f"Invalid IP at line {idx}: {value}") from exc
+                by_ip[ip] = element
+            else:
+                try:
+                    net = ipaddress.ip_network(value, strict=False)
+                except ValueError as exc:
+                    raise ValueError(f"Invalid CIDR at line {idx}: {value}") from exc
+                by_subnet.append((net, element))
+
+    return by_ip, by_subnet
+
+
+def _hostname_pattern_match(hostname: str | None) -> str | None:
+    if not hostname:
+        return None
+    lowered = hostname.lower()
+    for pattern, element in _HOSTNAME_PATTERNS:
+        if pattern in lowered:
+            return element
+    return None
+
+
+def _protocol_port_match(ports: list[int]) -> tuple[str, str | None] | None:
+    for port in ports:
+        mapping = _PORT_NETWORK_ELEMENT_MAP.get(port)
+        if not mapping:
+            continue
+        detected, candidates = mapping
+        warning = None
+        if len(candidates) > 1:
+            warning = f"Protocol-port heuristic is ambiguous ({'/'.join(candidates)})"
+        return detected, warning
+    return None
+
+
+def _detect_network_element(
+    *,
+    ip: str | None,
+    hostname: str | None,
+    ports: list[int],
+    by_ip: dict[str, str],
+    by_subnet: list[tuple[Any, str]],
+    override: str | None,
+) -> dict[str, Any]:
+    """Detect network element type with strict priority and conflict warning."""
+    canonical_override = _CANONICAL_NETWORK_ELEMENT.get((override or "").lower())
+    if canonical_override:
+        return {
+            "type": canonical_override,
+            "confidence": 100,
+            "source": "manual_override",
+            "warning": None,
+            "overridden": True,
+        }
+
+    signals: list[dict[str, Any]] = []
+    ip_norm: str | None = None
+    if ip:
+        try:
+            ip_norm = str(ipaddress.ip_address(ip))
+        except ValueError:
+            ip_norm = ip
+
+    # Step 1: exact IP mapping
+    if ip_norm and ip_norm in by_ip:
+        signals.append({"type": by_ip[ip_norm], "confidence": 100, "source": "ip_mapping"})
+
+    # Step 2: subnet mapping
+    if ip_norm:
+        try:
+            addr = ipaddress.ip_address(ip_norm)
+            for net, element in by_subnet:
+                if addr in net:
+                    signals.append({"type": element, "confidence": 90, "source": "subnet_mapping"})
+                    break
+        except ValueError:
+            pass
+
+    # Step 3: hostname pattern
+    host_match = _hostname_pattern_match(hostname)
+    if host_match:
+        signals.append({"type": host_match, "confidence": 80, "source": "hostname_pattern"})
+
+    # Step 4: protocol/port heuristic
+    protocol_match = _protocol_port_match(ports)
+    protocol_warning = None
+    if protocol_match:
+        detected, protocol_warning = protocol_match
+        signals.append({"type": detected, "confidence": 50, "source": "protocol"})
+
+    if not signals:
+        return {
+            "type": "unknown",
+            "confidence": 0,
+            "source": "unknown",
+            "warning": None,
+            "overridden": False,
+        }
+
+    primary = signals[0]
+    warning: str | None = protocol_warning
+    for alt in signals[1:]:
+        if alt["type"] != primary["type"]:
+            warning = "Conflicting detection signals"
+            break
+
+    return {
+        "type": primary["type"],
+        "confidence": primary["confidence"],
+        "source": primary["source"],
+        "warning": warning,
+        "overridden": False,
+    }
+
+
 # ---------------------------------------------------------------------------
 # EndpointResolver
 # ---------------------------------------------------------------------------
@@ -195,11 +400,14 @@ class EndpointResolver:
         mapping_file: Path | None = None,
         subnets_file: Path | None = None,
         ss7pcs_file: Path | None = None,
+        network_element_mapping_file: Path | None = None,
     ) -> None:
         self._by_ip: dict[str, dict[str, Any]] = {}
         self._by_hostname: dict[str, dict[str, Any]] = {}  # keys are lowercase
         self._cidr_entries: list[tuple[Any, dict[str, Any]]] = []
         self._by_point_code: dict[str, dict[str, Any]] = {}
+        self._network_element_by_ip: dict[str, str] = {}
+        self._network_element_by_subnet: list[tuple[Any, str]] = []
 
         if hosts_file:
             for ip, entry in _read_hosts_file(hosts_file).items():
@@ -218,6 +426,19 @@ class EndpointResolver:
 
         if ss7pcs_file:
             self._by_point_code.update(_read_ss7pcs_file(ss7pcs_file))
+
+        if network_element_mapping_file is None:
+            default_path = Path("network_element_mapping.csv")
+            if default_path.exists():
+                network_element_mapping_file = default_path
+
+        if network_element_mapping_file:
+            try:
+                by_ip, by_subnet = _load_network_element_mapping_csv(network_element_mapping_file)
+                self._network_element_by_ip.update(by_ip)
+                self._network_element_by_subnet.extend(by_subnet)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Failed to parse network element mapping CSV %s: %s", network_element_mapping_file, exc)
 
     def _match_point_code(self, point_code: Any) -> dict[str, Any] | None:
         normalized = _normalize_point_code(point_code)
@@ -248,6 +469,8 @@ class EndpointResolver:
         hostname: str | None = None,
         service_port: int | None = None,
         point_code: Any = None,
+        observed_ports: list[int] | None = None,
+        network_element_override: str | None = None,
     ) -> ResolvedEndpoint:
         """Resolve *ip* (and optionally *hostname*) to a :class:`ResolvedEndpoint`.
 
@@ -278,6 +501,49 @@ class EndpointResolver:
             labels.setdefault("ss7_point_code", normalized_point_code)
         if point_code_entry and point_code_entry.get("alias"):
             labels.setdefault("ss7_point_code_alias", point_code_entry["alias"])
+
+        ports: list[int] = []
+        if isinstance(service_port, int):
+            ports.append(service_port)
+        if observed_ports:
+            ports.extend([port for port in observed_ports if isinstance(port, int)])
+        # Preserve order while deduplicating.
+        dedup_ports = list(dict.fromkeys(ports))
+        override = network_element_override or entry.get("network_element_override")
+        detection_context = bool(
+            self._network_element_by_ip
+            or self._network_element_by_subnet
+            or override
+            or hostname
+            or entry.get("hostname")
+        )
+        if detection_context:
+            detection = _detect_network_element(
+                ip=ip,
+                hostname=hostname or entry.get("hostname"),
+                ports=dedup_ports,
+                by_ip=self._network_element_by_ip,
+                by_subnet=self._network_element_by_subnet,
+                override=override,
+            )
+            labels["network_element_type"] = detection["type"]
+            labels["network_element_confidence"] = detection["confidence"]
+            labels["network_element_source"] = detection["source"]
+            if detection.get("warning"):
+                labels["network_element_warning"] = detection["warning"]
+            if detection.get("overridden") and override:
+                labels["network_element_override"] = override
+
+            if ip:
+                timestamp = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+                logger.info(
+                    "%s,%s,%s,%s,%s",
+                    timestamp,
+                    ip,
+                    detection["type"],
+                    detection["confidence"],
+                    detection["source"],
+                )
 
         return ResolvedEndpoint(
             ip=ip,

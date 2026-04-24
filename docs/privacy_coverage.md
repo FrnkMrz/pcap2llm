@@ -28,6 +28,13 @@ Related docs:
 - `diameter_identity`
 - `payload_text`
 
+Most configurable data classes support the standard protection modes
+`keep`, `mask`, `pseudonymize`, `encrypt`, and `remove`.
+
+`imei` also supports the specialized mode `keep_tac_mask_serial`, which keeps
+the TAC prefix visible and masks the serial suffix. This specialized mode does
+not apply to `email`.
+
 ## Canonical Classes
 
 - `network_address`

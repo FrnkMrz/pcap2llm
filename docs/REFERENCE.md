@@ -205,6 +205,10 @@ Per-class privacy overrides:
   --payload-text-mode     Payload text
                           Values: keep | mask | pseudonymize | encrypt | remove | keep_tac_mask_serial (IMEI only)
 
+`keep_tac_mask_serial` is a specialized IMEI-only mode. It keeps the TAC
+prefix visible and masks the serial suffix. It does not apply to `email` or
+other data classes.
+
 TShark:
   --two-pass              Override two-pass dissection mode
   --tshark-path           Path to tshark executable
@@ -777,6 +781,11 @@ pcap2llm analyze sample.pcapng \
 - `pseudonymize` — stable hash-based alias, e.g. `IMSI_a3f2b1c4`
 - `encrypt` — Fernet encryption (requires `cryptography` extra)
 - `remove` — delete the field entirely
+- `keep_tac_mask_serial` — IMEI only; keep the TAC prefix and mask the serial
+  suffix
+
+`email` does not have a special partial-keep mode. For email addresses, use the
+standard modes: `keep`, `mask`, `pseudonymize`, `encrypt`, or `remove`.
 
 **Pseudonyms are stable across runs** — the same input value always produces the same alias (BLAKE2s hash). This allows correlation between separate analyses of related captures.
 

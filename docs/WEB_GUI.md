@@ -296,6 +296,10 @@ For IMEI, the UI also exposes the specialized mode:
 
 - `keep_tac_mask_serial`
 
+This IMEI-only mode keeps the TAC prefix visible and masks the serial suffix.
+It is not an email-specific mode. Email addresses use only the standard modes:
+`keep`, `mask`, `pseudonymize`, `encrypt`, or `remove`.
+
 ### API Endpoints
 
 List all local profiles as JSON:

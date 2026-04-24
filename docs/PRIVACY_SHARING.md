@@ -62,6 +62,10 @@ pcap2llm analyze trace.pcapng --profile lte-core --privacy-profile share --out .
 
 **Encryption** (`encrypt` mode) transforms sensitive values with Fernet encryption using `PCAP2LLM_VAULT_KEY`. The encrypted artifact is unreadable without the key. Use encryption when you need to retain the real values for later decryption — for example, internal archival or audit retention.
 
+**Special IMEI masking** (`keep_tac_mask_serial`) is separate from both of the
+above. It keeps the TAC prefix visible and masks the serial suffix. This mode
+exists only for `imei`; it is not available for `email`.
+
 **Encryption does not make casual sharing safe.** If you share an encrypted artifact and the key is shared separately later, the data is fully recoverable. Pseudonymization is the safer choice when you want irreversible protection for the shared artifact.
 
 ---

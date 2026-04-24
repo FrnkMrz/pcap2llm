@@ -77,3 +77,40 @@ class JobRecord:
 
 def now_utc_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+SecurityProfileStatus = Literal["active", "inactive"]
+
+
+@dataclass
+class SecurityProfile:
+    """Sicherheitsprofil für zentrale Konfiguration von Zugriffsrichtlinien."""
+    id: str
+    name: str
+    description: str
+    status: SecurityProfileStatus = "active"
+    owner: str | None = None
+    comment: str | None = None
+    # Authentication settings
+    auth_password: bool = True
+    auth_mfa: bool = False
+    auth_certificate: bool = False
+    # Authorization settings
+    auth_access_level: Literal["read-only", "standard", "admin"] = "standard"
+    auth_allowed_actions: list[str] = field(default_factory=lambda: ["view", "edit"])
+    # Session settings
+    session_timeout_minutes: int = 30
+    # Network access
+    network_access: Literal["internal-only", "vpn", "public"] = "internal-only"
+    # Logging
+    logging_level: Literal["basic", "detailed", "security-events"] = "security-events"
+    # Metadata
+    created_at: str = field(default_factory=now_utc_iso)
+    updated_at: str = field(default_factory=now_utc_iso)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "SecurityProfile":
+        return cls(**payload)

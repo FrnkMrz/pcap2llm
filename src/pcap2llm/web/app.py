@@ -17,8 +17,9 @@ from pcap2llm.profiles import list_profile_names
 
 from .config import WebSettings, load_settings
 from .jobs import JobStore
-from .models import AnalyzeOptions, JobRecord, now_utc_iso
+from .models import AnalyzeOptions, JobRecord, SecurityProfile, now_utc_iso
 from .pcap_runner import Pcap2LlmRunner
+from .profiles import ProfileStore
 from .security import WebValidationError, reject_nested_filename, sanitize_filename, validate_capture_filename
 
 
@@ -29,6 +30,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     app = FastAPI(title="pcap2llm Web GUI")
     app.state.settings = settings
     app.state.store = JobStore(settings.workdir)
+    app.state.profile_store = ProfileStore(settings.workdir)
     app.state.runner = Pcap2LlmRunner(
         command_timeout_seconds=settings.command_timeout_seconds,
         default_tshark_path=settings.tshark_path,
@@ -364,6 +366,119 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 "max_age_days": age,
             }
         )
+
+    @app.get("/profiles", response_class=HTMLResponse)
+    async def list_profiles(request: Request, id: str | None = None) -> HTMLResponse:
+        """Security Profiles management page."""
+        profile_store: ProfileStore = request.app.state.profile_store
+        profiles = profile_store.list_all()
+        selected_profile = None
+
+        if id:
+            try:
+                selected_profile = profile_store.load(id)
+            except FileNotFoundError:
+                pass
+
+        if not selected_profile and profiles:
+            selected_profile = profiles[0]
+
+        context = {
+            "request": request,
+            "profiles": profiles,
+            "selected_profile": selected_profile,
+            "access_levels": ["read-only", "standard", "admin"],
+            "network_options": ["internal-only", "vpn", "public"],
+            "logging_levels": ["basic", "detailed", "security-events"],
+        }
+        return templates.TemplateResponse("profiles.html", context)
+
+    @app.get("/api/profiles")
+    async def api_list_profiles(request: Request) -> JSONResponse:
+        """API: List all profiles as JSON."""
+        profile_store: ProfileStore = request.app.state.profile_store
+        profiles = profile_store.list_all()
+        return JSONResponse([p.to_dict() for p in profiles])
+
+    @app.post("/profiles")
+    async def create_profile(
+        request: Request,
+        name: str = Form(...),
+        description: str = Form(...),
+        owner: str = Form(""),
+        comment: str = Form(""),
+    ) -> RedirectResponse:
+        """Create a new security profile."""
+        profile_store: ProfileStore = request.app.state.profile_store
+
+        name = name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Profile name is required.")
+
+        if profile_store.exists_by_name(name):
+            raise HTTPException(status_code=400, detail=f"Profile '{name}' already exists.")
+
+        profile = profile_store.create(name, description)
+        profile.owner = owner.strip() or None
+        profile.comment = comment.strip() or None
+        profile_store.save(profile)
+
+        return RedirectResponse(url=f"/profiles?id={profile.id}", status_code=303)
+
+    @app.post("/profiles/{profile_id}")
+    async def update_profile(
+        request: Request,
+        profile_id: str,
+        name: str = Form(...),
+        description: str = Form(...),
+        status: str = Form("active"),
+        owner: str = Form(""),
+        comment: str = Form(""),
+        auth_password: bool = Form(False),
+        auth_mfa: bool = Form(False),
+        auth_certificate: bool = Form(False),
+        auth_access_level: str = Form("standard"),
+        session_timeout_minutes: int = Form(30),
+        network_access: str = Form("internal-only"),
+        logging_level: str = Form("security-events"),
+    ) -> RedirectResponse:
+        """Update a security profile."""
+        profile_store: ProfileStore = request.app.state.profile_store
+
+        try:
+            profile = profile_store.load(profile_id)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Profile not found.")
+
+        name = name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Profile name is required.")
+
+        if name != profile.name and profile_store.exists_by_name(name):
+            raise HTTPException(status_code=400, detail=f"Profile '{name}' already exists.")
+
+        profile.name = name
+        profile.description = description.strip()
+        profile.status = status  # type: ignore
+        profile.owner = owner.strip() or None
+        profile.comment = comment.strip() or None
+        profile.auth_password = auth_password
+        profile.auth_mfa = auth_mfa
+        profile.auth_certificate = auth_certificate
+        profile.auth_access_level = auth_access_level  # type: ignore
+        profile.session_timeout_minutes = max(1, session_timeout_minutes)
+        profile.network_access = network_access  # type: ignore
+        profile.logging_level = logging_level  # type: ignore
+
+        profile_store.save(profile)
+        return RedirectResponse(url=f"/profiles?id={profile_id}", status_code=303)
+
+    @app.post("/profiles/{profile_id}/delete")
+    async def delete_profile(request: Request, profile_id: str) -> RedirectResponse:
+        """Delete a security profile."""
+        profile_store: ProfileStore = request.app.state.profile_store
+        profile_store.delete(profile_id)
+        return RedirectResponse(url="/profiles", status_code=303)
 
     return app
 

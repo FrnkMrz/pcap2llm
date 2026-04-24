@@ -137,6 +137,76 @@ curl -X POST http://127.0.0.1:8765/admin/cleanup -H "Content-Type: application/j
 
 Wenn `PCAP2LLM_WEB_CLEANUP_ENABLED=false`, laeuft das Startup-Cleanup nicht, aber die Admin-API ist immer noch verfuegbar.
 
+## Security Profiles
+
+Die Seite `http://127.0.0.1:8765/profiles` verwaltet zentrale Sicherheitsprofile.
+
+### Funktionen
+
+- **Profil erstellen:** Button "New Profile" oben rechts
+- **Profil bearbeiten:** Links auf Profil klicken, rechts Formular ausfuellen
+- **Profil speichern:** Button "Save Profile" unter dem Formular
+- **Profil loeschen:** Button "Delete Profile" mit Sicherheitsabfrage
+- **Profile durchsuchen:** Suchfeld links zum Filtern nach Name/Beschreibung
+
+### Profil-Einstellungen
+
+**Allgemein:**
+- Name (Pflichtfeld, muss eindeutig sein)
+- Beschreibung (Pflichtfeld)
+- Status (Active/Inactive)
+- Owner (Optional, z.B. "Security Team")
+- Comment (Optional, Freitext)
+
+**Authentication:**
+- Password Required (Checkbox)
+- Multi-Factor Authentication (Checkbox)
+- Certificate Authentication (Checkbox)
+
+**Authorization:**
+- Access Level: read-only, standard, oder admin
+
+**Session:**
+- Session Timeout (Minuten, Minimum 1)
+
+**Network Access:**
+- internal-only (nur Intranetz)
+- vpn (nur VPN)
+- public (oeffentlich zulass)
+
+**Logging:**
+- basic (Mindestprotokollierung)
+- detailed (Detaillierte Logs)
+- security-events (Nur Sicherheitsereignisse)
+
+### API-Endpunkte
+
+**Alle Profile als JSON auflisten:**
+```bash
+curl http://127.0.0.1:8765/api/profiles
+```
+
+Antwort:
+```json
+[
+  {
+    "id": "...",
+    "name": "Standard Profile",
+    "description": "...",
+    "status": "active",
+    "owner": "...",
+    "auth_password": true,
+    "auth_mfa": false,
+    "auth_access_level": "standard",
+    "session_timeout_minutes": 30,
+    "network_access": "internal-only",
+    "logging_level": "security-events",
+    "created_at": "2026-04-24T...",
+    "updated_at": "2026-04-24T..."
+  }
+]
+```
+
 ## Aktuelle Grenzen des Mockups
 
 - Keine Benutzerverwaltung

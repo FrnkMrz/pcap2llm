@@ -99,6 +99,26 @@ pre {
   background: #fff;
 }
 
+.site-nav {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.nav-link {
+  text-decoration: none;
+  color: var(--accent);
+  font-size: 0.95rem;
+  font-weight: 500;
+  padding: 0.35rem 0.7rem;
+  border-radius: 5px;
+  transition: background 0.2s;
+}
+
+.nav-link:hover {
+  background: rgba(47, 109, 95, 0.1);
+}
+
 @media (max-width: 760px) {
   .meta-grid { grid-template-columns: 1fr; }
 }

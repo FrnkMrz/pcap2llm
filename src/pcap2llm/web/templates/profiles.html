@@ -1,0 +1,477 @@
+{% extends "base.html" %}
+
+{% block title %}Security Profiles{% endblock %}
+
+{% block content %}
+<div class="profiles-section">
+  <div class="profiles-header">
+    <h1>Security Profiles</h1>
+    <button class="btn-primary" onclick="newProfile()">+ New Profile</button>
+  </div>
+
+  <div class="profiles-layout">
+    <!-- Left: Profile List -->
+    <div class="profiles-list-panel">
+      <input
+        type="text"
+        id="searchInput"
+        class="search-box"
+        placeholder="Search profile..."
+        onkeyup="filterProfiles()"
+      />
+
+      <div class="profile-items">
+        {% for profile in profiles %}
+          <div
+            class="profile-item {% if selected_profile and selected_profile.id == profile.id %}active{% endif %}"
+            onclick="selectProfile('{{ profile.id }}')"
+            data-profile-id="{{ profile.id }}"
+          >
+            <div class="profile-item-header">
+              <span class="profile-name">{{ profile.name }}</span>
+              <span class="profile-status {% if profile.status == 'active' %}status-active{% else %}status-inactive{% endif %}">
+                {{ profile.status }}
+              </span>
+            </div>
+            <div class="profile-item-desc">{{ profile.description }}</div>
+          </div>
+        {% endfor %}
+      </div>
+
+      {% if not profiles %}
+        <div class="empty-state">
+          <p>No profiles yet.</p>
+          <p>Click "New Profile" to create one.</p>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Right: Profile Details Form -->
+    <div class="profiles-form-panel">
+      {% if selected_profile %}
+        <form id="profileForm" method="POST" action="/profiles/{{ selected_profile.id }}">
+          <div class="form-group">
+            <label for="name">Profile Name *</label>
+            <input
+              id="name"
+              name="name"
+              type="text"
+              required
+              value="{{ selected_profile.name }}"
+              placeholder="Enter profile name"
+            />
+            <small>Must be unique</small>
+          </div>
+
+          <div class="form-group">
+            <label for="description">Description *</label>
+            <textarea
+              id="description"
+              name="description"
+              required
+              placeholder="Brief description of this profile"
+              rows="3"
+            >{{ selected_profile.description }}</textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="status">Status</label>
+            <select id="status" name="status">
+              <option value="active" {% if selected_profile.status == 'active' %}selected{% endif %}>Active</option>
+              <option value="inactive" {% if selected_profile.status == 'inactive' %}selected{% endif %}>Inactive</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="owner">Owner</label>
+              <input
+                id="owner"
+                name="owner"
+                type="text"
+                value="{{ selected_profile.owner or '' }}"
+                placeholder="Responsible person/group"
+              />
+            </div>
+            <div class="form-group">
+              <label for="comment">Comment</label>
+              <input
+                id="comment"
+                name="comment"
+                type="text"
+                value="{{ selected_profile.comment or '' }}"
+                placeholder="Additional notes"
+              />
+            </div>
+          </div>
+
+          <!-- Authentication Settings -->
+          <fieldset class="form-section">
+            <legend>Authentication</legend>
+            <div class="form-checkbox">
+              <input
+                id="auth_password"
+                name="auth_password"
+                type="checkbox"
+                {% if selected_profile.auth_password %}checked{% endif %}
+              />
+              <label for="auth_password">Password Required</label>
+            </div>
+            <div class="form-checkbox">
+              <input
+                id="auth_mfa"
+                name="auth_mfa"
+                type="checkbox"
+                {% if selected_profile.auth_mfa %}checked{% endif %}
+              />
+              <label for="auth_mfa">Multi-Factor Authentication (MFA)</label>
+            </div>
+            <div class="form-checkbox">
+              <input
+                id="auth_certificate"
+                name="auth_certificate"
+                type="checkbox"
+                {% if selected_profile.auth_certificate %}checked{% endif %}
+              />
+              <label for="auth_certificate">Certificate Authentication</label>
+            </div>
+          </fieldset>
+
+          <!-- Authorization Settings -->
+          <fieldset class="form-section">
+            <legend>Authorization</legend>
+            <div class="form-group">
+              <label for="auth_access_level">Access Level</label>
+              <select id="auth_access_level" name="auth_access_level">
+                {% for level in access_levels %}
+                  <option value="{{ level }}" {% if selected_profile.auth_access_level == level %}selected{% endif %}>
+                    {{ level | replace('-', ' ') | title }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+          </fieldset>
+
+          <!-- Session Settings -->
+          <fieldset class="form-section">
+            <legend>Session</legend>
+            <div class="form-group">
+              <label for="session_timeout_minutes">Session Timeout (minutes)</label>
+              <input
+                id="session_timeout_minutes"
+                name="session_timeout_minutes"
+                type="number"
+                min="1"
+                value="{{ selected_profile.session_timeout_minutes }}"
+              />
+              <small>Minimum 1 minute</small>
+            </div>
+          </fieldset>
+
+          <!-- Network Settings -->
+          <fieldset class="form-section">
+            <legend>Network Access</legend>
+            <div class="form-group">
+              <label for="network_access">Allowed Networks</label>
+              <select id="network_access" name="network_access">
+                {% for option in network_options %}
+                  <option value="{{ option }}" {% if selected_profile.network_access == option %}selected{% endif %}>
+                    {{ option | replace('-', ' ') | title }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+          </fieldset>
+
+          <!-- Logging Settings -->
+          <fieldset class="form-section">
+            <legend>Logging</legend>
+            <div class="form-group">
+              <label for="logging_level">Log Level</label>
+              <select id="logging_level" name="logging_level">
+                {% for level in logging_levels %}
+                  <option value="{{ level }}" {% if selected_profile.logging_level == level %}selected{% endif %}>
+                    {{ level | replace('-', ' ') | title }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+          </fieldset>
+
+          <!-- Form Actions -->
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Save Profile</button>
+            <button type="reset" class="btn-secondary">Reset Changes</button>
+            <button
+              type="button"
+              class="btn-danger"
+              onclick="if(confirm('Delete this profile?')) document.getElementById('deleteForm').submit()"
+            >
+              Delete Profile
+            </button>
+          </div>
+        </form>
+
+        <!-- Hidden delete form -->
+        <form id="deleteForm" method="POST" action="/profiles/{{ selected_profile.id }}/delete" style="display: none;"></form>
+
+        <!-- Metadata -->
+        <div class="form-metadata">
+          <small>
+            Created: {{ selected_profile.created_at }}<br />
+            Updated: {{ selected_profile.updated_at }}
+          </small>
+        </div>
+      {% else %}
+        <div class="empty-form">
+          <p>Select a profile or create a new one.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+  const profilesData = {{ profiles | tojson }};
+
+  function selectProfile(profileId) {
+    const url = new URL(window.location);
+    url.searchParams.set("id", profileId);
+    // In a real implementation, you'd use fetch to load profile and update form.
+    // For now, we just reload the page.
+    window.location.replace(url.toString());
+  }
+
+  function filterProfiles() {
+    const searchInput = document.getElementById("searchInput").value.toLowerCase();
+    const profileItems = document.querySelectorAll(".profile-item");
+
+    profileItems.forEach((item) => {
+      const name = item.querySelector(".profile-name").textContent.toLowerCase();
+      const desc = item.querySelector(".profile-item-desc").textContent.toLowerCase();
+      const matches = name.includes(searchInput) || desc.includes(searchInput);
+      item.style.display = matches ? "" : "none";
+    });
+  }
+
+  function newProfile() {
+    // Create a new profile with default values
+    const name = prompt("Enter new profile name:");
+    if (!name) return;
+
+    const description = prompt("Enter description:") || "";
+
+    const formData = new FormData();
+    formData.append("name", name);
+    formData.append("description", description);
+
+    fetch("/profiles", {
+      method: "POST",
+      body: formData,
+    })
+      .then((resp) => {
+        if (resp.ok) {
+          // Extract profile ID from redirect location
+          const profileId = resp.url.split("id=")[1];
+          selectProfile(profileId);
+        } else {
+          alert("Error creating profile. See console.");
+        }
+      })
+      .catch((err) => {
+        console.error("Error:", err);
+        alert("Error creating profile");
+      });
+  }
+</script>
+
+<style>
+  .profiles-section {
+    padding: 20px;
+    max-width: 100%;
+  }
+
+  .profiles-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .profiles-header h1 {
+    margin: 0;
+  }
+
+  .profiles-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 20px;
+    min-height: 600px;
+    background: #fafafa;
+    border-radius: 4px;
+    border: 1px solid #e0e0e0;
+    overflow: hidden;
+  }
+
+  .profiles-list-panel {
+    background: white;
+    border-right: 1px solid #e0e0e0;
+    display: flex;
+    flex-direction: column;
+    max-height: 100%;
+  }
+
+  .search-box {
+    border: none;
+    border-bottom: 1px solid #e0e0e0;
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  .profile-items {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .profile-item {
+    padding: 12px;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .profile-item:hover {
+    background: #f5f5f5;
+  }
+
+  .profile-item.active {
+    background: #e8f5e9;
+    border-left: 4px solid #2f6d5f;
+  }
+
+  .profile-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+
+  .profile-name {
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .profile-status {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 2px;
+    background: #eeeeee;
+    color: #666;
+  }
+
+  .profile-status.status-active {
+    background: #c8e6c9;
+    color: #2e7d32;
+  }
+
+  .profile-status.status-inactive {
+    background: #ffcccc;
+    color: #c62828;
+  }
+
+  .profile-item-desc {
+    font-size: 12px;
+    color: #666;
+    margin-top: 4px;
+  }
+
+  .empty-state {
+    padding: 20px;
+    text-align: center;
+    color: #999;
+  }
+
+  .profiles-form-panel {
+    padding: 20px;
+    background: white;
+    overflow-y: auto;
+  }
+
+  .empty-form {
+    text-align: center;
+    color: #999;
+    padding: 40px 20px;
+  }
+
+  .form-section {
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 12px;
+    margin: 15px 0;
+    background: #fafafa;
+  }
+
+  .form-section legend {
+    font-weight: 600;
+    font-size: 13px;
+    padding: 0 6px;
+  }
+
+  .form-checkbox {
+    margin: 8px 0;
+  }
+
+  .form-checkbox input[type="checkbox"] {
+    margin-right: 6px;
+  }
+
+  .form-checkbox label {
+    display: inline;
+    margin: 0;
+    cursor: pointer;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #e0e0e0;
+  }
+
+  .form-actions button {
+    flex: 1;
+  }
+
+  .form-metadata {
+    margin-top: 20px;
+    padding-top: 10px;
+    border-top: 1px solid #e0e0e0;
+    color: #999;
+    font-size: 12px;
+  }
+
+  @media (max-width: 1024px) {
+    .profiles-layout {
+      grid-template-columns: 1fr;
+      min-height: auto;
+    }
+
+    .profiles-list-panel {
+      border-right: none;
+      border-bottom: 1px solid #e0e0e0;
+      max-height: 300px;
+    }
+
+    .form-row {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import html
 import json
 import shutil
 from contextlib import asynccontextmanager
@@ -15,8 +16,10 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
+from pcap2llm.config import build_privacy_modes
 from pcap2llm.error_codes import map_error
-from pcap2llm.privacy_profiles import list_privacy_profiles
+from pcap2llm.models import DATA_CLASSES
+from pcap2llm.privacy_profiles import list_privacy_profiles, load_privacy_profile
 from pcap2llm.profiles import list_profile_names
 
 from .config import WebSettings, load_settings
@@ -43,6 +46,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 def create_app(settings: WebSettings | None = None) -> FastAPI:
     settings = settings or load_settings()
     settings.workdir.mkdir(parents=True, exist_ok=True)
+    settings.security_profiles_dir.mkdir(parents=True, exist_ok=True)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -144,6 +148,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     async def show_job(request: Request, job_id: str) -> HTMLResponse:
         store: JobStore = request.app.state.store
         runner: Pcap2LlmRunner = request.app.state.runner
+        profile_store: ProfileStore = request.app.state.profile_store
 
         try:
             record = store.load(job_id)
@@ -153,7 +158,8 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         capture_path = store.capture_path(record)
         selected_profile = record.selected_profile or _default_profile(record)
         selected_privacy = record.selected_privacy_profile or settings.default_privacy_profile
-        analyze_defaults = _build_analyze_defaults(record)
+        local_support_defaults = _local_support_file_defaults(settings)
+        analyze_defaults = _build_analyze_defaults(record, local_support_defaults)
         if not analyze_defaults.get("profile"):
             analyze_defaults["profile"] = selected_profile
         if not analyze_defaults.get("privacy_profile"):
@@ -161,7 +167,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
         preview = runner.build_command_preview(
             capture_path,
-            AnalyzeOptions(profile=selected_profile, privacy_profile=selected_privacy),
+            _build_preview_options(profile_store, analyze_defaults, selected_profile, selected_privacy),
             store.artifacts_dir(job_id),
         )
 
@@ -169,13 +175,12 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             "request": request,
             "job": record,
             "profiles": list_profile_names(),
-            "privacy_profiles": list_privacy_profiles(),
+            "privacy_profiles": _privacy_profile_options(profile_store),
             "default_profiles": ["lte-core", "5g-core", "volte-ims-core", "vonr-ims-core", "2g3g-ss7-geran"],
             "preview": preview,
             "artifacts": store.sorted_artifacts(record),
             "downloads": store.list_download_entries(record),
-            "stdout_log": _read_log(store.logs_dir(job_id) / "stdout.log"),
-            "stderr_log": _read_log(store.logs_dir(job_id) / "stderr.log"),
+            "log_sections": _collect_log_sections(store.logs_dir(job_id)),
             "flow_svg": _first_matching(store.artifacts_dir(job_id), ".svg"),
             "settings": settings,
             "analyze_defaults": analyze_defaults,
@@ -225,6 +230,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     ) -> RedirectResponse:
         store: JobStore = request.app.state.store
         runner: Pcap2LlmRunner = request.app.state.runner
+        profile_store: ProfileStore = request.app.state.profile_store
 
         try:
             record = store.load(job_id)
@@ -232,12 +238,14 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Job not found.")
 
         try:
+            local_support_defaults = _local_support_file_defaults(settings)
             hosts_path = await _resolve_support_file(
                 store=store,
                 record=record,
                 label="hosts",
                 raw_path=hosts_file,
                 uploaded=hosts_file_upload,
+                default_path=local_support_defaults["hosts_file"],
             )
             mapping_path = await _resolve_support_file(
                 store=store,
@@ -245,6 +253,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 label="mapping",
                 raw_path=mapping_file,
                 uploaded=mapping_file_upload,
+                default_path=local_support_defaults["mapping_file"],
             )
             subnets_path = await _resolve_support_file(
                 store=store,
@@ -252,6 +261,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 label="subnets",
                 raw_path=subnets_file,
                 uploaded=subnets_file_upload,
+                default_path=local_support_defaults["subnets_file"],
             )
             ss7pcs_path = await _resolve_support_file(
                 store=store,
@@ -259,11 +269,12 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 label="ss7pcs",
                 raw_path=ss7pcs_file,
                 uploaded=ss7pcs_file_upload,
+                default_path=local_support_defaults["ss7pcs_file"],
             )
 
             options = AnalyzeOptions(
                 profile=profile,
-                privacy_profile=privacy_profile,
+                privacy_profile=_resolve_privacy_profile_cli_value(profile_store, privacy_profile),
                 display_filter=display_filter.strip() or None,
                 max_packets=_parse_optional_int(max_packets),
                 all_packets=all_packets,
@@ -361,6 +372,84 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
         return FileResponse(path=path, filename=path.name)
 
+    @app.get("/jobs/{job_id}/view/{section}/{filename}", response_class=HTMLResponse)
+    async def view_text_file(request: Request, job_id: str, section: str, filename: str) -> HTMLResponse:
+        store: JobStore = request.app.state.store
+        try:
+            record = store.load(job_id)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Job not found.")
+
+        try:
+            reject_nested_filename(filename)
+            path = store.resolve_download_scoped(record, section, filename)
+        except WebValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="File not found.")
+
+        if path.suffix.lower() != ".md":
+            raise HTTPException(status_code=400, detail="Inline preview is currently supported for .md files only.")
+
+        content = path.read_text(encoding="utf-8", errors="replace")
+        escaped_content = html.escape(content)
+        return HTMLResponse(
+            f"""<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{html.escape(path.name)} - pcap2llm</title>
+    <style>
+      body {{
+        margin: 0;
+        padding: 24px;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f6f8fb;
+        color: #16202a;
+      }}
+      .wrap {{
+        max-width: 1100px;
+        margin: 0 auto;
+      }}
+      .actions {{
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 16px;
+      }}
+      a {{
+        color: #1251a3;
+        text-decoration: none;
+      }}
+      a:hover {{
+        text-decoration: underline;
+      }}
+      pre {{
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: #ffffff;
+        border: 1px solid #d7dee8;
+        border-radius: 8px;
+        padding: 16px;
+        overflow: auto;
+        line-height: 1.5;
+      }}
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="actions">
+        <a href="/jobs/{job_id}">Zurueck zum Job</a>
+        <a href="/jobs/{job_id}/files/{section}/{filename}">Datei herunterladen</a>
+      </div>
+      <h1>{html.escape(path.name)}</h1>
+      <pre>{escaped_content}</pre>
+    </div>
+  </body>
+</html>"""
+        )
+
     @app.get("/jobs/{job_id}/files.zip")
     async def download_zip(request: Request, job_id: str) -> StreamingResponse:
         store: JobStore = request.app.state.store
@@ -437,7 +526,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
     @app.get("/profiles", response_class=HTMLResponse)
     async def list_profiles(request: Request, id: str | None = None) -> HTMLResponse:
-        """Security Profiles management page."""
+        """Local privacy profile management page."""
         profile_store: ProfileStore = request.app.state.profile_store
         profiles = profile_store.list_all()
         selected_profile = None
@@ -454,10 +543,10 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         context = {
             "request": request,
             "profiles": profiles,
+            "privacy_profiles": _builtin_privacy_profiles(),
             "selected_profile": selected_profile,
-            "access_levels": ["read-only", "standard", "admin"],
-            "network_options": ["internal-only", "vpn", "public"],
-            "logging_levels": ["basic", "detailed", "security-events"],
+            "data_classes": DATA_CLASSES,
+            "protection_modes": ["keep", "mask", "pseudonymize", "encrypt", "remove"],
         }
         return templates.TemplateResponse(request=request, name="profiles.html", context=context)
 
@@ -470,7 +559,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
     @app.get("/profiles/export")
     async def export_profiles(request: Request, fmt: str = "json") -> StreamingResponse:
-        """Export all profiles in JSON or CSV format."""
+        """Export local privacy profiles in JSON or CSV format."""
         profile_store: ProfileStore = request.app.state.profile_store
         profiles = profile_store.list_all()
 
@@ -478,36 +567,28 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             payload = [p.to_dict() for p in profiles]
             body = json.dumps(payload, indent=2)
             headers = {
-                "Content-Disposition": 'attachment; filename="security_profiles.json"'
+                "Content-Disposition": 'attachment; filename="privacy_profiles.json"'
             }
             return StreamingResponse(iter([body]), media_type="application/json", headers=headers)
 
         if fmt == "csv":
             out = StringIO()
-            fieldnames = [
-                "id",
-                "name",
-                "description",
-                "status",
-                "owner",
-                "comment",
-                "auth_password",
-                "auth_mfa",
-                "auth_certificate",
-                "auth_access_level",
-                "session_timeout_minutes",
-                "network_access",
-                "logging_level",
-                "created_at",
-                "updated_at",
-            ]
+            fieldnames = ["id", "name", "description", *DATA_CLASSES, "created_at", "updated_at"]
             writer = csv.DictWriter(out, fieldnames=fieldnames)
             writer.writeheader()
             for profile in profiles:
-                row = profile.to_dict()
-                writer.writerow({key: row.get(key) for key in fieldnames})
+                row = {
+                    "id": profile.id,
+                    "name": profile.name,
+                    "description": profile.description,
+                    "created_at": profile.created_at,
+                    "updated_at": profile.updated_at,
+                }
+                for data_class in DATA_CLASSES:
+                    row[data_class] = profile.modes.get(data_class, "keep")
+                writer.writerow(row)
             headers = {
-                "Content-Disposition": 'attachment; filename="security_profiles.csv"'
+                "Content-Disposition": 'attachment; filename="privacy_profiles.csv"'
             }
             return StreamingResponse(iter([out.getvalue()]), media_type="text/csv", headers=headers)
 
@@ -518,23 +599,17 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         request: Request,
         name: str = Form(...),
         description: str = Form(...),
-        owner: str = Form(""),
-        comment: str = Form(""),
     ) -> RedirectResponse:
-        """Create a new security profile."""
+        """Create a new local privacy profile."""
         profile_store: ProfileStore = request.app.state.profile_store
 
         # Validate and sanitize inputs
         name = name.strip()
         description = description.strip()
-        owner = owner.strip()
-        comment = comment.strip()
 
         try:
             validate_profile_name(name)
             validate_string_length(description, 1000, "Description")
-            validate_string_length(owner, 255, "Owner")
-            validate_string_length(comment, 500, "Comment")
         except WebValidationError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -542,8 +617,6 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail=f"Profile '{name}' already exists.")
 
         profile = profile_store.create(name, description)
-        profile.owner = owner or None
-        profile.comment = comment or None
         profile_store.save(profile)
 
         return RedirectResponse(url=f"/profiles?id={profile.id}", status_code=303)
@@ -554,18 +627,8 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         profile_id: str,
         name: str = Form(...),
         description: str = Form(...),
-        status: str = Form("active"),
-        owner: str = Form(""),
-        comment: str = Form(""),
-        auth_password: bool = Form(False),
-        auth_mfa: bool = Form(False),
-        auth_certificate: bool = Form(False),
-        auth_access_level: str = Form("standard"),
-        session_timeout_minutes: int = Form(30),
-        network_access: str = Form("internal-only"),
-        logging_level: str = Form("security-events"),
     ) -> RedirectResponse:
-        """Update a security profile."""
+        """Update a local privacy profile."""
         profile_store: ProfileStore = request.app.state.profile_store
 
         try:
@@ -576,53 +639,31 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         # Validate and sanitize inputs
         name = name.strip()
         description = description.strip()
-        owner = owner.strip()
-        comment = comment.strip()
 
         try:
             validate_profile_name(name)
             validate_string_length(description, 1000, "Description")
-            validate_string_length(owner, 255, "Owner")
-            validate_string_length(comment, 500, "Comment")
         except WebValidationError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
         if name != profile.name and profile_store.exists_by_name(name):
             raise HTTPException(status_code=400, detail=f"Profile '{name}' already exists.")
 
-        # Validate enum values
-        if status not in ("active", "inactive"):
-            raise HTTPException(status_code=400, detail="Invalid status value.")
-        if auth_access_level not in ("read-only", "standard", "admin"):
-            raise HTTPException(status_code=400, detail="Invalid access level.")
-        if network_access not in ("internal-only", "vpn", "public"):
-            raise HTTPException(status_code=400, detail="Invalid network access value.")
-        if logging_level not in ("basic", "detailed", "security-events"):
-            raise HTTPException(status_code=400, detail="Invalid logging level.")
-
-        # Validate session timeout
-        if session_timeout_minutes < 1 or session_timeout_minutes > 1440:  # Max 24 hours
-            raise HTTPException(status_code=400, detail="Session timeout must be between 1 and 1440 minutes.")
+        try:
+            profile_modes = _profile_modes_from_form(await request.form())
+        except WebValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
         profile.name = name
         profile.description = description
-        profile.status = status  # type: ignore
-        profile.owner = owner or None
-        profile.comment = comment or None
-        profile.auth_password = auth_password
-        profile.auth_mfa = auth_mfa
-        profile.auth_certificate = auth_certificate
-        profile.auth_access_level = auth_access_level  # type: ignore
-        profile.session_timeout_minutes = session_timeout_minutes
-        profile.network_access = network_access  # type: ignore
-        profile.logging_level = logging_level  # type: ignore
+        profile.modes = profile_modes
 
         profile_store.save(profile)
         return RedirectResponse(url=f"/profiles?id={profile_id}", status_code=303)
 
     @app.post("/profiles/{profile_id}/delete")
     async def delete_profile(request: Request, profile_id: str) -> RedirectResponse:
-        """Delete a security profile."""
+        """Delete a local privacy profile."""
         profile_store: ProfileStore = request.app.state.profile_store
         profile_store.delete(profile_id)
         return RedirectResponse(url="/profiles", status_code=303)
@@ -636,25 +677,24 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         except FileNotFoundError:
             raise HTTPException(status_code=404, detail="Profile not found.")
 
-        base_name = f"{original.name} Copy"
-        candidate = base_name
-        suffix = 2
-        while profile_store.exists_by_name(candidate):
-            candidate = f"{base_name} {suffix}"
-            suffix += 1
+        candidate = _next_profile_copy_name(profile_store, original.name)
+        clone = profile_store.create(candidate, original.description, original.modes)
+        profile_store.save(clone)
 
-        clone = profile_store.create(candidate, original.description)
-        clone.status = original.status
-        clone.owner = original.owner
-        clone.comment = original.comment
-        clone.auth_password = original.auth_password
-        clone.auth_mfa = original.auth_mfa
-        clone.auth_certificate = original.auth_certificate
-        clone.auth_access_level = original.auth_access_level
-        clone.auth_allowed_actions = list(original.auth_allowed_actions)
-        clone.session_timeout_minutes = original.session_timeout_minutes
-        clone.network_access = original.network_access
-        clone.logging_level = original.logging_level
+        return RedirectResponse(url=f"/profiles?id={clone.id}", status_code=303)
+
+    @app.post("/profiles/privacy/{profile_name}/duplicate")
+    async def duplicate_privacy_profile(request: Request, profile_name: str) -> RedirectResponse:
+        """Create a local editable profile from a built-in privacy profile."""
+        profile_store: ProfileStore = request.app.state.profile_store
+
+        try:
+            builtin = load_privacy_profile(profile_name)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Privacy profile not found.")
+
+        candidate = _next_profile_copy_name(profile_store, builtin.name)
+        clone = profile_store.create(candidate, builtin.description, builtin.modes)
         profile_store.save(clone)
 
         return RedirectResponse(url=f"/profiles?id={clone.id}", status_code=303)
@@ -784,6 +824,7 @@ async def _resolve_support_file(
     label: str,
     raw_path: str,
     uploaded: UploadFile | None,
+    default_path: str,
 ) -> str | None:
     if uploaded is not None and uploaded.filename:
         safe_name = sanitize_filename(uploaded.filename)
@@ -799,7 +840,7 @@ async def _resolve_support_file(
         return str(target)
 
     text = raw_path.strip()
-    return text or None
+    return text or default_path or None
 
 
 
@@ -824,6 +865,44 @@ def _read_log(path: Path) -> str:
     return data[-8000:]
 
 
+def _collect_log_sections(logs_dir: Path) -> list[dict[str, str]]:
+    sections: list[dict[str, str]] = []
+    for prefix, label in (
+        ("discovery", "Discovery"),
+        ("recommend", "Recommendation"),
+        ("analyze", "Analyze"),
+    ):
+        stdout = _read_log(logs_dir / f"{prefix}_stdout.log")
+        stderr = _read_log(logs_dir / f"{prefix}_stderr.log")
+        if stdout or stderr:
+            sections.append(
+                {
+                    "label": label,
+                    "stdout_name": f"{prefix}_stdout.log",
+                    "stderr_name": f"{prefix}_stderr.log",
+                    "stdout": stdout,
+                    "stderr": stderr,
+                }
+            )
+
+    if sections:
+        return sections
+
+    stdout = _read_log(logs_dir / "stdout.log")
+    stderr = _read_log(logs_dir / "stderr.log")
+    if stdout or stderr:
+        return [
+            {
+                "label": "Run",
+                "stdout_name": "stdout.log",
+                "stderr_name": "stderr.log",
+                "stdout": stdout,
+                "stderr": stderr,
+            }
+        ]
+    return []
+
+
 def _friendly_error(stderr: str, *, default_message: str) -> tuple[str, str]:
     text = (stderr or "").strip()
     if not text:
@@ -842,7 +921,26 @@ def _friendly_error(stderr: str, *, default_message: str) -> tuple[str, str]:
     return mapped.get(code, text), code
 
 
-def _build_analyze_defaults(record: JobRecord) -> dict[str, object]:
+def _next_profile_copy_name(profile_store: ProfileStore, base_name: str) -> str:
+    candidate = f"{base_name} Copy"
+    suffix = 2
+    while profile_store.exists_by_name(candidate):
+        candidate = f"{base_name} Copy {suffix}"
+        suffix += 1
+    return candidate
+
+
+def _profile_modes_from_form(form_data) -> dict[str, str]:
+    overrides: dict[str, str] = {}
+    for data_class in DATA_CLASSES:
+        overrides[data_class] = str(form_data.get(f"mode_{data_class}", "keep"))
+    try:
+        return build_privacy_modes({}, overrides)
+    except ValueError as exc:
+        raise WebValidationError(str(exc)) from exc
+
+
+def _build_analyze_defaults(record: JobRecord, local_support_defaults: dict[str, str]) -> dict[str, object]:
     defaults: dict[str, object] = {
         "profile": "",
         "privacy_profile": "",
@@ -857,10 +955,10 @@ def _build_analyze_defaults(record: JobRecord) -> dict[str, object]:
         "flow_max_events": "",
         "flow_svg_width": "",
         "collapse_repeats": True,
-        "hosts_file": "",
-        "mapping_file": "",
-        "subnets_file": "",
-        "ss7pcs_file": "",
+        "hosts_file": local_support_defaults["hosts_file"],
+        "mapping_file": local_support_defaults["mapping_file"],
+        "subnets_file": local_support_defaults["subnets_file"],
+        "ss7pcs_file": local_support_defaults["ss7pcs_file"],
         "tshark_path": "",
         "two_pass": False,
     }
@@ -868,6 +966,116 @@ def _build_analyze_defaults(record: JobRecord) -> dict[str, object]:
         if key in defaults:
             defaults[key] = value
     return defaults
+
+
+def _build_preview_options(
+    profile_store: ProfileStore,
+    analyze_defaults: dict[str, object],
+    selected_profile: str,
+    selected_privacy: str,
+) -> AnalyzeOptions:
+    return AnalyzeOptions(
+        profile=str(analyze_defaults.get("profile") or selected_profile),
+        privacy_profile=_resolve_privacy_profile_cli_value(
+            profile_store,
+            str(analyze_defaults.get("privacy_profile") or selected_privacy),
+        ),
+        display_filter=_string_or_none(analyze_defaults.get("display_filter")),
+        max_packets=_parse_optional_int(str(analyze_defaults.get("max_packets", ""))),
+        all_packets=bool(analyze_defaults.get("all_packets")),
+        fail_on_truncation=bool(analyze_defaults.get("fail_on_truncation")),
+        max_capture_size_mb=_parse_optional_int(str(analyze_defaults.get("max_capture_size_mb", ""))),
+        oversize_factor=_parse_optional_float(str(analyze_defaults.get("oversize_factor", ""))),
+        render_flow_svg=bool(analyze_defaults.get("render_flow_svg")),
+        flow_title=_string_or_none(analyze_defaults.get("flow_title")),
+        flow_max_events=_parse_optional_int(str(analyze_defaults.get("flow_max_events", ""))),
+        flow_svg_width=_parse_optional_int(str(analyze_defaults.get("flow_svg_width", ""))),
+        collapse_repeats=bool(analyze_defaults.get("collapse_repeats", True)),
+        hosts_file=_string_or_none(analyze_defaults.get("hosts_file")),
+        mapping_file=_string_or_none(analyze_defaults.get("mapping_file")),
+        subnets_file=_string_or_none(analyze_defaults.get("subnets_file")),
+        ss7pcs_file=_string_or_none(analyze_defaults.get("ss7pcs_file")),
+        tshark_path=_string_or_none(analyze_defaults.get("tshark_path")),
+        two_pass=bool(analyze_defaults.get("two_pass")),
+    )
+
+
+def _local_support_file_defaults(settings: WebSettings) -> dict[str, str]:
+    local_root = settings.local_workspace_dir
+    mapping_path = ""
+    for candidate in (
+        local_root / "mapping.yaml",
+        local_root / "mapping.yml",
+        local_root / "mapping.json",
+    ):
+        if candidate.exists():
+            mapping_path = str(candidate)
+            break
+    return {
+        "hosts_file": str(local_root / "hosts") if (local_root / "hosts").exists() else "",
+        "mapping_file": mapping_path,
+        "subnets_file": str(local_root / "Subnets") if (local_root / "Subnets").exists() else "",
+        "ss7pcs_file": str(local_root / "ss7pcs") if (local_root / "ss7pcs").exists() else "",
+    }
+
+
+def _string_or_none(value: object) -> str | None:
+    text = str(value).strip() if value is not None else ""
+    return text or None
+
+
+def _privacy_profile_options(profile_store: ProfileStore) -> list[dict[str, str]]:
+    options = _builtin_privacy_profiles()
+    for profile in profile_store.list_all():
+        options.append(
+            {
+                "name": profile.name,
+                "description": profile.description,
+                "value": f"local:{profile.id}",
+                "kind": "local",
+                "summary": _privacy_mode_summary(profile.modes),
+            }
+        )
+    return options
+
+
+def _builtin_privacy_profiles() -> list[dict[str, str]]:
+    options: list[dict[str, str]] = []
+    for name in list_privacy_profiles():
+        profile = load_privacy_profile(name)
+        options.append(
+            {
+                "name": profile.name,
+                "description": profile.description,
+                "value": profile.name,
+                "kind": "built-in",
+                "summary": _privacy_mode_summary(profile.modes),
+            }
+        )
+    return options
+
+
+def _resolve_privacy_profile_cli_value(profile_store: ProfileStore, selection: str) -> str:
+    profile_id = _local_profile_id(selection)
+    if profile_id is None:
+        return selection
+    return str(profile_store.profile_path(profile_id))
+
+
+def _local_profile_id(selection: str) -> str | None:
+    if not selection.startswith("local:"):
+        return None
+    profile_id = selection.split(":", 1)[1].strip()
+    return profile_id or None
+
+
+def _privacy_mode_summary(modes: dict[str, str]) -> str:
+    counts: dict[str, int] = {}
+    normalized = build_privacy_modes({}, modes)
+    for mode in normalized.values():
+        counts[mode] = counts.get(mode, 0) + 1
+    ordered = ["keep", "mask", "pseudonymize", "encrypt", "remove"]
+    return ", ".join(f"{mode} {counts[mode]}" for mode in ordered if counts.get(mode))
 
 
 def _load_json_file(path: Path) -> dict:

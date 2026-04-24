@@ -37,19 +37,19 @@
 
   <!-- Profile Statistics -->
   <section class="stat-section">
-    <h3>Security Profiles</h3>
+    <h3>Privacy Profiles</h3>
     <div class="stat-cards">
       <div class="stat-card">
-        <div class="stat-label">Total Profiles</div>
+        <div class="stat-label">Local Profiles</div>
         <div class="stat-value">{{ profile_stats.total_profiles }}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Active</div>
-        <div class="stat-value stat-success">{{ profile_stats.active_profiles }}</div>
+        <div class="stat-label">Built-in</div>
+        <div class="stat-value stat-success">{{ profile_stats.built_in_profiles }}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Inactive</div>
-        <div class="stat-value stat-warning">{{ profile_stats.inactive_profiles }}</div>
+        <div class="stat-label">Available Total</div>
+        <div class="stat-value stat-warning">{{ profile_stats.total_profiles + profile_stats.built_in_profiles }}</div>
       </div>
     </div>
   </section>
@@ -84,7 +84,7 @@
     <h3>Quick Actions</h3>
     <div class="action-buttons">
       <a href="/" class="btn btn-primary">New Analysis</a>
-      <a href="/profiles" class="btn btn-secondary">Manage Profiles</a>
+      <a href="/profiles" class="btn btn-secondary">Manage Privacy Profiles</a>
       <form method="post" action="/admin/cleanup" style="display: inline;">
         <button type="submit" class="btn btn-warning">Clean Old Jobs</button>
       </form>

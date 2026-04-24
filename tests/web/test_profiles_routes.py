@@ -9,68 +9,58 @@ from pcap2llm.web.config import WebSettings
 from pcap2llm.web.profiles import ProfileStore
 
 
-def test_profiles_page_loads(tmp_path: Path) -> None:
-    """Test that /profiles page loads successfully."""
+def _build_client(tmp_path: Path) -> TestClient:
     settings = WebSettings(workdir=tmp_path / "web_runs")
-    app = create_app(settings)
-    client = TestClient(app)
+    return TestClient(create_app(settings))
+
+
+def test_profiles_page_loads(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
 
     response = client.get("/profiles")
     assert response.status_code == 200
-    assert "Security Profiles" in response.text
-    assert "New Profile" in response.text
+    assert "Privacy Profiles" in response.text
+    assert "Built-in Privacy Profiles" in response.text
+    assert "llm-telecom-safe" in response.text
+    assert "Duplicate as Local Profile" in response.text
+
+
+def test_profiles_page_explains_empty_local_profiles(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+
+    response = client.get("/profiles")
+    assert response.status_code == 200
+    assert "No Local Privacy Profiles Yet" in response.text
 
 
 def test_api_list_profiles_empty(tmp_path: Path) -> None:
-    """Test /api/profiles returns empty list initially."""
-    settings = WebSettings(workdir=tmp_path / "web_runs")
-    app = create_app(settings)
-    client = TestClient(app)
+    client = _build_client(tmp_path)
 
     response = client.get("/api/profiles")
     assert response.status_code == 200
-    data = response.json()
-    assert data == []
+    assert response.json() == []
 
 
 def test_create_profile_form_submission(tmp_path: Path) -> None:
-    """Test creating a profile via form."""
-    settings = WebSettings(workdir=tmp_path / "web_runs")
-    app = create_app(settings)
-    client = TestClient(app)
+    client = _build_client(tmp_path)
 
     response = client.post(
         "/profiles",
-        data={
-            "name": "Standard Profile",
-            "description": "Standard security profile",
-            "owner": "Security Team",
-        },
+        data={"name": "Standard Profile", "description": "Standard privacy profile"},
         follow_redirects=False,
     )
     assert response.status_code == 303
 
-    # Verify profile was created
-    profiles_response = client.get("/api/profiles")
-    profiles = profiles_response.json()
+    profiles = client.get("/api/profiles").json()
     assert len(profiles) == 1
     assert profiles[0]["name"] == "Standard Profile"
+    assert profiles[0]["modes"]["ip"] == "keep"
 
 
 def test_create_profile_duplicate_name_fails(tmp_path: Path) -> None:
-    """Test that creating profiles with duplicate names fails."""
-    settings = WebSettings(workdir=tmp_path / "web_runs")
-    app = create_app(settings)
-    client = TestClient(app)
+    client = _build_client(tmp_path)
+    client.post("/profiles", data={"name": "Duplicate", "description": "First"}, follow_redirects=False)
 
-    # Create first profile
-    client.post(
-        "/profiles",
-        data={"name": "Duplicate", "description": "First"},
-        follow_redirects=True,
-    )
-
-    # Try to create profile with same name
     response = client.post(
         "/profiles",
         data={"name": "Duplicate", "description": "Second"},
@@ -80,53 +70,58 @@ def test_create_profile_duplicate_name_fails(tmp_path: Path) -> None:
     assert "already exists" in response.text
 
 
-def test_update_profile_via_form(tmp_path: Path) -> None:
-    """Test updating a profile."""
-    settings = WebSettings(workdir=tmp_path / "web_runs")
-    app = create_app(settings)
-    client = TestClient(app)
+def test_update_profile_via_form_updates_modes(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
 
-    # Create profile
     create_resp = client.post(
         "/profiles",
-        data={
-            "name": "Original",
-            "description": "Original description",
-        },
+        data={"name": "Original", "description": "Original description"},
         follow_redirects=False,
     )
     profile_id = create_resp.headers["location"].split("id=")[1]
 
-    # Update profile
     update_resp = client.post(
         f"/profiles/{profile_id}",
         data={
             "name": "Updated",
             "description": "Updated description",
-            "status": "inactive",
-            "auth_mfa": "on",
-            "session_timeout_minutes": "60",
+            "mode_ip": "mask",
+            "mode_imsi": "remove",
+            "mode_email": "pseudonymize",
         },
         follow_redirects=False,
     )
     assert update_resp.status_code == 303
 
-    # Verify changes
     store = ProfileStore(tmp_path / "web_runs")
     profile = store.load(profile_id)
     assert profile.name == "Updated"
     assert profile.description == "Updated description"
-    assert profile.status == "inactive"
-    assert profile.auth_mfa is True
+    assert profile.modes["ip"] == "mask"
+    assert profile.modes["imsi"] == "remove"
+    assert profile.modes["email"] == "pseudonymize"
+
+
+def test_update_profile_rejects_invalid_mode(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    create_resp = client.post(
+        "/profiles",
+        data={"name": "Original", "description": "Original description"},
+        follow_redirects=False,
+    )
+    profile_id = create_resp.headers["location"].split("id=")[1]
+
+    response = client.post(
+        f"/profiles/{profile_id}",
+        data={"name": "Original", "description": "Original description", "mode_ip": "wildcard"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 400
+    assert "Unsupported protection mode" in response.text
 
 
 def test_delete_profile_via_form(tmp_path: Path) -> None:
-    """Test deleting a profile."""
-    settings = WebSettings(workdir=tmp_path / "web_runs")
-    app = create_app(settings)
-    client = TestClient(app)
-
-    # Create profile
+    client = _build_client(tmp_path)
     create_resp = client.post(
         "/profiles",
         data={"name": "To Delete", "description": "Will delete"},
@@ -134,184 +129,13 @@ def test_delete_profile_via_form(tmp_path: Path) -> None:
     )
     profile_id = create_resp.headers["location"].split("id=")[1]
 
-    # Verify it exists
-    profiles = client.get("/api/profiles").json()
-    assert len(profiles) == 1
-
-    # Delete it
-    delete_resp = client.post(
-        f"/profiles/{profile_id}/delete",
-        follow_redirects=False,
-    )
+    delete_resp = client.post(f"/profiles/{profile_id}/delete", follow_redirects=False)
     assert delete_resp.status_code == 303
-
-    # Verify it's gone
-    profiles_after = client.get("/api/profiles").json()
-    assert len(profiles_after) == 0
-
-
-def test_profile_settings_persist(tmp_path: Path) -> None:
-    """Test that all security settings persist correctly."""
-    settings = WebSettings(workdir=tmp_path / "web_runs")
-    app = create_app(settings)
-    client = TestClient(app)
-
-    # Create profile with custom settings
-    create_resp = client.post(
-        "/profiles",
-        data={
-            "name": "Custom Settings",
-            "description": "With custom settings",
-        },
-        follow_redirects=False,
-    )
-    profile_id = create_resp.headers["location"].split("id=")[1]
-
-    # Update with specific settings
-    client.post(
-        f"/profiles/{profile_id}",
-        data={
-            "name": "Custom Settings",
-            "description": "With custom settings",
-            "status": "active",
-            "auth_password": "on",
-            "auth_mfa": "on",
-            "auth_certificate": "on",
-            "auth_access_level": "admin",
-            "session_timeout_minutes": "120",
-            "network_access": "vpn",
-            "logging_level": "detailed",
-        },
-        follow_redirects=False,
-    )
-
-    # Load and verify
-    store = ProfileStore(tmp_path / "web_runs")
-    profile = store.load(profile_id)
-    assert profile.auth_password is True
-    assert profile.auth_mfa is True
-    assert profile.auth_certificate is True
-    assert profile.auth_access_level == "admin"
-    assert profile.session_timeout_minutes == 120
-    assert profile.network_access == "vpn"
-    assert profile.logging_level == "detailed"
-
-
-def test_profile_name_validation_rejects_invalid_chars(tmp_path: Path) -> None:
-    """Test that invalid characters in profile names are rejected."""
-    settings = WebSettings(workdir=tmp_path / "web_runs")
-    client = TestClient(create_app(settings))
-
-    invalid_names = [
-        "Profile@Name",
-        "Profile#Name",
-        "Profile/Name",
-        "Profile$Name",
-        "Profile&Name",
-    ]
-
-    for invalid_name in invalid_names:
-        response = client.post(
-            "/profiles",
-            data={
-                "name": invalid_name,
-                "description": "Test",
-            },
-            follow_redirects=False,
-        )
-        assert response.status_code == 400
-        assert "only letters, numbers, spaces, dots, underscores, and hyphens" in response.text
-
-
-def test_profile_string_length_limits(tmp_path: Path) -> None:
-    """Test that string field length limits are enforced."""
-    settings = WebSettings(workdir=tmp_path / "web_runs")
-    client = TestClient(create_app(settings))
-
-    # Description too long (>1000 chars)
-    response = client.post(
-        "/profiles",
-        data={
-            "name": "Valid Name",
-            "description": "x" * 1001,  # 1001 chars, exceeds limit
-        },
-        follow_redirects=False,
-    )
-    assert response.status_code == 400
-    assert "exceeds maximum length" in response.text
-
-
-def test_profile_enum_validation(tmp_path: Path) -> None:
-    """Test that enum fields are validated."""
-    settings = WebSettings(workdir=tmp_path / "web_runs")
-    app = create_app(settings)
-    client = TestClient(app)
-
-    # Create profile first
-    create_resp = client.post(
-        "/profiles",
-        data={"name": "Test", "description": "Test"},
-        follow_redirects=False,
-    )
-    profile_id = create_resp.headers["location"].split("id=")[1]
-
-    # Try updating with invalid access level
-    response = client.post(
-        f"/profiles/{profile_id}",
-        data={
-            "name": "Test",
-            "description": "Test",
-            "auth_access_level": "invalid-level",  # Invalid enum value
-        },
-        follow_redirects=False,
-    )
-    assert response.status_code == 400
-    assert "Invalid access level" in response.text
-
-
-def test_profile_session_timeout_limits(tmp_path: Path) -> None:
-    """Test that session timeout has reasonable limits."""
-    settings = WebSettings(workdir=tmp_path / "web_runs")
-    app = create_app(settings)
-    client = TestClient(app)
-
-    # Create profile
-    create_resp = client.post(
-        "/profiles",
-        data={"name": "Timeout Test", "description": "Test"},
-        follow_redirects=False,
-    )
-    profile_id = create_resp.headers["location"].split("id=")[1]
-
-    # Try timeout too low (< 1 minute)
-    response = client.post(
-        f"/profiles/{profile_id}",
-        data={
-            "name": "Timeout Test",
-            "description": "Test",
-            "session_timeout_minutes": "0",  # Invalid: < 1
-        },
-        follow_redirects=False,
-    )
-    assert response.status_code == 400
-
-    # Try timeout too high (> 1440 minutes / 24 hours)
-    response = client.post(
-        f"/profiles/{profile_id}",
-        data={
-            "name": "Timeout Test",
-            "description": "Test",
-            "session_timeout_minutes": "1441",  # Invalid: > 1440
-        },
-        follow_redirects=False,
-    )
-    assert response.status_code == 400
+    assert client.get("/api/profiles").json() == []
 
 
 def test_duplicate_profile_route_creates_copy(tmp_path: Path) -> None:
-    settings = WebSettings(workdir=tmp_path / "web_runs")
-    client = TestClient(create_app(settings))
-
+    client = _build_client(tmp_path)
     create_resp = client.post(
         "/profiles",
         data={"name": "Base Profile", "description": "Original profile"},
@@ -319,20 +143,43 @@ def test_duplicate_profile_route_creates_copy(tmp_path: Path) -> None:
     )
     profile_id = create_resp.headers["location"].split("id=")[1]
 
+    client.post(
+        f"/profiles/{profile_id}",
+        data={
+            "name": "Base Profile",
+            "description": "Original profile",
+            "mode_ip": "mask",
+            "mode_email": "remove",
+        },
+        follow_redirects=False,
+    )
+
     duplicate_resp = client.post(f"/profiles/{profile_id}/duplicate", follow_redirects=False)
     assert duplicate_resp.status_code == 303
 
     profiles = client.get("/api/profiles").json()
     assert len(profiles) == 2
-    names = {p["name"] for p in profiles}
-    assert "Base Profile" in names
-    assert any(name.startswith("Base Profile Copy") for name in names)
+    copied = next(profile for profile in profiles if profile["name"].startswith("Base Profile Copy"))
+    assert copied["modes"]["ip"] == "mask"
+    assert copied["modes"]["email"] == "remove"
+
+
+def test_duplicate_builtin_privacy_profile_creates_local_copy(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+
+    duplicate_resp = client.post("/profiles/privacy/share/duplicate", follow_redirects=False)
+    assert duplicate_resp.status_code == 303
+
+    profiles = client.get("/api/profiles").json()
+    assert len(profiles) == 1
+    assert profiles[0]["name"].startswith("share Copy")
+    assert "Safe for sharing" in profiles[0]["description"]
+    assert profiles[0]["modes"]["subscriber_id"] == "pseudonymize"
+    assert profiles[0]["modes"]["token"] == "remove"
 
 
 def test_export_profiles_json_and_csv(tmp_path: Path) -> None:
-    settings = WebSettings(workdir=tmp_path / "web_runs")
-    client = TestClient(create_app(settings))
-
+    client = _build_client(tmp_path)
     client.post(
         "/profiles",
         data={"name": "Exportable", "description": "Export me"},
@@ -341,30 +188,20 @@ def test_export_profiles_json_and_csv(tmp_path: Path) -> None:
 
     json_resp = client.get("/profiles/export?fmt=json")
     assert json_resp.status_code == 200
-    assert "attachment; filename=\"security_profiles.json\"" in json_resp.headers.get("content-disposition", "")
+    assert "attachment; filename=\"privacy_profiles.json\"" in json_resp.headers.get("content-disposition", "")
     assert json_resp.json()[0]["name"] == "Exportable"
 
     csv_resp = client.get("/profiles/export?fmt=csv")
     assert csv_resp.status_code == 200
-    assert "attachment; filename=\"security_profiles.csv\"" in csv_resp.headers.get("content-disposition", "")
-    assert "name,description,status" in csv_resp.text
+    assert "attachment; filename=\"privacy_profiles.csv\"" in csv_resp.headers.get("content-disposition", "")
+    assert "name,description,ip,hostname" in csv_resp.text
     assert "Exportable" in csv_resp.text
 
 
 def test_bulk_delete_profiles_route(tmp_path: Path) -> None:
-    settings = WebSettings(workdir=tmp_path / "web_runs")
-    client = TestClient(create_app(settings))
-
-    first = client.post(
-        "/profiles",
-        data={"name": "A", "description": "First"},
-        follow_redirects=False,
-    ).headers["location"].split("id=")[1]
-    second = client.post(
-        "/profiles",
-        data={"name": "B", "description": "Second"},
-        follow_redirects=False,
-    ).headers["location"].split("id=")[1]
+    client = _build_client(tmp_path)
+    first = client.post("/profiles", data={"name": "A", "description": "First"}, follow_redirects=False).headers["location"].split("id=")[1]
+    second = client.post("/profiles", data={"name": "B", "description": "Second"}, follow_redirects=False).headers["location"].split("id=")[1]
 
     response = client.post(
         "/profiles/actions/bulk-delete",

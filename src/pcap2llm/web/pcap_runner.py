@@ -17,17 +17,17 @@ class Pcap2LlmRunner:
         cmd = ["pcap2llm", "discover", str(capture_path), "--out", str(out_dir)]
         if self.default_tshark_path:
             cmd.extend(["--tshark-path", self.default_tshark_path])
-        return self._run(cmd, logs_dir=logs_dir, artifacts_dir=out_dir)
+        return self._run(cmd, logs_dir=logs_dir, artifacts_dir=out_dir, log_prefix="discovery")
 
     def recommend_profiles(self, source_path: Path, logs_dir: Path) -> RunResult:
         cmd = ["pcap2llm", "recommend-profiles", str(source_path)]
         if self.default_tshark_path:
             cmd.extend(["--tshark-path", self.default_tshark_path])
-        return self._run(cmd, logs_dir=logs_dir, artifacts_dir=source_path.parent)
+        return self._run(cmd, logs_dir=logs_dir, artifacts_dir=source_path.parent, log_prefix="recommend")
 
     def analyze(self, capture_path: Path, options: AnalyzeOptions, out_dir: Path, logs_dir: Path) -> RunResult:
         cmd = self.build_analyze_command(capture_path, options, out_dir)
-        return self._run(cmd, logs_dir=logs_dir, artifacts_dir=out_dir)
+        return self._run(cmd, logs_dir=logs_dir, artifacts_dir=out_dir, log_prefix="analyze")
 
     def build_analyze_command(self, capture_path: Path, options: AnalyzeOptions, out_dir: Path) -> list[str]:
         cmd = [
@@ -98,7 +98,7 @@ class Pcap2LlmRunner:
     def build_command_preview(self, capture_path: Path, options: AnalyzeOptions, out_dir: Path) -> str:
         return shlex.join(self.build_analyze_command(capture_path, options, out_dir))
 
-    def _run(self, cmd: list[str], *, logs_dir: Path, artifacts_dir: Path) -> RunResult:
+    def _run(self, cmd: list[str], *, logs_dir: Path, artifacts_dir: Path, log_prefix: str) -> RunResult:
         logs_dir.mkdir(parents=True, exist_ok=True)
         before = {p.resolve() for p in artifacts_dir.glob("*") if p.is_file()} if artifacts_dir.exists() else set()
 
@@ -124,9 +124,9 @@ class Pcap2LlmRunner:
             stderr = (stderr + "\n" if stderr else "") + "Command timed out."
             returncode = 124
 
-        (logs_dir / "stdout.log").write_text(stdout, encoding="utf-8")
-        (logs_dir / "stderr.log").write_text(stderr, encoding="utf-8")
-        (logs_dir / "command.json").write_text(json.dumps({"command": cmd}, indent=2), encoding="utf-8")
+        (logs_dir / f"{log_prefix}_stdout.log").write_text(stdout, encoding="utf-8")
+        (logs_dir / f"{log_prefix}_stderr.log").write_text(stderr, encoding="utf-8")
+        (logs_dir / f"{log_prefix}_command.json").write_text(json.dumps({"command": cmd}, indent=2), encoding="utf-8")
 
         after = {p.resolve() for p in artifacts_dir.glob("*") if p.is_file()} if artifacts_dir.exists() else set()
         artifacts = sorted(after - before)

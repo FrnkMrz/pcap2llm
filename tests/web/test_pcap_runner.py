@@ -112,9 +112,9 @@ def test_run_uses_no_shell_and_maps_failures(tmp_path: Path, monkeypatch) -> Non
     assert result.ok is False
     assert result.returncode == 2
     assert captured["kwargs"]["shell"] is False
-    assert (logs_dir / "stdout.log").exists()
-    assert (logs_dir / "stderr.log").read_text(encoding="utf-8") == "boom"
-    assert (logs_dir / "command.json").exists()
+    assert (logs_dir / "analyze_stdout.log").exists()
+    assert (logs_dir / "analyze_stderr.log").read_text(encoding="utf-8") == "boom"
+    assert (logs_dir / "analyze_command.json").exists()
 
 
 def test_build_command_preview_shell_quotes_paths_with_spaces(tmp_path: Path) -> None:

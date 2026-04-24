@@ -12,9 +12,10 @@ from fastapi.testclient import TestClient
 from pcap2llm.web.app import create_app
 from pcap2llm.web.config import WebSettings
 from pcap2llm.web.jobs import JobStore
+from pcap2llm.web.profiles import ProfileStore
 
 
-def _build_client(tmp_path: Path, *, max_upload_mb: int = 250) -> TestClient:
+def _build_client(tmp_path: Path, *, max_upload_mb: int = 1) -> TestClient:
     settings = WebSettings(
         host="127.0.0.1",
         port=8765,
@@ -229,6 +230,44 @@ def test_download_artifact_from_job_directory(tmp_path: Path) -> None:
     assert response.status_code == 200
 
 
+def test_markdown_artifact_can_be_viewed_inline(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    upload = client.post(
+        "/jobs",
+        files={"capture": ("trace.pcap", io.BytesIO(b"abc"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+    job_id = upload.headers["location"].split("/")[-1]
+
+    store = JobStore(tmp_path / "web_runs")
+    artifact = store.artifacts_dir(job_id) / "sample_summary.md"
+    artifact.write_text("# Summary\nhello", encoding="utf-8")
+
+    response = client.get(f"/jobs/{job_id}/view/artifacts/{artifact.name}")
+    assert response.status_code == 200
+    assert "sample_summary.md" in response.text
+    assert "Summary" in response.text
+    assert "Zurueck zum Job" in response.text
+
+
+def test_job_page_links_markdown_artifact_to_inline_view(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    upload = client.post(
+        "/jobs",
+        files={"capture": ("trace.pcap", io.BytesIO(b"abc"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+    job_id = upload.headers["location"].split("/")[-1]
+
+    store = JobStore(tmp_path / "web_runs")
+    (store.artifacts_dir(job_id) / "sample_summary.md").write_text("# Summary\nhello", encoding="utf-8")
+
+    response = client.get(f"/jobs/{job_id}")
+    assert response.status_code == 200
+    assert f'/jobs/{job_id}/view/artifacts/sample_summary.md' in response.text
+    assert f'/jobs/{job_id}/files/artifacts/sample_summary.md' in response.text
+
+
 def test_scoped_download_handles_duplicate_filenames(tmp_path: Path) -> None:
     client = _build_client(tmp_path)
     upload = client.post(
@@ -329,7 +368,125 @@ def test_job_page_persists_last_analyze_form_values(tmp_path: Path) -> None:
     assert 'value="gtpv2"' in page.text
     assert 'value="200"' in page.text
     assert 'value="lte-s11" selected' in page.text
-    assert 'value="lab" selected' in page.text
+    assert 'type="radio" name="privacy_profile" value="lab" checked' in page.text
+
+
+def test_job_page_renders_privacy_profiles_as_visible_options(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    upload = client.post(
+        "/jobs",
+        files={"capture": ("trace.pcap", io.BytesIO(b"abc"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+    job_id = upload.headers["location"].split("/")[-1]
+
+    page = client.get(f"/jobs/{job_id}")
+    assert page.status_code == 200
+    assert 'name="privacy_profile"' in page.text
+    assert 'type="radio" name="privacy_profile" value="share" checked' in page.text
+    assert "Safe for sharing with external parties or cross-team review." in page.text
+    assert '<select name="privacy_profile"' not in page.text
+
+
+def test_job_page_includes_local_privacy_profiles(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    store = ProfileStore(tmp_path / "web_runs")
+    local_profile = store.create("Custom Privacy", "Editable local profile", {"ip": "mask", "email": "remove"})
+
+    upload = client.post(
+        "/jobs",
+        files={"capture": ("trace.pcap", io.BytesIO(b"abc"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+    job_id = upload.headers["location"].split("/")[-1]
+
+    page = client.get(f"/jobs/{job_id}")
+    assert page.status_code == 200
+    assert f'value="local:{local_profile.id}"' in page.text
+    assert "Custom Privacy" in page.text
+    assert "mask 1" in page.text
+
+
+def test_job_page_prefills_local_support_file_defaults(tmp_path: Path) -> None:
+    local_root = tmp_path / ".local"
+    local_root.mkdir()
+    (local_root / "hosts").write_text("10.0.0.1 mme\n", encoding="utf-8")
+    (local_root / "Subnets").write_text("10.0.0.0/24 CORE\n", encoding="utf-8")
+    (local_root / "ss7pcs").write_text("0-5093 VZB\n", encoding="utf-8")
+
+    settings = WebSettings(
+        host="127.0.0.1",
+        port=8765,
+        workdir=local_root / "web_runs",
+        max_upload_mb=250,
+        command_timeout_seconds=30,
+        default_privacy_profile="share",
+    )
+    client = TestClient(create_app(settings))
+
+    upload = client.post(
+        "/jobs",
+        files={"capture": ("trace.pcap", io.BytesIO(b"abc"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+    job_id = upload.headers["location"].split("/")[-1]
+
+    page = client.get(f"/jobs/{job_id}")
+    assert page.status_code == 200
+    assert "Aktive lokale Defaults" in page.text
+    assert f'Hosts: <code>{local_root / "hosts"}</code>' in page.text
+    assert f'Subnets: <code>{local_root / "Subnets"}</code>' in page.text
+    assert f'SS7 PCS: <code>{local_root / "ss7pcs"}</code>' in page.text
+    assert "Advanced Inputs" in page.text
+
+
+def test_analyze_uses_local_support_file_defaults_when_form_is_blank(tmp_path: Path) -> None:
+    local_root = tmp_path / ".local"
+    local_root.mkdir()
+    (local_root / "hosts").write_text("10.0.0.1 mme\n", encoding="utf-8")
+    (local_root / "ss7pcs").write_text("0-5093 VZB\n", encoding="utf-8")
+
+    settings = WebSettings(
+        host="127.0.0.1",
+        port=8765,
+        workdir=local_root / "web_runs",
+        max_upload_mb=250,
+        command_timeout_seconds=30,
+        default_privacy_profile="share",
+    )
+    client = TestClient(create_app(settings))
+
+    upload = client.post(
+        "/jobs",
+        files={"capture": ("trace.pcap", io.BytesIO(b"abc"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+    job_id = upload.headers["location"].split("/")[-1]
+
+    captured: dict[str, object] = {}
+
+    def fake_analyze(capture_path, options, out_dir, logs_dir):
+        captured["options"] = options
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "sample_summary.json").write_text("{}", encoding="utf-8")
+        return SimpleNamespace(ok=True, stderr="", stdout="", returncode=0)
+
+    client.app.state.runner.analyze = fake_analyze
+
+    response = client.post(
+        f"/jobs/{job_id}/analyze",
+        data={
+            "profile": "lte-core",
+            "privacy_profile": "share",
+            "collapse_repeats": "true",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+    options = captured["options"]
+    assert options.hosts_file == str(local_root / "hosts")
+    assert options.ss7pcs_file == str(local_root / "ss7pcs")
 
 
 def test_admin_cleanup_endpoint_deletes_old_jobs(tmp_path: Path) -> None:
@@ -437,7 +594,7 @@ def test_zip_download_contains_job_files(tmp_path: Path) -> None:
     store.load(job_id)
     (store.artifacts_dir(job_id) / "sample_summary.json").write_text("{}", encoding="utf-8")
     (store.discovery_dir(job_id) / "discover_trace.json").write_text("{}", encoding="utf-8")
-    (store.logs_dir(job_id) / "stderr.log").write_text("err", encoding="utf-8")
+    (store.logs_dir(job_id) / "analyze_stderr.log").write_text("err", encoding="utf-8")
 
     response = client.get(f"/jobs/{job_id}/files.zip")
     assert response.status_code == 200
@@ -448,7 +605,31 @@ def test_zip_download_contains_job_files(tmp_path: Path) -> None:
 
     assert "artifacts/sample_summary.json" in names
     assert "discovery/discover_trace.json" in names
-    assert "logs/stderr.log" in names
+    assert "logs/analyze_stderr.log" in names
+
+
+def test_job_page_keeps_discovery_logs_visible_after_analyze(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    upload = client.post(
+        "/jobs",
+        files={"capture": ("trace.pcap", io.BytesIO(b"abc"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+    job_id = upload.headers["location"].split("/")[-1]
+
+    store = JobStore(tmp_path / "web_runs")
+    logs_dir = store.logs_dir(job_id)
+    (logs_dir / "discovery_stdout.log").write_text("discover ok", encoding="utf-8")
+    (logs_dir / "discovery_stderr.log").write_text("", encoding="utf-8")
+    (logs_dir / "analyze_stdout.log").write_text("analyze ok", encoding="utf-8")
+    (logs_dir / "analyze_stderr.log").write_text("", encoding="utf-8")
+
+    response = client.get(f"/jobs/{job_id}")
+    assert response.status_code == 200
+    assert "Discovery" in response.text
+    assert "discover ok" in response.text
+    assert "Analyze" in response.text
+    assert "analyze ok" in response.text
 
 
 def test_delete_job_removes_workspace(tmp_path: Path) -> None:

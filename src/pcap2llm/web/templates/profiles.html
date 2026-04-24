@@ -1,257 +1,152 @@
 {% extends "base.html" %}
 
-{% block title %}Security Profiles{% endblock %}
+{% block title %}Privacy Profiles{% endblock %}
 
 {% block content %}
-<div class="profiles-section">
+<div class="profiles-page">
   <div class="profiles-header">
-    <h1>Security Profiles</h1>
-    <div class="header-buttons">
+    <div>
+      <h1>Privacy Profiles</h1>
+      <p class="profiles-subtitle">Choose a built-in policy or create a local profile with explicit handling for each data class.</p>
+    </div>
+    <div class="header-actions">
       <a class="btn-secondary" href="/profiles/export?fmt=json">Export JSON</a>
       <a class="btn-secondary" href="/profiles/export?fmt=csv">Export CSV</a>
-      <button class="btn-primary" onclick="toggleBulkDelete()" type="button">Bulk Delete</button>
-      <button class="btn-primary" onclick="newProfile()">+ New Profile</button>
+      <button class="btn-primary" type="button" onclick="toggleBulkDelete()">Bulk Delete</button>
+      <button class="btn-primary" type="button" onclick="newProfile()">+ New Profile</button>
     </div>
   </div>
 
+  <section class="builtin-panel">
+    <div class="builtin-header">
+      <h2>Built-in Privacy Profiles</h2>
+      <span class="builtin-count">{{ privacy_profiles | length }} available</span>
+    </div>
+    <div class="builtin-grid">
+      {% for profile in privacy_profiles %}
+      <article class="builtin-card">
+        <div class="builtin-card-top">
+          <strong>{{ profile.name }}</strong>
+          <span class="kind-badge">Built-in</span>
+        </div>
+        <p>{{ profile.description }}</p>
+        <small>{{ profile.summary }}</small>
+        <form method="post" action="/profiles/privacy/{{ profile.name }}/duplicate">
+          <button type="submit" class="btn-secondary">Duplicate as Local Profile</button>
+        </form>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  {% if profiles %}
   <div class="profiles-layout">
-    <!-- Left: Profile List -->
-    <div class="profiles-list-panel">
+    <aside class="profiles-sidebar">
       <input
-        type="text"
         id="searchInput"
         class="search-box"
+        type="text"
         placeholder="Search profile..."
         onkeyup="filterProfiles()"
       />
 
-      <div class="profile-items">
-        <form id="bulkDeleteForm" method="post" action="/profiles/actions/bulk-delete" style="display: none;">
-          <div class="bulk-delete-actions">
-            <button type="button" onclick="toggleBulkDelete()" class="btn-secondary">Cancel</button>
-            <button type="submit" class="btn-danger" onclick="return confirm('Delete selected profiles?');">Delete Selected</button>
-            <span class="bulk-count"><span id="bulk-selected-count">0</span> selected</span>
-          </div>
-        </form>
+      <form id="bulkDeleteForm" method="post" action="/profiles/actions/bulk-delete" class="bulk-actions" style="display: none;">
+        <button type="button" class="btn-secondary" onclick="toggleBulkDelete()">Cancel</button>
+        <button type="submit" class="btn-danger" onclick="return confirm('Delete selected profiles?');">Delete Selected</button>
+        <span><span id="bulk-selected-count">0</span> selected</span>
+      </form>
+
+      <div class="profile-list">
         {% for profile in profiles %}
-          <div class="profile-item-wrapper" data-has-checkbox>
-            <input type="checkbox" class="profile-checkbox" name="profile_id" value="{{ profile.id }}" form="bulkDeleteForm" />
-            <div
-              class="profile-item {% if selected_profile and selected_profile.id == profile.id %}active{% endif %}"
-              onclick="selectProfile('{{ profile.id }}')"
-              data-profile-id="{{ profile.id }}"
-            >
-              <div class="profile-item-header">
-                <span class="profile-name">{{ profile.name }}</span>
-                <span class="profile-status {% if profile.status == 'active' %}status-active{% else %}status-inactive{% endif %}">
-                  {{ profile.status }}
-                </span>
-              </div>
-              <div class="profile-item-desc">{{ profile.description }}</div>
+        <div class="profile-row" data-has-checkbox>
+          <input type="checkbox" class="profile-checkbox" name="profile_id" value="{{ profile.id }}" form="bulkDeleteForm" />
+          <div
+            class="profile-item {% if selected_profile and selected_profile.id == profile.id %}active{% endif %}"
+            onclick="selectProfile('{{ profile.id }}')"
+          >
+            <div class="profile-item-top">
+              <strong class="profile-name">{{ profile.name }}</strong>
+              <span class="kind-badge">Local</span>
+            </div>
+            <div class="profile-desc">{{ profile.description }}</div>
+            <div class="profile-summary">
+              {% for mode in protection_modes %}
+                {% set count = profile.modes.values() | select("equalto", mode) | list | length %}
+                {% if count %}
+                <span>{{ mode }} {{ count }}</span>
+                {% endif %}
+              {% endfor %}
             </div>
           </div>
+        </div>
         {% endfor %}
       </div>
+    </aside>
 
-      {% if not profiles %}
-        <div class="empty-state">
-          <p>No profiles yet.</p>
-          <p>Click "New Profile" to create one.</p>
-        </div>
-      {% endif %}
-    </div>
-
-    <!-- Right: Profile Details Form -->
-    <div class="profiles-form-panel">
+    <section class="profile-editor">
       {% if selected_profile %}
-        <form id="profileForm" method="POST" action="/profiles/{{ selected_profile.id }}">
-          <div class="form-group">
-            <label for="name">Profile Name *</label>
-            <input
-              id="name"
-              name="name"
-              type="text"
-              required
-              value="{{ selected_profile.name }}"
-              placeholder="Enter profile name"
-            />
-            <small>Must be unique</small>
+      <form method="post" action="/profiles/{{ selected_profile.id }}" class="editor-form">
+        <div class="editor-meta">
+          <div class="form-field">
+            <label for="name">Profile Name</label>
+            <input id="name" name="name" type="text" required value="{{ selected_profile.name }}" />
           </div>
-
-          <div class="form-group">
-            <label for="description">Description *</label>
-            <textarea
-              id="description"
-              name="description"
-              required
-              placeholder="Brief description of this profile"
-              rows="3"
-            >{{ selected_profile.description }}</textarea>
+          <div class="form-field">
+            <label for="description">Description</label>
+            <textarea id="description" name="description" rows="3" required>{{ selected_profile.description }}</textarea>
           </div>
-
-          <div class="form-group">
-            <label for="status">Status</label>
-            <select id="status" name="status">
-              <option value="active" {% if selected_profile.status == 'active' %}selected{% endif %}>Active</option>
-              <option value="inactive" {% if selected_profile.status == 'inactive' %}selected{% endif %}>Inactive</option>
-            </select>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="owner">Owner</label>
-              <input
-                id="owner"
-                name="owner"
-                type="text"
-                value="{{ selected_profile.owner or '' }}"
-                placeholder="Responsible person/group"
-              />
-            </div>
-            <div class="form-group">
-              <label for="comment">Comment</label>
-              <input
-                id="comment"
-                name="comment"
-                type="text"
-                value="{{ selected_profile.comment or '' }}"
-                placeholder="Additional notes"
-              />
-            </div>
-          </div>
-
-          <!-- Authentication Settings -->
-          <fieldset class="form-section">
-            <legend>Authentication</legend>
-            <div class="form-checkbox">
-              <input
-                id="auth_password"
-                name="auth_password"
-                type="checkbox"
-                {% if selected_profile.auth_password %}checked{% endif %}
-              />
-              <label for="auth_password">Password Required</label>
-            </div>
-            <div class="form-checkbox">
-              <input
-                id="auth_mfa"
-                name="auth_mfa"
-                type="checkbox"
-                {% if selected_profile.auth_mfa %}checked{% endif %}
-              />
-              <label for="auth_mfa">Multi-Factor Authentication (MFA)</label>
-            </div>
-            <div class="form-checkbox">
-              <input
-                id="auth_certificate"
-                name="auth_certificate"
-                type="checkbox"
-                {% if selected_profile.auth_certificate %}checked{% endif %}
-              />
-              <label for="auth_certificate">Certificate Authentication</label>
-            </div>
-          </fieldset>
-
-          <!-- Authorization Settings -->
-          <fieldset class="form-section">
-            <legend>Authorization</legend>
-            <div class="form-group">
-              <label for="auth_access_level">Access Level</label>
-              <select id="auth_access_level" name="auth_access_level">
-                {% for level in access_levels %}
-                  <option value="{{ level }}" {% if selected_profile.auth_access_level == level %}selected{% endif %}>
-                    {{ level | replace('-', ' ') | title }}
-                  </option>
-                {% endfor %}
-              </select>
-            </div>
-          </fieldset>
-
-          <!-- Session Settings -->
-          <fieldset class="form-section">
-            <legend>Session</legend>
-            <div class="form-group">
-              <label for="session_timeout_minutes">Session Timeout (minutes)</label>
-              <input
-                id="session_timeout_minutes"
-                name="session_timeout_minutes"
-                type="number"
-                min="1"
-                value="{{ selected_profile.session_timeout_minutes }}"
-              />
-              <small>Minimum 1 minute</small>
-            </div>
-          </fieldset>
-
-          <!-- Network Settings -->
-          <fieldset class="form-section">
-            <legend>Network Access</legend>
-            <div class="form-group">
-              <label for="network_access">Allowed Networks</label>
-              <select id="network_access" name="network_access">
-                {% for option in network_options %}
-                  <option value="{{ option }}" {% if selected_profile.network_access == option %}selected{% endif %}>
-                    {{ option | replace('-', ' ') | title }}
-                  </option>
-                {% endfor %}
-              </select>
-            </div>
-          </fieldset>
-
-          <!-- Logging Settings -->
-          <fieldset class="form-section">
-            <legend>Logging</legend>
-            <div class="form-group">
-              <label for="logging_level">Log Level</label>
-              <select id="logging_level" name="logging_level">
-                {% for level in logging_levels %}
-                  <option value="{{ level }}" {% if selected_profile.logging_level == level %}selected{% endif %}>
-                    {{ level | replace('-', ' ') | title }}
-                  </option>
-                {% endfor %}
-              </select>
-            </div>
-          </fieldset>
-
-          <!-- Form Actions -->
-          <div class="form-actions">
-            <button type="submit" class="btn-primary">Save Profile</button>
-            <button type="reset" class="btn-secondary">Reset Changes</button>
-            <button
-              type="button"
-              class="btn-secondary"
-              onclick="document.getElementById('duplicateForm').submit()"
-            >
-              Duplicate Profile
-            </button>
-            <button
-              type="button"
-              class="btn-danger"
-              onclick="if(confirm('Delete this profile?')) document.getElementById('deleteForm').submit()"
-            >
-              Delete Profile
-            </button>
-          </div>
-        </form>
-
-        <!-- Hidden delete form -->
-        <form id="deleteForm" method="POST" action="/profiles/{{ selected_profile.id }}/delete" style="display: none;"></form>
-        <form id="duplicateForm" method="POST" action="/profiles/{{ selected_profile.id }}/duplicate" style="display: none;"></form>
-
-        <!-- Metadata -->
-        <div class="form-metadata">
-          <small>
-            Created: {{ selected_profile.created_at }}<br />
-            Updated: {{ selected_profile.updated_at }}
-          </small>
         </div>
+
+        <section class="modes-panel">
+          <div class="modes-header">
+            <h2>Data Handling Rules</h2>
+            <small>`keep`, `mask`, `pseudonymize`, `encrypt`, `remove`</small>
+          </div>
+          <div class="modes-table">
+            {% for data_class in data_classes %}
+            <div class="mode-row">
+              <div class="mode-copy">
+                <strong>{{ data_class }}</strong>
+              </div>
+              <label class="mode-select">
+                <span class="sr-only">{{ data_class }} mode</span>
+                <select name="mode_{{ data_class }}">
+                  {% set current_mode = selected_profile.modes.get(data_class, "keep") %}
+                  {% for mode in protection_modes %}
+                  <option value="{{ mode }}" {% if current_mode == mode %}selected{% endif %}>{{ mode }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+            </div>
+            {% endfor %}
+          </div>
+        </section>
+
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">Save Profile</button>
+          <button type="button" class="btn-secondary" onclick="document.getElementById('duplicateForm').submit()">Duplicate Profile</button>
+          <button type="button" class="btn-danger" onclick="if(confirm('Delete this profile?')) document.getElementById('deleteForm').submit()">Delete Profile</button>
+        </div>
+      </form>
+
+      <form id="deleteForm" method="post" action="/profiles/{{ selected_profile.id }}/delete" style="display:none;"></form>
+      <form id="duplicateForm" method="post" action="/profiles/{{ selected_profile.id }}/duplicate" style="display:none;"></form>
+
+      <div class="timestamps">
+        <small>Created: {{ selected_profile.created_at }}<br />Updated: {{ selected_profile.updated_at }}</small>
+      </div>
       {% else %}
-        <div class="empty-form">
-          <p>Select a profile or create a new one.</p>
-        </div>
+      <div class="empty-editor">Select a local profile to edit it.</div>
       {% endif %}
-    </div>
+    </section>
   </div>
+  {% else %}
+  <section class="empty-state-card">
+    <h2>No Local Privacy Profiles Yet</h2>
+    <p>The built-in profiles above are ready to use. Duplicate one if you want to customize how IPs, IMSIs, emails, URIs, and payload text are handled.</p>
+    <button type="button" class="btn-primary" onclick="newProfile()">+ New Profile</button>
+  </section>
+  {% endif %}
 </div>
 
 <script>
@@ -260,7 +155,9 @@
   function selectProfile(profileId) {
     if (bulkDeleteMode) {
       const checkbox = document.querySelector(`input[value="${profileId}"]`);
-      if (checkbox) checkbox.checked = !checkbox.checked;
+      if (checkbox) {
+        checkbox.checked = !checkbox.checked;
+      }
       updateBulkCount();
       return;
     }
@@ -272,15 +169,14 @@
   function toggleBulkDelete() {
     bulkDeleteMode = !bulkDeleteMode;
     const form = document.getElementById("bulkDeleteForm");
-    const wrappers = document.querySelectorAll("[data-has-checkbox]");
-    
-    if (bulkDeleteMode) {
-      form.style.display = "flex";
-      wrappers.forEach(w => w.classList.add("bulk-mode"));
-    } else {
-      form.style.display = "none";
-      wrappers.forEach(w => w.classList.remove("bulk-mode"));
-      document.querySelectorAll(".profile-checkbox").forEach(cb => cb.checked = false);
+    const rows = document.querySelectorAll("[data-has-checkbox]");
+
+    form.style.display = bulkDeleteMode ? "flex" : "none";
+    rows.forEach((row) => row.classList.toggle("bulk-mode", bulkDeleteMode));
+    if (!bulkDeleteMode) {
+      document.querySelectorAll(".profile-checkbox").forEach((checkbox) => {
+        checkbox.checked = false;
+      });
     }
     updateBulkCount();
   }
@@ -291,22 +187,17 @@
   }
 
   function filterProfiles() {
-    const searchInput = document.getElementById("searchInput").value.toLowerCase();
-    const profileItems = document.querySelectorAll(".profile-item");
-
-    profileItems.forEach((item) => {
+    const query = document.getElementById("searchInput").value.toLowerCase();
+    document.querySelectorAll(".profile-item").forEach((item) => {
       const name = item.querySelector(".profile-name").textContent.toLowerCase();
-      const desc = item.querySelector(".profile-item-desc").textContent.toLowerCase();
-      const matches = name.includes(searchInput) || desc.includes(searchInput);
-      item.parentElement.style.display = matches ? "" : "none";
+      const desc = item.querySelector(".profile-desc").textContent.toLowerCase();
+      item.parentElement.style.display = name.includes(query) || desc.includes(query) ? "" : "none";
     });
   }
 
   function newProfile() {
-    // Create a new profile with default values
-    const name = prompt("Enter new profile name:");
+    const name = prompt("Enter new privacy profile name:");
     if (!name) return;
-
     const description = prompt("Enter description:") || "";
 
     const formData = new FormData();
@@ -316,284 +207,267 @@
     fetch("/profiles", {
       method: "POST",
       body: formData,
-    })
-      .then((resp) => {
-        if (resp.ok) {
-          // Extract profile ID from redirect location
-          const profileId = resp.url.split("id=")[1];
-          selectProfile(profileId);
-        } else {
-          alert("Error creating profile. See console.");
-        }
-      })
-      .catch((err) => {
-        console.error("Error:", err);
-        alert("Error creating profile");
-      });
+    }).then((resp) => {
+      if (resp.redirected) {
+        window.location.assign(resp.url);
+        return;
+      }
+      if (!resp.ok) {
+        alert("Error creating profile.");
+      }
+    }).catch(() => {
+      alert("Error creating profile.");
+    });
   }
 </script>
 
 <style>
-  .profiles-section {
-    padding: 20px;
-    max-width: 100%;
+  .profiles-page {
+    max-width: 1080px;
+    margin: 0 auto;
+    display: grid;
+    gap: 20px;
   }
 
-  .profiles-header {
+  .profiles-header,
+  .builtin-header,
+  .modes-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .profiles-header h1,
+  .builtin-header h2,
+  .modes-header h2 {
+    margin: 0;
+  }
+
+  .profiles-subtitle {
+    margin: 6px 0 0;
+    color: var(--muted);
+  }
+
+  .header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+
+  .builtin-panel,
+  .profile-editor,
+  .profiles-sidebar,
+  .empty-state-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 18px;
+  }
+
+  .builtin-count,
+  .kind-badge {
+    font-size: 0.82rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 3px 9px;
+    white-space: nowrap;
+    color: var(--muted);
+  }
+
+  .builtin-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    margin-top: 14px;
+  }
+
+  .builtin-card {
+    display: grid;
+    gap: 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px;
+    background: color-mix(in srgb, var(--panel) 92%, #eef5ff 8%);
+  }
+
+  .builtin-card-top,
+  .profile-item-top {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
+    gap: 8px;
   }
 
-  .profiles-header h1 {
+  .builtin-card p,
+  .profile-desc,
+  .empty-state-card p {
     margin: 0;
+    color: var(--muted);
+    line-height: 1.45;
   }
 
   .profiles-layout {
     display: grid;
-    grid-template-columns: 300px 1fr;
-    gap: 20px;
-    min-height: 600px;
-    background: #fafafa;
-    border-radius: 4px;
-    border: 1px solid #e0e0e0;
-    overflow: hidden;
+    grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
+    gap: 18px;
+    min-width: 0;
   }
 
-  .profiles-list-panel {
-    background: white;
-    border-right: 1px solid #e0e0e0;
-    display: flex;
-    flex-direction: column;
-    max-height: 100%;
+  .profiles-sidebar,
+  .profile-editor {
+    min-width: 0;
   }
 
-  .search-box {
-    border: none;
-    border-bottom: 1px solid #e0e0e0;
-    padding: 12px;
-    font-size: 14px;
+  .search-box,
+  textarea {
+    width: 100%;
   }
 
-  .profile-items {
-    flex: 1;
-    overflow-y: auto;
+  .profile-list {
+    display: grid;
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .profile-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
+    align-items: start;
+  }
+
+  .profile-row.bulk-mode {
+    padding: 6px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--accent) 10%, var(--panel) 90%);
+  }
+
+  .profile-checkbox {
+    margin-top: 14px;
   }
 
   .profile-item {
+    display: grid;
+    gap: 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
     padding: 12px;
-    border-bottom: 1px solid #f0f0f0;
     cursor: pointer;
-    transition: background 0.2s;
-  }
-
-  .profile-item:hover {
-    background: #f5f5f5;
+    min-width: 0;
   }
 
   .profile-item.active {
-    background: #e8f5e9;
-    border-left: 4px solid #2f6d5f;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
+    background: color-mix(in srgb, var(--accent) 8%, var(--panel) 92%);
   }
 
-  .profile-item-header {
+  .profile-summary {
     display: flex;
-    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+
+  .bulk-actions {
     align-items: center;
-    margin-bottom: 4px;
+    gap: 10px;
+    margin-top: 14px;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--panel) 92%, #fff2df 8%);
   }
 
-  .profile-name {
-    font-weight: 600;
-    font-size: 14px;
-  }
-
-  .profile-status {
-    font-size: 11px;
-    padding: 2px 6px;
-    border-radius: 2px;
-    background: #eeeeee;
-    color: #666;
-  }
-
-  .profile-status.status-active {
-    background: #c8e6c9;
-    color: #2e7d32;
-  }
-
-  .profile-status.status-inactive {
-    background: #ffcccc;
-    color: #c62828;
-  }
-
-  .profile-item-desc {
-    font-size: 12px;
-    color: #666;
-    margin-top: 4px;
-  }
-
-  .empty-state {
-    padding: 20px;
-    text-align: center;
-    color: #999;
-  }
-
-  .profiles-form-panel {
-    padding: 20px;
-    background: white;
-    overflow-y: auto;
-  }
-
-  .empty-form {
-    text-align: center;
-    color: #999;
-    padding: 40px 20px;
-  }
-
-  .form-section {
-    border: 1px solid #e0e0e0;
-    border-radius: 4px;
-    padding: 12px;
-    margin: 15px 0;
-    background: #fafafa;
-  }
-
-  .form-section legend {
-    font-weight: 600;
-    font-size: 13px;
-    padding: 0 6px;
-  }
-
-  .form-checkbox {
-    margin: 8px 0;
-  }
-
-  .form-checkbox input[type="checkbox"] {
-    margin-right: 6px;
-  }
-
-  .form-checkbox label {
-    display: inline;
-    margin: 0;
-    cursor: pointer;
-  }
-
-  .form-row {
+  .editor-form,
+  .editor-meta,
+  .modes-table {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 15px;
+    gap: 14px;
+  }
+
+  .form-field {
+    display: grid;
+    gap: 6px;
+  }
+
+  .modes-panel {
+    display: grid;
+    gap: 12px;
+  }
+
+  .mode-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 180px;
+    gap: 14px;
+    align-items: center;
+    padding: 10px 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .mode-row:first-child {
+    border-top: 0;
+  }
+
+  .mode-copy {
+    min-width: 0;
+  }
+
+  .mode-select,
+  .mode-select select {
+    width: 100%;
   }
 
   .form-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
-    margin-top: 20px;
-    padding-top: 15px;
-    border-top: 1px solid #e0e0e0;
   }
 
-  .form-actions button {
-    flex: 1;
+  .timestamps {
+    margin-top: 16px;
+    color: var(--muted);
   }
 
-  .form-metadata {
-    margin-top: 20px;
-    padding-top: 10px;
-    border-top: 1px solid #e0e0e0;
-    color: #999;
-    font-size: 12px;
+  .empty-state-card {
+    gap: 10px;
   }
 
-  @media (max-width: 1024px) {
+  .empty-state-card h2,
+  .empty-state-card p {
+    margin: 0;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+  }
+
+  @media (max-width: 860px) {
+    .profiles-header,
+    .builtin-header,
+    .modes-header,
     .profiles-layout {
       grid-template-columns: 1fr;
-      min-height: auto;
+      flex-direction: column;
     }
 
-    .profiles-list-panel {
-      border-right: none;
-      border-bottom: 1px solid #e0e0e0;
-      max-height: 300px;
+    .profiles-layout {
+      display: grid;
     }
 
-    .form-row {
+    .mode-row {
       grid-template-columns: 1fr;
     }
-  }
-
-  .header-buttons {
-    display: flex;
-    gap: 10px;
-  }
-
-  .profile-item-wrapper {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    transition: background-color 0.2s;
-  }
-
-  .profile-item-wrapper.bulk-mode {
-    background-color: #e8f5e9;
-    padding: 4px;
-    border-radius: 4px;
-  }
-
-  .profile-checkbox {
-    margin-top: 10px;
-    cursor: pointer;
-  }
-
-  .profile-item-wrapper[data-has-checkbox] .profile-item {
-    flex: 1;
-  }
-
-  .bulk-delete-actions {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    padding: 10px;
-    background: #fff3e0;
-    border: 1px solid #ffb74d;
-    border-radius: 4px;
-    margin-bottom: 10px;
-  }
-
-  .bulk-count {
-    margin-left: auto;
-    font-weight: 600;
-    color: #333;
-  }
-
-  .btn-danger {
-    background-color: #e74c3c;
-    color: white;
-    padding: 8px 12px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: background-color 0.2s;
-  }
-
-  .btn-danger:hover {
-    background-color: #c0392b;
-  }
-
-  .btn-secondary {
-    background-color: #95a5a6;
-    color: white;
-    padding: 8px 12px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: background-color 0.2s;
-  }
-
-  .btn-secondary:hover {
-    background-color: #7f8c8d;
   }
 </style>
 {% endblock %}

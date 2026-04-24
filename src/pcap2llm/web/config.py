@@ -10,7 +10,7 @@ class WebSettings:
     host: str = "127.0.0.1"
     port: int = 8765
     workdir: Path = Path("./web_runs")
-    max_upload_mb: int = 250
+    max_upload_mb: int = 1
     command_timeout_seconds: int = 600
     tshark_path: str = ""
     default_privacy_profile: str = "share"
@@ -21,13 +21,30 @@ class WebSettings:
     def max_upload_bytes(self) -> int:
         return self.max_upload_mb * 1024 * 1024
 
+    @property
+    def local_workspace_dir(self) -> Path:
+        """Resolve the local workspace that should hold helper files and profiles."""
+        workdir_parent = self.workdir.parent
+        if workdir_parent.name == ".local":
+            return workdir_parent
+        sibling_local = workdir_parent / ".local"
+        if sibling_local.exists():
+            return sibling_local
+        if self.workdir.name == "web_runs":
+            return workdir_parent
+        return self.workdir
+
+    @property
+    def security_profiles_dir(self) -> Path:
+        return self.local_workspace_dir / "profiles"
+
 
 
 def load_settings() -> WebSettings:
     host = os.getenv("PCAP2LLM_WEB_HOST", "127.0.0.1")
     port = int(os.getenv("PCAP2LLM_WEB_PORT", "8765"))
     workdir = Path(os.getenv("PCAP2LLM_WEB_WORKDIR", "./web_runs"))
-    max_upload_mb = int(os.getenv("PCAP2LLM_WEB_MAX_UPLOAD_MB", "250"))
+    max_upload_mb = int(os.getenv("PCAP2LLM_WEB_MAX_UPLOAD_MB", "1"))
     command_timeout_seconds = int(os.getenv("PCAP2LLM_WEB_COMMAND_TIMEOUT_SECONDS", "600"))
     tshark_path = os.getenv("PCAP2LLM_WEB_TSHARK_PATH", "")
     default_privacy_profile = os.getenv("PCAP2LLM_WEB_DEFAULT_PRIVACY_PROFILE", "share")

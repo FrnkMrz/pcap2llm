@@ -1,0 +1,104 @@
+:root {
+  --bg: #f4f7f2;
+  --ink: #1f2a2a;
+  --muted: #5f6c6c;
+  --panel: #ffffff;
+  --line: #d8dfd4;
+  --accent: #2f6d5f;
+  --error: #a11f1f;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  background: radial-gradient(circle at top right, #dcebe4 0%, var(--bg) 55%);
+  color: var(--ink);
+}
+
+.site-header {
+  padding: 1.2rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background: #eaf2ee;
+}
+.site-header h1 { margin: 0; font-size: 1.4rem; }
+.site-header a { color: inherit; text-decoration: none; }
+.site-header p { margin: 0.35rem 0 0; color: var(--muted); }
+
+.container {
+  max-width: 1080px;
+  margin: 1rem auto 2rem;
+  padding: 0 1rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.stack { display: grid; gap: 0.6rem; }
+.inline { display: flex; gap: 0.5rem; align-items: center; }
+label { display: grid; gap: 0.25rem; font-weight: 600; }
+input, select, button {
+  font: inherit;
+}
+input[type="text"], input[type="number"], input[type="file"], select {
+  border: 1px solid #c9d1c4;
+  border-radius: 7px;
+  padding: 0.45rem 0.55rem;
+  background: #fff;
+}
+button {
+  border: 0;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 7px;
+  padding: 0.55rem 0.85rem;
+  cursor: pointer;
+}
+button:hover { filter: brightness(0.95); }
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: 12rem 1fr;
+  gap: 0.35rem 0.7rem;
+  margin: 0;
+}
+.meta-grid dt { color: var(--muted); }
+.meta-grid dd { margin: 0; }
+
+.mono {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.9rem;
+  background: #f6f8f4;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 0.5rem;
+  overflow-x: auto;
+}
+
+pre {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  background: #111;
+  color: #d7f3de;
+  padding: 0.7rem;
+  border-radius: 7px;
+}
+
+.error { color: var(--error); font-weight: 700; }
+.flow-preview {
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+}
+
+@media (max-width: 760px) {
+  .meta-grid { grid-template-columns: 1fr; }
+}

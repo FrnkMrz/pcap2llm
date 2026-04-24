@@ -25,7 +25,11 @@ dependencies = [
   "pydantic>=2.7,<3.0",
   "PyYAML>=6.0",
   "typer>=0.12,<1.0",
-  "rich>=13.0"
+  "rich>=13.0",
+  "fastapi>=0.110",
+  "uvicorn>=0.30",
+  "jinja2>=3.1",
+  "python-multipart>=0.0.9"
 ]
 
 [project.urls]
@@ -45,6 +49,7 @@ encrypt = [
 
 [project.scripts]
 pcap2llm = "pcap2llm.cli:app"
+pcap2llm-web = "pcap2llm.web.app:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -60,4 +65,4 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-pcap2llm = ["profiles/*.yaml", "privacy_profiles/*.yaml"]
+pcap2llm = ["profiles/*.yaml", "privacy_profiles/*.yaml", "web/templates/*.html", "web/static/*.css", "web/static/*.js"]

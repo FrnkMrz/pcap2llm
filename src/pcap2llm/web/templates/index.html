@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h2>Upload Capture</h2>
+  <p>Supported formats: .pcap, .pcapng. Maximum upload size: {{ settings.max_upload_mb }} MiB.</p>
+  <form method="post" action="/jobs" enctype="multipart/form-data" class="stack">
+    <label>
+      Capture file
+      <input type="file" name="capture" accept=".pcap,.pcapng" required />
+    </label>
+    <label class="inline">
+      <input type="checkbox" name="auto_discover" value="true" checked />
+      Run discovery after upload
+    </label>
+    <button type="submit">Upload and continue</button>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block content %}
+<div data-job-id="{{ job.job_id }}">
+<section class="panel">
+  <h2>Job</h2>
+  <dl class="meta-grid">
+    <dt>Job ID</dt><dd>{{ job.job_id }}</dd>
+    <dt>Input file</dt><dd>{{ job.input_filename }}</dd>
+    <dt>Status</dt><dd><strong data-job-status>{{ job.status }}</strong></dd>
+    <dt>Created</dt><dd>{{ job.created_at }}</dd>
+    <dt>Updated</dt><dd>{{ job.updated_at }}</dd>
+  </dl>
+  <form method="post" action="/jobs/{{ job.job_id }}/delete" onsubmit="return confirm('Delete this job and all generated files?');">
+    <button type="submit">Delete job</button>
+  </form>
+  <p class="error" data-job-error>{% if job.last_error %}{{ job.last_error }}{% endif %}</p>
+  <p class="mono">Error code: <span data-job-error-code>{% if job.last_error_code %}{{ job.last_error_code }}{% endif %}</span></p>
+</section>
+
+<section class="panel">
+  <h2>Discovery</h2>
+  <form method="post" action="/jobs/{{ job.job_id }}/discover">
+    <button type="submit">Run discovery</button>
+  </form>
+  {% if job.suspected_domains %}
+    <p><strong>Suspected domains:</strong> {{ job.suspected_domains | join(", ") }}</p>
+  {% endif %}
+  {% if job.recommended_profiles %}
+    <h3>Recommended profiles</h3>
+    <ul>
+      {% for candidate in job.recommended_profiles %}
+      <li>
+        <strong>{{ candidate.profile }}</strong>
+        {% if candidate.confidence %}({{ candidate.confidence }}){% endif %}
+        {% if candidate.reason %}
+          {% if candidate.reason is string %}
+            - {{ candidate.reason }}
+          {% else %}
+            - {{ candidate.reason | join("; ") }}
+          {% endif %}
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Analyze</h2>
+  <form method="post" action="/jobs/{{ job.job_id }}/analyze" class="stack" enctype="multipart/form-data">
+    <label>
+      Profile
+      <select name="profile" required>
+        {% set selected_profile = analyze_defaults.profile %}
+        {% for p in profiles %}
+          <option value="{{ p }}" {% if selected_profile == p %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>
+      Privacy profile
+      {% set selected_privacy = analyze_defaults.privacy_profile %}
+      <select name="privacy_profile" required>
+        {% for pp in privacy_profiles %}
+          <option value="{{ pp }}" {% if selected_privacy == pp %}selected{% endif %}>{{ pp }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>Display filter <input type="text" name="display_filter" value="{{ analyze_defaults.display_filter }}" placeholder="diameter || gtpv2" /></label>
+    <label>Max packets <input type="number" name="max_packets" min="1" value="{{ analyze_defaults.max_packets }}" /></label>
+    <label>Max capture size MiB <input type="number" name="max_capture_size_mb" min="0" value="{{ analyze_defaults.max_capture_size_mb }}" placeholder="250" /></label>
+    <label>Oversize factor <input type="number" name="oversize_factor" min="0" step="0.1" value="{{ analyze_defaults.oversize_factor }}" placeholder="10" /></label>
+    <label>Flow title <input type="text" name="flow_title" value="{{ analyze_defaults.flow_title }}" placeholder="Optional flow title" /></label>
+    <label>Flow max events <input type="number" name="flow_max_events" min="0" value="{{ analyze_defaults.flow_max_events }}" /></label>
+    <label>Flow SVG width <input type="number" name="flow_svg_width" min="400" step="100" value="{{ analyze_defaults.flow_svg_width }}" placeholder="1600" /></label>
+    <label>Hosts file <input type="text" name="hosts_file" value="{{ analyze_defaults.hosts_file }}" placeholder="Optional path" /></label>
+    <label>Hosts upload <input type="file" name="hosts_file_upload" /></label>
+    <label>Mapping file <input type="text" name="mapping_file" value="{{ analyze_defaults.mapping_file }}" placeholder="Optional path" /></label>
+    <label>Mapping upload <input type="file" name="mapping_file_upload" /></label>
+    <label>Subnets file <input type="text" name="subnets_file" value="{{ analyze_defaults.subnets_file }}" placeholder="Optional path" /></label>
+    <label>Subnets upload <input type="file" name="subnets_file_upload" /></label>
+    <label>SS7 PCS file <input type="text" name="ss7pcs_file" value="{{ analyze_defaults.ss7pcs_file }}" placeholder="Optional path" /></label>
+    <label>SS7 PCS upload <input type="file" name="ss7pcs_file_upload" /></label>
+    <label>TShark path <input type="text" name="tshark_path" value="{{ analyze_defaults.tshark_path }}" /></label>
+
+    <label class="inline"><input type="checkbox" name="all_packets" value="true" {% if analyze_defaults.all_packets %}checked{% endif %} /> all-packets</label>
+    <label class="inline"><input type="checkbox" name="fail_on_truncation" value="true" {% if analyze_defaults.fail_on_truncation %}checked{% endif %} /> fail-on-truncation</label>
+    <label class="inline"><input type="checkbox" name="render_flow_svg" value="true" {% if analyze_defaults.render_flow_svg %}checked{% endif %} /> render-flow-svg</label>
+    <label class="inline"><input type="checkbox" name="collapse_repeats" value="true" {% if analyze_defaults.collapse_repeats %}checked{% endif %} /> collapse-repeats</label>
+    <label class="inline"><input type="checkbox" name="two_pass" value="true" {% if analyze_defaults.two_pass %}checked{% endif %} /> two-pass</label>
+
+    <p class="mono">Command preview: {{ preview }}</p>
+    <button type="submit">Run analysis</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Downloads</h2>
+  <p><a href="/jobs/{{ job.job_id }}/files.zip">Download all as ZIP</a></p>
+  {% if downloads %}
+  <ul>
+    {% for item in downloads %}
+      <li>
+        <a href="/jobs/{{ job.job_id }}/files/{{ item.section }}/{{ item.name }}">{{ item.name }}</a>
+        ({{ item.section }}, {{ item.size }})
+      </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>No artifacts yet.</p>
+  {% endif %}
+
+  {% if flow_svg %}
+  <h3>Flow preview</h3>
+  <img src="/jobs/{{ job.job_id }}/files/{{ flow_svg }}" alt="Flow SVG" class="flow-preview" />
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Logs</h2>
+  <h3>stdout.log</h3>
+  <pre>{{ stdout_log }}</pre>
+  <h3>stderr.log</h3>
+  <pre>{{ stderr_log }}</pre>
+</section>
+</div>
+<script src="/static/job.js"></script>
+{% endblock %}

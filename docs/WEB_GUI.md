@@ -148,7 +148,7 @@ export PCAP2LLM_WEB_CLEANUP_ENABLED=true
 pcap2llm-web
 ```
 
-### Manuelles Cleanup triggernn (API)
+### Manuelles Cleanup triggern (API)
 
 ```bash
 curl -X POST http://127.0.0.1:8765/admin/cleanup
@@ -201,7 +201,7 @@ Die Seite `http://127.0.0.1:8765/profiles` verwaltet zentrale Sicherheitsprofile
 **Network Access:**
 - internal-only (nur Intranetz)
 - vpn (nur VPN)
-- public (oeffentlich zulass)
+- public (oeffentlich zulaessig)
 
 **Logging:**
 - basic (Mindestprotokollierung)
@@ -251,3 +251,9 @@ Antwort:
 - Keine Benutzerverwaltung
 - Keine Datenbank
 - Keine externe LLM-Integration
+
+## Weiterfuehrende Doku
+
+- Netzwerk-Element-Erkennung: [`docs/NETWORK_ELEMENT_DETECTION.md`](NETWORK_ELEMENT_DETECTION.md)
+- Referenz (EN): [`docs/REFERENCE.md`](REFERENCE.md)
+- Sicherheits-Audit Web GUI: [`docs/SECURITY_AUDIT_WEB_GUI.md`](SECURITY_AUDIT_WEB_GUI.md)

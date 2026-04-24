@@ -181,6 +181,8 @@ This README is intentionally the **entrypoint**, not the complete manual.
 | [`docs/PROFILE_SELECTION.md`](docs/PROFILE_SELECTION.md) | How `recommend-profiles` ranks candidates |
 | [`docs/SESSIONS.md`](docs/SESSIONS.md) | Multi-run orchestration and session manifests |
 | [`docs/WORKFLOWS.md`](docs/WORKFLOWS.md) | Protocol-specific workflows and local batch-run patterns |
+| [`docs/NETWORK_ELEMENT_DETECTION.md`](docs/NETWORK_ELEMENT_DETECTION.md) | Deterministic network-element detection, mapping CSV format, and override behavior |
+| [`docs/WEB_GUI.md`](docs/WEB_GUI.md) | Local Web GUI usage, profile management, dashboard, and bulk operations |
 | [`docs/LLM_TROUBLESHOOTING_WORKFLOW.md`](docs/LLM_TROUBLESHOOTING_WORKFLOW.md) | PCAP -> `pcap2llm` -> external LLM workflow, including direct provider handoff |
 | [`docs/LLM_MODE.md`](docs/LLM_MODE.md) | Machine-readable JSON mode for automation |
 | [`docs/schema/`](docs/schema/) | Output schema reference |

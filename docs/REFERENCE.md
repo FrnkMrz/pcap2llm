@@ -704,6 +704,39 @@ pcap2llm analyze sample.pcapng --profile 2g3g-sccp-mtp \
 
 This file is used for MTP3 point-code fallback based on `mtp3.opc` and `mtp3.dpc`. Exact IP, hostname, and CIDR matches still take precedence.
 
+### E. Automatic network element mapping CSV
+
+If a file named `network_element_mapping.csv` is present in the current working directory,
+the resolver auto-loads deterministic network-element mapping rules.
+
+Strict CSV header:
+
+```csv
+type,value,network_element_type
+ip,10.10.10.21,HSS
+subnet,10.20.30.0/24,DRA
+```
+
+Detection order:
+
+1. exact IP mapping (`ip_mapping`, confidence 100)
+2. subnet mapping (`subnet_mapping`, confidence 90)
+3. hostname pattern (`hostname_pattern`, confidence 80)
+4. protocol/port heuristic (`protocol`, confidence 50)
+5. fallback unknown (`unknown`, confidence 0)
+
+When active, detection metadata is attached to endpoint labels and resolved peers:
+
+- `network_element_type`
+- `network_element_confidence`
+- `network_element_source`
+- optional `network_element_warning`
+- optional `network_element_override`
+
+Manual override is available through resolver API usage (`network_element_override`) and wins over all automatic signals.
+
+For full details and supported types, see [`NETWORK_ELEMENT_DETECTION.md`](NETWORK_ELEMENT_DETECTION.md).
+
 ---
 
 ## Privacy

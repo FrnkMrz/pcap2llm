@@ -6,6 +6,47 @@ The format is intentionally simple and optimized for humans reading repo history
 
 ## Unreleased
 
+### Added — 2026-04-24 (web GUI productivity pass)
+
+- **Web GUI dashboard and navigation**:
+  - added `/dashboard` with job and profile statistics, recent jobs table, and quick actions.
+  - added top-level dashboard navigation and persistent light/dark theme toggle.
+
+- **Bulk operations in local GUI**:
+  - added multi-select bulk delete for jobs on the start page.
+  - added multi-select bulk delete for security profiles.
+
+- **Security profile workflow enhancements**:
+  - added profile duplication route and UI action.
+  - added profile export endpoints for JSON and CSV (`/profiles/export?fmt=json|csv`).
+
+- **Web GUI quality updates**:
+  - added responsive layout improvements for tables and header/navigation.
+  - expanded web-route tests for dashboard, bulk delete, profile export, and profile duplication.
+
+### Added — 2026-04-24 (automatic network element detection)
+
+- **Deterministic endpoint type detection pipeline** in resolver:
+  - strict priority order: exact IP mapping -> subnet mapping -> hostname pattern -> protocol/port heuristic -> unknown.
+  - confidence and source are attached for every active detection run.
+
+- **Strict CSV mapping support**:
+  - added parser for `network_element_mapping.csv` with strict header and value validation.
+  - supported mapping rows: `ip` and `subnet` with enforced network-element type whitelist.
+
+- **Conflict and override handling**:
+  - lower-priority disagreements emit a conflict warning (`Conflicting detection signals`).
+  - manual override (`network_element_override`) always wins and is marked as source `manual_override`.
+
+- **Artifact visibility and logging**:
+  - detection fields are propagated into endpoint labels and `capture_metadata.resolved_peers`.
+  - active detection writes CSV-style log lines: `timestamp,ip,detected_type,confidence,source`.
+
+- **Documentation and samples**:
+  - added `docs/NETWORK_ELEMENT_DETECTION.md`.
+  - added example mapping file at `examples/network_element_mapping.csv`.
+  - documentation map updated to include the new detection guide.
+
 ### Fixed — 2026-04-22 (flow usability and local reruns)
 
 - **SVG flow hover usability**:

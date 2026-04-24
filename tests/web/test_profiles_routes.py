@@ -196,3 +196,114 @@ def test_profile_settings_persist(tmp_path: Path) -> None:
     assert profile.session_timeout_minutes == 120
     assert profile.network_access == "vpn"
     assert profile.logging_level == "detailed"
+
+
+def test_profile_name_validation_rejects_invalid_chars(tmp_path: Path) -> None:
+    """Test that invalid characters in profile names are rejected."""
+    settings = WebSettings(workdir=tmp_path / "web_runs")
+    client = TestClient(create_app(settings))
+
+    invalid_names = [
+        "Profile@Name",
+        "Profile#Name",
+        "Profile/Name",
+        "Profile$Name",
+        "Profile&Name",
+    ]
+
+    for invalid_name in invalid_names:
+        response = client.post(
+            "/profiles",
+            data={
+                "name": invalid_name,
+                "description": "Test",
+            },
+            follow_redirects=False,
+        )
+        assert response.status_code == 400
+        assert "only letters, numbers, spaces, dots, underscores, and hyphens" in response.text
+
+
+def test_profile_string_length_limits(tmp_path: Path) -> None:
+    """Test that string field length limits are enforced."""
+    settings = WebSettings(workdir=tmp_path / "web_runs")
+    client = TestClient(create_app(settings))
+
+    # Description too long (>1000 chars)
+    response = client.post(
+        "/profiles",
+        data={
+            "name": "Valid Name",
+            "description": "x" * 1001,  # 1001 chars, exceeds limit
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 400
+    assert "exceeds maximum length" in response.text
+
+
+def test_profile_enum_validation(tmp_path: Path) -> None:
+    """Test that enum fields are validated."""
+    settings = WebSettings(workdir=tmp_path / "web_runs")
+    app = create_app(settings)
+    client = TestClient(app)
+
+    # Create profile first
+    create_resp = client.post(
+        "/profiles",
+        data={"name": "Test", "description": "Test"},
+        follow_redirects=False,
+    )
+    profile_id = create_resp.headers["location"].split("id=")[1]
+
+    # Try updating with invalid access level
+    response = client.post(
+        f"/profiles/{profile_id}",
+        data={
+            "name": "Test",
+            "description": "Test",
+            "auth_access_level": "invalid-level",  # Invalid enum value
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 400
+    assert "Invalid access level" in response.text
+
+
+def test_profile_session_timeout_limits(tmp_path: Path) -> None:
+    """Test that session timeout has reasonable limits."""
+    settings = WebSettings(workdir=tmp_path / "web_runs")
+    app = create_app(settings)
+    client = TestClient(app)
+
+    # Create profile
+    create_resp = client.post(
+        "/profiles",
+        data={"name": "Timeout Test", "description": "Test"},
+        follow_redirects=False,
+    )
+    profile_id = create_resp.headers["location"].split("id=")[1]
+
+    # Try timeout too low (< 1 minute)
+    response = client.post(
+        f"/profiles/{profile_id}",
+        data={
+            "name": "Timeout Test",
+            "description": "Test",
+            "session_timeout_minutes": "0",  # Invalid: < 1
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 400
+
+    # Try timeout too high (> 1440 minutes / 24 hours)
+    response = client.post(
+        f"/profiles/{profile_id}",
+        data={
+            "name": "Timeout Test",
+            "description": "Test",
+            "session_timeout_minutes": "1441",  # Invalid: > 1440
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 400

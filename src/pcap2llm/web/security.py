@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 _ALLOWED_SUFFIXES = {".pcap", ".pcapng"}
+_PROFILE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_\-\s\.]{1,255}$")
 
 
 class WebValidationError(ValueError):
@@ -44,3 +45,17 @@ def ensure_within(base_dir: Path, candidate: Path) -> Path:
 def reject_nested_filename(filename: str) -> None:
     if "/" in filename or "\\" in filename:
         raise WebValidationError("Invalid filename.")
+
+
+def validate_profile_name(name: str) -> None:
+    """Validate profile name against allowed pattern (alphanumeric, _, -, spaces, dots)."""
+    if not name or not _PROFILE_NAME_PATTERN.match(name):
+        raise WebValidationError(
+            "Profile name must contain only letters, numbers, spaces, dots, underscores, and hyphens (1-255 chars)."
+        )
+
+
+def validate_string_length(value: str | None, max_length: int, field_name: str) -> None:
+    """Validate string doesn't exceed max length."""
+    if value and len(value) > max_length:
+        raise WebValidationError(f"{field_name} exceeds maximum length of {max_length} characters.")

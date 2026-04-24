@@ -82,6 +82,28 @@ http://127.0.0.1:8765
 - Dateiname wird sanitisiert
 - Downloads nur aus dem jeweiligen Job-Verzeichnis
 - Keine externen API-Calls aus der Web-GUI
+- **Security Headers:** X-Frame-Options, X-Content-Type-Options, X-XSS-Protection, Referrer-Policy
+- **Input Validation:**
+  - Profile Names: nur Alphanumerisch, _, -, Spaces, . (1-255 chars)
+  - Descriptions: max 1000 chars
+  - Owner: max 255 chars
+  - Comments: max 500 chars
+  - Session Timeout: 1-1440 Minuten (1 Tag)
+  - Enum Validation: Access Level, Network Access, Logging Level
+
+## ⚠️ Sicherheitslücken (bekannt, dokumentiert)
+
+Siehe [`docs/SECURITY_AUDIT_WEB_GUI.md`](SECURITY_AUDIT_WEB_GUI.md) für Details:
+
+- ❌ **CSRF-Protection:** FEHLT (TODO Phase 1)
+- ❌ **Authentication/Authorization:** FEHLT (TODO Phase 2)
+- ❌ **Rate Limiting:** FEHLT (TODO Phase 2)
+- ✅ Path Traversal Prevention
+- ✅ File Upload Validation  
+- ✅ Input Validation & Length Limits
+- ✅ Security Headers
+
+**Note:** Die App ist für **lokal-only** Nutzung konzipiert (127.0.0.1:8765 per Default). Für Remote-Zugriff/Production muss die Sicherheit erweitert werden.
 
 ## Logs
 

@@ -10,6 +10,8 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from pcap2llm.error_codes import map_error
 from pcap2llm.privacy_profiles import list_privacy_profiles
@@ -20,7 +22,20 @@ from .jobs import JobStore
 from .models import AnalyzeOptions, JobRecord, SecurityProfile, now_utc_iso
 from .pcap_runner import Pcap2LlmRunner
 from .profiles import ProfileStore
-from .security import WebValidationError, reject_nested_filename, sanitize_filename, validate_capture_filename
+from .security import WebValidationError, reject_nested_filename, sanitize_filename, validate_capture_filename, validate_profile_name, validate_string_length
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add security headers to all responses."""
+
+    async def dispatch(self, request: Request, call_next: ASGIApp) -> StreamingResponse:  # type: ignore
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        return response
 
 
 def create_app(settings: WebSettings | None = None) -> FastAPI:
@@ -28,6 +43,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     settings.workdir.mkdir(parents=True, exist_ok=True)
 
     app = FastAPI(title="pcap2llm Web GUI")
+    app.add_middleware(SecurityHeadersMiddleware)
     app.state.settings = settings
     app.state.store = JobStore(settings.workdir)
     app.state.profile_store = ProfileStore(settings.workdir)
@@ -411,16 +427,26 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         """Create a new security profile."""
         profile_store: ProfileStore = request.app.state.profile_store
 
+        # Validate and sanitize inputs
         name = name.strip()
-        if not name:
-            raise HTTPException(status_code=400, detail="Profile name is required.")
+        description = description.strip()
+        owner = owner.strip()
+        comment = comment.strip()
+
+        try:
+            validate_profile_name(name)
+            validate_string_length(description, 1000, "Description")
+            validate_string_length(owner, 255, "Owner")
+            validate_string_length(comment, 500, "Comment")
+        except WebValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
         if profile_store.exists_by_name(name):
             raise HTTPException(status_code=400, detail=f"Profile '{name}' already exists.")
 
         profile = profile_store.create(name, description)
-        profile.owner = owner.strip() or None
-        profile.comment = comment.strip() or None
+        profile.owner = owner or None
+        profile.comment = comment or None
         profile_store.save(profile)
 
         return RedirectResponse(url=f"/profiles?id={profile.id}", status_code=303)
@@ -450,23 +476,47 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         except FileNotFoundError:
             raise HTTPException(status_code=404, detail="Profile not found.")
 
+        # Validate and sanitize inputs
         name = name.strip()
-        if not name:
-            raise HTTPException(status_code=400, detail="Profile name is required.")
+        description = description.strip()
+        owner = owner.strip()
+        comment = comment.strip()
+
+        try:
+            validate_profile_name(name)
+            validate_string_length(description, 1000, "Description")
+            validate_string_length(owner, 255, "Owner")
+            validate_string_length(comment, 500, "Comment")
+        except WebValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
         if name != profile.name and profile_store.exists_by_name(name):
             raise HTTPException(status_code=400, detail=f"Profile '{name}' already exists.")
 
+        # Validate enum values
+        if status not in ("active", "inactive"):
+            raise HTTPException(status_code=400, detail="Invalid status value.")
+        if auth_access_level not in ("read-only", "standard", "admin"):
+            raise HTTPException(status_code=400, detail="Invalid access level.")
+        if network_access not in ("internal-only", "vpn", "public"):
+            raise HTTPException(status_code=400, detail="Invalid network access value.")
+        if logging_level not in ("basic", "detailed", "security-events"):
+            raise HTTPException(status_code=400, detail="Invalid logging level.")
+
+        # Validate session timeout
+        if session_timeout_minutes < 1 or session_timeout_minutes > 1440:  # Max 24 hours
+            raise HTTPException(status_code=400, detail="Session timeout must be between 1 and 1440 minutes.")
+
         profile.name = name
-        profile.description = description.strip()
+        profile.description = description
         profile.status = status  # type: ignore
-        profile.owner = owner.strip() or None
-        profile.comment = comment.strip() or None
+        profile.owner = owner or None
+        profile.comment = comment or None
         profile.auth_password = auth_password
         profile.auth_mfa = auth_mfa
         profile.auth_certificate = auth_certificate
         profile.auth_access_level = auth_access_level  # type: ignore
-        profile.session_timeout_minutes = max(1, session_timeout_minutes)
+        profile.session_timeout_minutes = session_timeout_minutes
         profile.network_access = network_access  # type: ignore
         profile.logging_level = logging_level  # type: ignore
 

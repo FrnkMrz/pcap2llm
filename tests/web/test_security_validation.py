@@ -48,6 +48,16 @@ def test_delete_job_rejects_path_traversal_identifier(tmp_path: Path) -> None:
     assert (tmp_path / "web_runs").exists()
 
 
+def test_delete_job_rejects_invalid_non_path_identifier(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    response = client.post(
+        "/jobs/not-a-uuid/delete",
+        headers={"Origin": "http://testserver"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 400
+
+
 def test_delete_profile_rejects_path_traversal_identifier(tmp_path: Path) -> None:
     client = _client(tmp_path)
     response = client.post(

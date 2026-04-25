@@ -571,6 +571,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
     @app.post("/jobs/{job_id}/delete")
     async def delete_job(request: Request, job_id: str) -> RedirectResponse:
+        validate_id(job_id)
         store: JobStore = request.app.state.store
         root = store.job_root(job_id)
         if root.exists():

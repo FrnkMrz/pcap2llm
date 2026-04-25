@@ -17,6 +17,7 @@ The format is intentionally simple and optimized for humans reading repo history
 ### Fixed — 2026-04-25 (remediation hardening follow-up)
 
 - Completed the remediation-plan hardening pass:
+  - job deletion now validates plain `{job_id}` route values directly before touching the job store.
   - `share` now pseudonymizes endpoint identifiers (`ip`, `hostname`) as well as subscriber identifiers.
   - summary conversations are covered by a pipeline regression test that verifies no raw endpoint IPs remain.
   - burst detection now uses packet order instead of timestamp sorting, including reordered-capture coverage.

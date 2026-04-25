@@ -24,11 +24,21 @@ from pcap2llm.privacy_profiles import list_privacy_profiles, load_privacy_profil
 from pcap2llm.profiles import list_profile_names
 
 from .config import WebSettings, load_settings
-from .jobs import JobStore
+from .jobs import SENSITIVE_SIDECARS, JobStore
 from .models import AnalyzeOptions, JobRecord, now_utc_iso
 from .pcap_runner import Pcap2LlmRunner
 from .profiles import ProfileStore
-from .security import WebValidationError, reject_nested_filename, sanitize_filename, validate_capture_filename, validate_profile_name, validate_string_length
+from .security import (
+    WebValidationError,
+    ensure_within,
+    reject_nested_filename,
+    sanitize_filename,
+    validate_capture_filename,
+    validate_display_filter,
+    validate_id,
+    validate_profile_name,
+    validate_string_length,
+)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -42,6 +52,46 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
         return response
+
+
+class OriginCheckMiddleware(BaseHTTPMiddleware):
+    """Reject cross-origin destructive form posts in the localhost web UI."""
+
+    _PROTECTED_PREFIXES = ("/jobs/", "/profiles/")
+    _PROTECTED_EXACT = {"/jobs/bulk-delete", "/profiles/actions/bulk-delete", "/admin/cleanup"}
+
+    async def dispatch(self, request: Request, call_next: ASGIApp) -> StreamingResponse:  # type: ignore
+        if request.method == "POST" and self._needs_origin_check(request.url.path):
+            allowed = _allowed_origin_values(request)
+            origin = request.headers.get("origin")
+            referer = request.headers.get("referer")
+            if origin:
+                if origin.rstrip("/") not in allowed:
+                    return JSONResponse({"detail": "Forbidden origin."}, status_code=403)
+            elif referer:
+                if not any(referer.startswith(value + "/") or referer == value for value in allowed):
+                    return JSONResponse({"detail": "Forbidden origin."}, status_code=403)
+            else:
+                return JSONResponse({"detail": "Missing origin."}, status_code=403)
+        return await call_next(request)
+
+    @classmethod
+    def _needs_origin_check(cls, path: str) -> bool:
+        if path in cls._PROTECTED_EXACT:
+            return True
+        if not path.startswith(cls._PROTECTED_PREFIXES):
+            return False
+        return path.endswith("/delete") or path.endswith("/outputs/delete")
+
+
+def _allowed_origin_values(request: Request) -> set[str]:
+    base = f"{request.url.scheme}://{request.url.netloc}".rstrip("/")
+    return {
+        base,
+        f"http://{request.url.hostname}:{request.url.port}" if request.url.port else f"http://{request.url.hostname}",
+        "http://127.0.0.1:8765",
+        "http://localhost:8765",
+    }
 
 
 def create_app(settings: WebSettings | None = None) -> FastAPI:
@@ -61,6 +111,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
     app = FastAPI(title="pcap2llm Web GUI", lifespan=lifespan)
     app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(OriginCheckMiddleware)
     app.state.settings = settings
     app.state.store = JobStore(settings.workdir)
     app.state.profile_store = ProfileStore(settings.workdir)
@@ -68,6 +119,12 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         command_timeout_seconds=settings.command_timeout_seconds,
         default_tshark_path=settings.tshark_path,
     )
+    if settings.host not in {"127.0.0.1", "::1", "localhost"}:
+        print("[WARN] pcap2llm Web GUI is not bound to localhost; keep sensitive artifacts local.")
+
+    @app.exception_handler(WebValidationError)
+    async def _web_validation_error_handler(request: Request, exc: WebValidationError) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=400)
 
     web_dir = Path(__file__).resolve().parent
     templates = Jinja2Templates(directory=str(web_dir / "templates"))
@@ -244,6 +301,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Job not found.")
 
         try:
+            validate_display_filter(display_filter.strip())
             local_support_defaults = _local_support_file_defaults(settings)
             hosts_path = await _resolve_support_file(
                 store=store,
@@ -305,9 +363,11 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 subnets_file=subnets_path,
                 ss7pcs_file=ss7pcs_path,
                 network_element_mapping_file=network_element_mapping_path,
-                tshark_path=tshark_path.strip() or None,
+                tshark_path=None,
                 two_pass=two_pass,
             )
+        except WebValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail="Invalid numeric analyze option.") from exc
 
@@ -332,7 +392,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             "subnets_file": subnets_file.strip(),
             "ss7pcs_file": ss7pcs_file.strip(),
             "network_element_mapping_file": network_element_mapping_file.strip(),
-            "tshark_path": tshark_path.strip(),
+            "tshark_path": "",
             "two_pass": two_pass,
         }
         store.save(record)
@@ -355,6 +415,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     @app.get("/jobs/{job_id}/files/{filename}")
     async def download_file(request: Request, job_id: str, filename: str) -> FileResponse:
         store: JobStore = request.app.state.store
+        _reject_sensitive_download(request, filename)
         try:
             record = store.load(job_id)
         except FileNotFoundError:
@@ -373,6 +434,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     @app.get("/jobs/{job_id}/files/{section}/{filename}")
     async def download_file_scoped(request: Request, job_id: str, section: str, filename: str) -> FileResponse:
         store: JobStore = request.app.state.store
+        _reject_sensitive_download(request, filename)
         try:
             record = store.load(job_id)
         except FileNotFoundError:
@@ -409,6 +471,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
         content = path.read_text(encoding="utf-8", errors="replace")
         escaped_content = html.escape(content)
+        safe_job_id = html.escape(job_id, quote=True)
+        safe_section = html.escape(section, quote=True)
+        safe_filename = html.escape(filename, quote=True)
         return HTMLResponse(
             f"""<!doctype html>
 <html lang="en">
@@ -456,8 +521,8 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
   <body>
     <div class="wrap">
       <div class="actions">
-        <a href="/jobs/{job_id}">Zurueck zum Job</a>
-        <a href="/jobs/{job_id}/files/{section}/{filename}">Datei herunterladen</a>
+        <a href="/jobs/{safe_job_id}">Zurueck zum Job</a>
+        <a href="/jobs/{safe_job_id}/files/{safe_section}/{safe_filename}">Datei herunterladen</a>
       </div>
       <h1>{html.escape(path.name)}</h1>
       <pre>{escaped_content}</pre>
@@ -475,6 +540,8 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Job not found.")
 
         entries = store.collect_job_files_for_zip(record)
+        if request.headers.get("X-Allow-Sensitive", "").lower() != "yes" and request.query_params.get("confirm") != "1":
+            entries = [(arcname, path) for arcname, path in entries if path.name not in SENSITIVE_SIDECARS]
         if not entries:
             raise HTTPException(status_code=404, detail="No files available for archive.")
 
@@ -506,23 +573,35 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             shutil.rmtree(root)
         return RedirectResponse(url="/", status_code=303)
 
+    @app.post("/jobs/{job_id:path}/delete")
+    async def delete_job_invalid_path(request: Request, job_id: str) -> RedirectResponse:
+        validate_id(job_id)
+        raise HTTPException(status_code=404, detail="Job not found.")
+
     @app.post("/jobs/bulk-delete")
     async def bulk_delete_jobs(request: Request) -> RedirectResponse:
         """Delete multiple jobs at once."""
         store: JobStore = request.app.state.store
         form_data = await request.form()
         job_ids = form_data.getlist("job_id")
+        deleted = 0
+        failed = 0
         
         for job_id in job_ids:
             try:
-                reject_nested_filename(job_id)
+                validate_id(str(job_id))
+                root = store.job_root(str(job_id))
             except WebValidationError:
+                failed += 1
                 continue
-            root = store.job_root(job_id)
             if root.exists():
                 shutil.rmtree(root)
-        
-        return RedirectResponse(url="/", status_code=303)
+                deleted += 1
+
+        if failed and deleted == 0:
+            raise HTTPException(status_code=400, detail="No valid job identifiers supplied.")
+        suffix = f"?deleted={deleted}&failed={failed}" if failed or deleted else ""
+        return RedirectResponse(url=f"/{suffix}", status_code=303)
 
     @app.post("/admin/cleanup")
     async def admin_cleanup(request: Request, max_age_days: int | None = None) -> JSONResponse:
@@ -536,6 +615,8 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                     maybe_age = payload.get("max_age_days")
                     if isinstance(maybe_age, int):
                         age = maybe_age
+            except WebValidationError:
+                raise
             except Exception:
                 age = None
 
@@ -693,6 +774,11 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         profile_store.delete(profile_id)
         return RedirectResponse(url="/profiles", status_code=303)
 
+    @app.post("/profiles/{profile_id:path}/delete")
+    async def delete_profile_invalid_path(request: Request, profile_id: str) -> RedirectResponse:
+        validate_id(profile_id)
+        raise HTTPException(status_code=404, detail="Profile not found.")
+
     @app.post("/profiles/{profile_id}/duplicate")
     async def duplicate_profile(request: Request, profile_id: str) -> RedirectResponse:
         """Duplicate an existing profile with a unique copied name."""
@@ -733,10 +819,10 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         
         for profile_id in profile_ids:
             try:
-                reject_nested_filename(profile_id)
+                validate_id(str(profile_id))
+                profile_store.delete(str(profile_id))
             except WebValidationError:
                 continue
-            profile_store.delete(profile_id)
         
         return RedirectResponse(url="/profiles", status_code=303)
 
@@ -862,10 +948,25 @@ async def _resolve_support_file(
                 if not chunk:
                     break
                 out_fp.write(chunk)
-        return str(target)
+        return str(ensure_within(support_dir, target))
 
     text = raw_path.strip()
-    return text or default_path or None
+    candidate = text or default_path
+    if not candidate:
+        return None
+    return str(_validate_support_path(candidate, store=store, record=record))
+
+
+def _validate_support_path(value: str, *, store: JobStore, record: JobRecord) -> Path:
+    path = Path(value)
+    resolved = path.resolve()
+    allowed_roots = (store.support_dir(record.job_id), store.workdir.parent / ".local", store.workdir.parent)
+    for root in allowed_roots:
+        try:
+            return ensure_within(root, resolved)
+        except WebValidationError:
+            continue
+    raise WebValidationError("Support file path is outside the allowed workspace.")
 
 
 
@@ -943,6 +1044,16 @@ def _first_matching(folder: Path, suffix: str) -> str | None:
         if path.is_file():
             return path.name
     return None
+
+
+def _reject_sensitive_download(request: Request, filename: str) -> None:
+    if filename not in SENSITIVE_SIDECARS:
+        return
+    if request.headers.get("X-Allow-Sensitive", "").lower() == "yes":
+        return
+    if request.query_params.get("confirm") == "1":
+        return
+    raise HTTPException(status_code=403, detail="Sensitive sidecar requires explicit confirmation.")
 
 
 

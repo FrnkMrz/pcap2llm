@@ -144,6 +144,18 @@ def test_session_start_creates_manifest(tmp_path: Path) -> None:
     assert data["runs"] == []
 
 
+def test_session_start_creates_unique_directories_in_same_second(tmp_path: Path) -> None:
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+
+    first = runner.invoke(app, ["session", "start", str(capture), "--out", str(tmp_path)])
+    second = runner.invoke(app, ["session", "start", str(capture), "--out", str(tmp_path)])
+
+    assert first.exit_code == 0
+    assert second.exit_code == 0
+    assert json.loads(first.stdout)["session"] != json.loads(second.stdout)["session"]
+
+
 def test_session_run_discovery_registers_run(tmp_path: Path) -> None:
     capture = tmp_path / "sample.pcapng"
     capture.write_bytes(b"fake")

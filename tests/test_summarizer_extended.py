@@ -62,6 +62,13 @@ class TestTimingStats:
         assert stats["inter_packet_ms"]["max"] == pytest.approx(1000.0, abs=1.0)
         assert stats["inter_packet_ms"]["p95"] >= 1.0
 
+    def test_uses_packet_order_for_inter_packet_diffs(self) -> None:
+        stats = _timing_stats(_packets_with_times([0.0, 100.0, 50.0, 150.0]))
+        assert stats is not None
+        assert stats["duration_ms"] == 150.0
+        assert stats["inter_packet_ms"]["min"] == -50.0
+        assert stats["inter_packet_ms"]["p95"] == 100.0
+
     def test_ignores_packets_without_time(self) -> None:
         packets = [
             {"top_protocol": "diameter", "time_rel_ms": None, "packet_no": 0},
@@ -162,8 +169,8 @@ class TestBuildSummaryExtended:
 
     def test_high_p95_delay_appears_in_notable_findings(self) -> None:
         profile = load_profile("lte-core")
-        # 9 fast + 1 huge gap (> 500ms threshold)
-        times = [float(i) for i in range(9)] + [2000.0]
+        # Enough slow gaps to lift the corrected p95 above the threshold.
+        times = [float(i) for i in range(19)] + [2000.0, 3000.0]
         result = build_summary(
             _make_inspect_result(), _packets_with_times(times), profile=profile, privacy_modes={}
         )

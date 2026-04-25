@@ -3,9 +3,11 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
+from uuid import UUID
 
 _ALLOWED_SUFFIXES = {".pcap", ".pcapng"}
 _PROFILE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_\-\s\.]{1,255}$")
+_DISPLAY_FILTER_PATTERN = re.compile(r"^[A-Za-z0-9._=!&|()<>\x22' \-+:/]+$")
 
 
 class WebValidationError(ValueError):
@@ -45,6 +47,22 @@ def ensure_within(base_dir: Path, candidate: Path) -> Path:
 def reject_nested_filename(filename: str) -> None:
     if "/" in filename or "\\" in filename:
         raise WebValidationError("Invalid filename.")
+
+
+def validate_id(value: str) -> None:
+    try:
+        parsed = UUID(value, version=4)
+    except ValueError as exc:
+        raise WebValidationError("Invalid identifier.") from exc
+    if str(parsed) != value:
+        raise WebValidationError("Invalid identifier.")
+
+
+def validate_display_filter(value: str) -> None:
+    if not value:
+        return
+    if value.startswith("-") or not _DISPLAY_FILTER_PATTERN.fullmatch(value):
+        raise WebValidationError("Invalid display filter.")
 
 
 def validate_profile_name(name: str) -> None:

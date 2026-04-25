@@ -1259,6 +1259,13 @@ def recommend_profiles_from_inspect(
     # dominates a DNS-support trace, push family-specific *-dns profiles further
     # into the background.  Must run after all scores are final.
     scored = _apply_dns_fanout_suppression(scored, present, peer_blob)
+    still_scored: list[tuple[float, ProfileDefinition, list[str]]] = []
+    for score, profile, reasons in scored:
+        if score <= 0.0 and any("suppressed" in reason.lower() for reason in reasons):
+            suppressed.append((score, profile, reasons))
+        else:
+            still_scored.append((score, profile, reasons))
+    scored = still_scored
 
     scored.sort(key=lambda item: (-item[0], item[1].name))
     suppressed.sort(key=lambda item: (item[0], item[1].name))

@@ -143,7 +143,7 @@ Default behavior for that workflow:
 
 **External-LLM handoff** (`chatgpt.py`, `claude.py`, `gemini.py`) — the `ask-*` commands generate artifacts, build a prompt via `build_*_prompt()` (using `DEFAULT_CHATGPT_QUESTION` / `DEFAULT_SYSTEM_PROMPT` unless overridden), and write handoff files. The default system prompt constrains the LLM to the supplied artifacts and forbids inventing packets or states.
 
-**Output filenames** (`output_metadata.py`) — every artifact goes through `semantic_artifact_filename()`, which produces `{action}_{capture_stem}_{YYYYMMDD_HHMMSS}_V_NN[_kind].{ext}`. Timestamp comes from the first packet epoch; `_V_01` is always present and auto-increments on collision. `artifact_kind` differentiates sidecars (`flow`, `summary`, `detail`, `mapping`, `vault`, …) within one run.
+**Output filenames** (`output_metadata.py`) — every artifact goes through `semantic_artifact_filename()`, which produces `{action}_{capture_stem}_{YYYYMMDD_HHMMSS}_V_NN[_kind].{ext}`. Timestamp comes from the first packet epoch; if `first_seen` cannot be derived, the timestamp segment falls back to `start_<N>` or `start_unknown`. `_V_01` is always present and auto-increments on collision. `artifact_kind` differentiates sidecars (`flow`, `summary`, `detail`, `mapping`, `vault`, …) within one run.
 
 ## Key Design Decisions
 

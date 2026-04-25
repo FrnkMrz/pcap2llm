@@ -8,6 +8,7 @@ from urllib import error, request
 
 from pcap2llm.models import AnalyzeArtifacts
 from pcap2llm.output_metadata import semantic_artifact_filename
+from pcap2llm.protector import Protector
 
 DEFAULT_CHATGPT_QUESTION = (
     "Explain what this telecom trace shows, identify the failure point if any, "
@@ -48,6 +49,7 @@ def build_chatgpt_prompt(
         "burst_periods": artifacts.summary.get("burst_periods", []),
         "privacy_modes": artifacts.summary.get("privacy_modes", {}),
     }
+    summary_payload = Protector(summary_payload.get("privacy_modes", {})).protect_artifact_payload(summary_payload)
     detail_payload = {
         "artifact_role": artifacts.detail.get("artifact_role"),
         "coverage": artifacts.detail.get("coverage", {}),

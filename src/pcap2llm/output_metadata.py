@@ -28,7 +28,7 @@ def artifact_timestamp_prefix(first_seen: str | None) -> str | None:
     try:
         packet_time = datetime.fromtimestamp(float(first_seen), tz=timezone.utc)
         return packet_time.strftime("%Y%m%d_%H%M%S")
-    except (OverflowError, ValueError):
+    except (OverflowError, ValueError, OSError):
         pass
 
     try:

@@ -7,7 +7,10 @@ from pathlib import Path
 from uuid import uuid4
 
 from .models import JobRecord, JobStatus, now_utc_iso
-from .security import ensure_within
+from .security import ensure_within, validate_id
+
+
+SENSITIVE_SIDECARS = {"pseudonym_mapping.json", "vault.json"}
 
 
 class JobStore:
@@ -36,11 +39,13 @@ class JobStore:
         return record
 
     def load(self, job_id: str) -> JobRecord:
+        validate_id(job_id)
         path = self.job_json_path(job_id)
         payload = json.loads(path.read_text(encoding="utf-8"))
         return JobRecord.from_dict(payload)
 
     def save(self, record: JobRecord) -> None:
+        validate_id(record.job_id)
         path = self.job_json_path(record.job_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(record.to_dict(), indent=2), encoding="utf-8")
@@ -74,7 +79,8 @@ class JobStore:
         return record
 
     def job_root(self, job_id: str) -> Path:
-        return self.workdir / job_id
+        validate_id(job_id)
+        return ensure_within(self.workdir, self.workdir / job_id)
 
     def job_json_path(self, job_id: str) -> Path:
         return self.job_root(job_id) / "job.json"
@@ -144,6 +150,7 @@ class JobStore:
                         "section": section,
                         "name": path.name,
                         "size": self._format_size(path.stat().st_size),
+                        "sensitive": "true" if path.name in SENSITIVE_SIDECARS else "false",
                     }
                 )
         return entries

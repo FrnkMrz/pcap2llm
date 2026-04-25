@@ -134,6 +134,10 @@ class Protector:
     def protect_packets(self, packets: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return [self._walk(packet, packet=packet) for packet in packets]
 
+    def protect_artifact_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Protect summary/discovery-style payloads without packet context."""
+        return self._walk(payload)
+
     def vault_metadata(self) -> dict[str, Any] | None:
         if self._key_source is None:
             return None

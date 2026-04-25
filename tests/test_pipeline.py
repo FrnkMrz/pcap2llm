@@ -38,6 +38,7 @@ def test_timestamp_prefix_none_on_invalid_input() -> None:
     assert _artifact_timestamp_prefix(None) is None
     assert _artifact_timestamp_prefix("") is None
     assert _artifact_timestamp_prefix("not-a-date") is None
+    assert _artifact_timestamp_prefix("-9999999999999") is None
 
 
 # ---------------------------------------------------------------------------

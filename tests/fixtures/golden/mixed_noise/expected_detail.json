@@ -9,9 +9,7 @@
     "first_seen": "1712390500.0",
     "last_seen": "1712390500.2"
   },
-  "artifact": {
-    "version": null
-  },
+  "artifact": {},
   "selection": {
     "start_packet_number": 1,
     "end_packet_number": 2

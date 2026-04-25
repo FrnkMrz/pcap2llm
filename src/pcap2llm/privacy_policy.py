@@ -5,6 +5,10 @@ from dataclasses import dataclass
 from typing import Any, Pattern
 
 
+IP_RE = re.compile(
+    r"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b"
+    r"|(?i:\b(?:[0-9a-f]{1,4}:){2,7}[0-9a-f]{1,4}\b)"
+)
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 URI_RE = re.compile(r"(?:https?://|sip:|tel:|www\.)", re.IGNORECASE)
 TOKEN_RE = re.compile(r"(?:bearer\s+[A-Za-z0-9._-]+|authorization|cookie|token=)", re.IGNORECASE)
@@ -58,8 +62,8 @@ class PrivacyRule:
 
 
 _GENERIC_RULES: tuple[PrivacyRule, ...] = (
-    PrivacyRule("ip", path_keywords=("src.ip", "dst.ip", ".ip", "ipv4", "ipv6")),
-    PrivacyRule("hostname", path_keywords=("hostname", "dns.qry.name", "authority", "host")),
+    PrivacyRule("ip", path_keywords=("src.ip", "dst.ip", ".ip", "ipv4", "ipv6"), value_patterns=(IP_RE,)),
+    PrivacyRule("hostname", path_keywords=("hostname", "dns.qry.name", "authority", "src_name", "dst_name", "host")),
     PrivacyRule("imsi", path_keywords=("imsi", "supi", "suci")),
     PrivacyRule("msisdn", path_keywords=("msisdn",)),
     PrivacyRule("imei", path_keywords=("imei", "pei")),
@@ -91,7 +95,7 @@ class PrivacyPolicyEngine:
 
     def classify(self, path: str, value: Any, packet: dict[str, Any] | None = None) -> str | None:
         normalized_path = path.lower()
-        if normalized_path.startswith("privacy.modes"):
+        if normalized_path.startswith(("privacy.modes", "privacy_modes")):
             return None
 
         protocol = None

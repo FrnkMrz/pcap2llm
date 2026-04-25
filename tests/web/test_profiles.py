@@ -95,14 +95,15 @@ def test_profile_store_uses_local_profiles_dir_for_web_runs(tmp_path: Path) -> N
 def test_profile_store_migrates_legacy_web_run_profiles(tmp_path: Path) -> None:
     legacy_dir = tmp_path / "web_runs" / "profiles"
     legacy_dir.mkdir(parents=True, exist_ok=True)
-    legacy_path = legacy_dir / "legacy-id.json"
-    legacy_profile = SecurityProfile(id="legacy-id", name="Legacy", description="legacy profile")
+    legacy_id = "11111111-1111-4111-8111-111111111111"
+    legacy_path = legacy_dir / f"{legacy_id}.json"
+    legacy_profile = SecurityProfile(id=legacy_id, name="Legacy", description="legacy profile")
     legacy_path.write_text(json.dumps(legacy_profile.to_dict()), encoding="utf-8")
 
     store = ProfileStore(tmp_path / "web_runs")
 
-    assert (tmp_path / "profiles" / "legacy-id.json").exists()
-    loaded = store.load("legacy-id")
+    assert (tmp_path / "profiles" / f"{legacy_id}.json").exists()
+    loaded = store.load(legacy_id)
     assert loaded.name == "Legacy"
 
 

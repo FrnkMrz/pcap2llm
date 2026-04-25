@@ -199,6 +199,7 @@
         {% else %}
         <a href="/jobs/{{ job.job_id }}/files/{{ item.section }}/{{ item.name }}">{{ item.name }}</a>
         {% endif %}
+        {% if item.sensitive == "true" %}<span class="warning-badge">Keep local - do not share</span>{% endif %}
         ({{ item.section }}, {{ item.size }})
       </li>
     {% endfor %}
@@ -209,14 +210,12 @@
 
   {% if flow_svg %}
   <h3>Flow preview</h3>
-  {% if flow_svg_markup %}
   <div class="flow-preview-shell">
-    <div class="flow-preview-canvas">{{ flow_svg_markup | safe }}</div>
+    <div class="flow-preview-canvas">
+      <img src="/jobs/{{ job.job_id }}/files/artifacts/{{ flow_svg }}" alt="Flow diagram" />
+    </div>
   </div>
   <p class="flow-preview-help">Hover arrows for details. Scroll inside the preview to inspect the full-size diagram.</p>
-  {% else %}
-  <a href="/jobs/{{ job.job_id }}/files/{{ flow_svg }}">Flow SVG preview unavailable inline</a>
-  {% endif %}
   {% endif %}
 </section>
 
@@ -375,6 +374,17 @@
     margin: 0;
   }
 
+  .warning-badge {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: #fff4d6;
+    color: #6f4e00;
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+
   .flow-preview-shell {
     border: 1px solid #d7dee8;
     border-radius: 10px;
@@ -392,7 +402,7 @@
     min-width: 100%;
   }
 
-  .flow-preview-canvas svg {
+  .flow-preview-canvas img {
     display: block;
     max-width: none;
     height: auto;

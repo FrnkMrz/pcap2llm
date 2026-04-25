@@ -4,6 +4,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 
 def _now_iso() -> str:
@@ -11,7 +12,7 @@ def _now_iso() -> str:
 
 
 def _session_id() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_session")
+    return f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}_{uuid4().hex[:6]}_session"
 
 
 def session_manifest_path(session_dir: Path) -> Path:

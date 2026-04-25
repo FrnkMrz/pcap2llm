@@ -145,7 +145,11 @@ def test_delete_profile_via_form(tmp_path: Path) -> None:
     )
     profile_id = create_resp.headers["location"].split("id=")[1]
 
-    delete_resp = client.post(f"/profiles/{profile_id}/delete", follow_redirects=False)
+    delete_resp = client.post(
+        f"/profiles/{profile_id}/delete",
+        headers={"Origin": "http://testserver"},
+        follow_redirects=False,
+    )
     assert delete_resp.status_code == 303
     assert client.get("/api/profiles").json() == []
 
@@ -222,6 +226,7 @@ def test_bulk_delete_profiles_route(tmp_path: Path) -> None:
     response = client.post(
         "/profiles/actions/bulk-delete",
         data={"profile_id": [first, second]},
+        headers={"Origin": "http://testserver"},
         follow_redirects=False,
     )
     assert response.status_code == 303

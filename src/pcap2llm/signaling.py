@@ -195,10 +195,9 @@ def dominant_signaling_protocols(
     )
     strong = [item for item in candidates if item["_score"] >= DOMINANT_SIGNAL_THRESHOLD]
     selected = strong if strong else candidates[:5]
-    selected = selected[: max(0, limit - 1)]
 
     sctp_factor, sctp_count, _ = protocol_evidence(inspect_result, "sctp", total_packets, present)
-    if selected and sctp_factor > 0 and len(selected) < limit:
+    if selected and sctp_factor > 0:
         selected.append(
             {
                 "name": "sctp",

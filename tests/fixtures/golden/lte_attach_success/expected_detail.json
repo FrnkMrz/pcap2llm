@@ -9,9 +9,7 @@
     "first_seen": "1712390000.0",
     "last_seen": "1712390000.2"
   },
-  "artifact": {
-    "version": null
-  },
+  "artifact": {},
   "selection": {
     "start_packet_number": 1,
     "end_packet_number": 2
@@ -25,8 +23,7 @@
     "detail_packets_included": 2,
     "detail_packets_available": 2,
     "detail_truncated": false,
-    "summary_packet_count": 2,
-    "truncation_note": null
+    "summary_packet_count": 2
   },
   "messages": [
     {

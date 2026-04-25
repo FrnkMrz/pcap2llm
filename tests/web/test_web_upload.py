@@ -149,6 +149,7 @@ def test_bulk_delete_jobs_route(tmp_path: Path) -> None:
     response = client.post(
         "/jobs/bulk-delete",
         data={"job_id": [job_a, job_b]},
+        headers={"Origin": "http://testserver"},
         follow_redirects=False,
     )
     assert response.status_code == 303
@@ -591,7 +592,7 @@ def test_admin_cleanup_endpoint_deletes_old_jobs(tmp_path: Path) -> None:
     store.save(rec_old_loaded)
 
     # Call admin cleanup endpoint
-    response = client.post("/admin/cleanup")
+    response = client.post("/admin/cleanup", headers={"Origin": "http://testserver"})
     assert response.status_code == 200
 
     payload = response.json()
@@ -623,7 +624,7 @@ def test_admin_cleanup_endpoint_respects_max_age_override(tmp_path: Path) -> Non
     store.save(rec_3days_loaded)
 
     # Cleanup with strict max_age_days=1 should delete it
-    response = client.post("/admin/cleanup", json={"max_age_days": 1})
+    response = client.post("/admin/cleanup", json={"max_age_days": 1}, headers={"Origin": "http://testserver"})
     assert response.status_code == 200
 
     payload = response.json()
@@ -717,7 +718,7 @@ def test_job_page_keeps_discovery_logs_visible_after_analyze(tmp_path: Path) -> 
     assert '<details class="panel logs-panel" id="logs" data-logbook>' in response.text
 
 
-def test_job_page_renders_inline_flow_preview_markup(tmp_path: Path) -> None:
+def test_job_page_renders_flow_preview_as_img(tmp_path: Path) -> None:
     client = _build_client(tmp_path)
     upload = client.post(
         "/jobs",
@@ -736,8 +737,8 @@ def test_job_page_renders_inline_flow_preview_markup(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert 'class="flow-preview-shell"' in response.text
     assert 'class="flow-preview-canvas"' in response.text
-    assert '<img src="/jobs/' not in response.text
-    assert '<svg xmlns="http://www.w3.org/2000/svg"' in response.text
+    assert f'<img src="/jobs/{job_id}/files/artifacts/sample_flow.svg"' in response.text
+    assert '<svg xmlns="http://www.w3.org/2000/svg"' not in response.text
 
 
 def test_job_page_explains_advanced_analysis_toggles(tmp_path: Path) -> None:
@@ -797,7 +798,11 @@ def test_delete_job_removes_workspace(tmp_path: Path) -> None:
     store = JobStore(tmp_path / "web_runs")
     assert store.job_root(job_id).exists()
 
-    response = client.post(f"/jobs/{job_id}/delete", follow_redirects=False)
+    response = client.post(
+        f"/jobs/{job_id}/delete",
+        headers={"Origin": "http://testserver"},
+        follow_redirects=False,
+    )
     assert response.status_code == 303
     assert response.headers["location"] == "/"
     assert not store.job_root(job_id).exists()
@@ -823,7 +828,11 @@ def test_delete_all_outputs_keeps_job_and_capture(tmp_path: Path) -> None:
     record.artifacts = ["sample_summary.json"]
     store.save(record)
 
-    response = client.post(f"/jobs/{job_id}/outputs/delete", follow_redirects=False)
+    response = client.post(
+        f"/jobs/{job_id}/outputs/delete",
+        headers={"Origin": "http://testserver"},
+        follow_redirects=False,
+    )
     assert response.status_code == 303
     assert response.headers["location"] == f"/jobs/{job_id}"
 

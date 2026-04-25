@@ -268,6 +268,7 @@ def analyze_capture(
         profile=profile,
         privacy_modes=privacy_modes,
     )
+    summary_payload = protector.protect_artifact_payload(summary_payload)
     if dropped:
         summary_payload["dropped_packets"] = dropped
     if selected_frames.truncated:

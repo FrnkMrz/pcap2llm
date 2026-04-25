@@ -1,11 +1,30 @@
 from __future__ import annotations
 
 import json
+import re
 import shlex
 import subprocess
 from pathlib import Path
 
 from .models import AnalyzeOptions, RunResult
+from .security import WebValidationError
+
+
+_DISPLAY_FILTER_PATTERN = re.compile(r"^[A-Za-z0-9._=!&|()<>\x22' \-+:/]+$")
+
+
+def _safe_argv_value(value: str, *, allow_dash: bool = False) -> str:
+    text = value.strip()
+    if text.startswith("-") and not allow_dash:
+        raise WebValidationError("Command option values must not start with '-'.")
+    return text
+
+
+def _safe_display_filter(value: str) -> str:
+    text = _safe_argv_value(value)
+    if not _DISPLAY_FILTER_PATTERN.fullmatch(text):
+        raise WebValidationError("Invalid display filter.")
+    return text
 
 
 class Pcap2LlmRunner:
@@ -16,13 +35,13 @@ class Pcap2LlmRunner:
     def discover(self, capture_path: Path, out_dir: Path, logs_dir: Path) -> RunResult:
         cmd = ["pcap2llm", "discover", str(capture_path), "--out", str(out_dir)]
         if self.default_tshark_path:
-            cmd.extend(["--tshark-path", self.default_tshark_path])
+            cmd.extend(["--tshark-path", _safe_argv_value(self.default_tshark_path)])
         return self._run(cmd, logs_dir=logs_dir, artifacts_dir=out_dir, log_prefix="discovery")
 
     def recommend_profiles(self, source_path: Path, logs_dir: Path) -> RunResult:
         cmd = ["pcap2llm", "recommend-profiles", str(source_path)]
         if self.default_tshark_path:
-            cmd.extend(["--tshark-path", self.default_tshark_path])
+            cmd.extend(["--tshark-path", _safe_argv_value(self.default_tshark_path)])
         return self._run(cmd, logs_dir=logs_dir, artifacts_dir=source_path.parent, log_prefix="recommend")
 
     def analyze(self, capture_path: Path, options: AnalyzeOptions, out_dir: Path, logs_dir: Path) -> RunResult:
@@ -35,15 +54,15 @@ class Pcap2LlmRunner:
             "analyze",
             str(capture_path),
             "--profile",
-            options.profile,
+            _safe_argv_value(options.profile),
             "--privacy-profile",
-            options.privacy_profile,
+            _safe_argv_value(options.privacy_profile),
             "--out",
             str(out_dir),
         ]
 
         if options.display_filter:
-            cmd.extend(["--display-filter", options.display_filter])
+            cmd.extend(["--display-filter", _safe_display_filter(options.display_filter)])
 
         if options.max_packets is not None and not options.all_packets:
             cmd.extend(["--max-packets", str(options.max_packets)])
@@ -64,7 +83,7 @@ class Pcap2LlmRunner:
             cmd.append("--render-flow-svg")
 
         if options.flow_title:
-            cmd.extend(["--flow-title", options.flow_title])
+            cmd.extend(["--flow-title", _safe_argv_value(options.flow_title)])
 
         if options.flow_max_events is not None:
             cmd.extend(["--flow-max-events", str(options.flow_max_events)])
@@ -76,23 +95,23 @@ class Pcap2LlmRunner:
             cmd.append("--no-collapse-repeats")
 
         if options.hosts_file:
-            cmd.extend(["--hosts-file", options.hosts_file])
+            cmd.extend(["--hosts-file", _safe_argv_value(options.hosts_file)])
 
         if options.mapping_file:
-            cmd.extend(["--mapping-file", options.mapping_file])
+            cmd.extend(["--mapping-file", _safe_argv_value(options.mapping_file)])
 
         if options.subnets_file:
-            cmd.extend(["--subnets-file", options.subnets_file])
+            cmd.extend(["--subnets-file", _safe_argv_value(options.subnets_file)])
 
         if options.ss7pcs_file:
-            cmd.extend(["--ss7pcs-file", options.ss7pcs_file])
+            cmd.extend(["--ss7pcs-file", _safe_argv_value(options.ss7pcs_file)])
 
         if options.network_element_mapping_file:
-            cmd.extend(["--network-element-mapping-file", options.network_element_mapping_file])
+            cmd.extend(["--network-element-mapping-file", _safe_argv_value(options.network_element_mapping_file)])
 
         tshark_path = (options.tshark_path or self.default_tshark_path).strip()
         if tshark_path:
-            cmd.extend(["--tshark-path", tshark_path])
+            cmd.extend(["--tshark-path", _safe_argv_value(tshark_path)])
 
         if options.two_pass:
             cmd.append("--two-pass")

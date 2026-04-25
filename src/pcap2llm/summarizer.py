@@ -13,19 +13,19 @@ from pcap2llm.serializers import build_markdown_summary as _build_markdown_summa
 
 def _timing_stats(detail_packets: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Compute inter-packet timing statistics from normalized packet list."""
-    times = sorted(
+    times = [
         p["time_rel_ms"]
         for p in detail_packets
         if isinstance(p.get("time_rel_ms"), (int, float))
-    )
+    ]
     if len(times) < 2:
         return None
     diffs = sorted(times[i + 1] - times[i] for i in range(len(times) - 1))
     n = len(diffs)
-    p95_idx = min(int(n * 0.95), n - 1)
+    p95_idx = int((n - 1) * 0.95)
     return {
         "packet_count": len(times),
-        "duration_ms": round(times[-1] - times[0], 3),
+        "duration_ms": round(max(times) - min(times), 3),
         "inter_packet_ms": {
             "min": round(diffs[0], 3),
             "max": round(diffs[-1], 3),

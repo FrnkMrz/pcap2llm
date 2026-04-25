@@ -35,6 +35,25 @@ def test_protector_masks_and_pseudonymizes() -> None:
     assert "auth.token" not in protected[0]["message"]["fields"]
 
 
+def test_protect_artifact_payload_pseudonymizes_conversation_ips_consistently() -> None:
+    protector = Protector({"ip": "pseudonymize", "hostname": "pseudonymize"})
+    packet_alias = protector.protect_packets([{"src": {"ip": "10.0.0.1"}, "dst": {"ip": "10.0.0.2"}}])
+
+    artifact = protector.protect_artifact_payload(
+        {
+            "conversations": [
+                {"src": "10.0.0.1", "dst": "10.0.0.2", "src_name": "mme.internal", "packet_count": 2}
+            ],
+            "privacy_modes": {"ip": "pseudonymize", "hostname": "pseudonymize"},
+        }
+    )
+
+    assert artifact["conversations"][0]["src"] == packet_alias[0]["src"]["ip"]
+    assert artifact["conversations"][0]["dst"] == packet_alias[0]["dst"]["ip"]
+    assert artifact["conversations"][0]["src_name"].startswith("HOSTNAME_")
+    assert protector.pseudonym_audit()["ip"] == 2
+
+
 def test_pseudonym_is_stable_across_calls() -> None:
     """Same input must produce the same pseudonym regardless of call order."""
     p1 = Protector({"imsi": "pseudonymize"})

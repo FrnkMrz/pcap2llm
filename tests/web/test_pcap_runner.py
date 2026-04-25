@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from pcap2llm.web.models import AnalyzeOptions
 from pcap2llm.web.pcap_runner import Pcap2LlmRunner
+from pcap2llm.web.security import WebValidationError
 
 
 def test_build_analyze_command_selected_flags(tmp_path: Path) -> None:
@@ -133,3 +134,33 @@ def test_build_command_preview_shell_quotes_paths_with_spaces(tmp_path: Path) ->
 
     assert f"'{capture}'" in preview
     assert f"'{out_dir}'" in preview
+
+
+def test_build_analyze_command_rejects_dash_prefixed_display_filter(tmp_path: Path) -> None:
+    runner = Pcap2LlmRunner(command_timeout_seconds=30)
+
+    try:
+        runner.build_analyze_command(
+            tmp_path / "sample.pcapng",
+            AnalyzeOptions(profile="lte-core", privacy_profile="share", display_filter="--help"),
+            tmp_path / "artifacts",
+        )
+    except WebValidationError:
+        return
+
+    raise AssertionError("dash-prefixed display filter should be rejected")
+
+
+def test_build_analyze_command_rejects_dash_prefixed_support_file(tmp_path: Path) -> None:
+    runner = Pcap2LlmRunner(command_timeout_seconds=30)
+
+    try:
+        runner.build_analyze_command(
+            tmp_path / "sample.pcapng",
+            AnalyzeOptions(profile="lte-core", privacy_profile="share", hosts_file="--help"),
+            tmp_path / "artifacts",
+        )
+    except WebValidationError:
+        return
+
+    raise AssertionError("dash-prefixed support file should be rejected")

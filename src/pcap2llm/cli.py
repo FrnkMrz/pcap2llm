@@ -44,6 +44,32 @@ session_app = typer.Typer(help="Structured multi-run session helpers for externa
 logger = logging.getLogger("pcap2llm")
 
 
+_EXTERNAL_LLM_UNSAFE_CLASSES = {
+    "ip",
+    "hostname",
+    "imsi",
+    "msisdn",
+    "imei",
+    "subscriber_id",
+    "diameter_identity",
+}
+
+
+def _refuse_external_llm_keep_modes(privacy_modes: dict[str, str], *, allow_keep: bool) -> None:
+    if allow_keep:
+        return
+    unsafe = sorted(
+        data_class
+        for data_class in _EXTERNAL_LLM_UNSAFE_CLASSES
+        if privacy_modes.get(data_class, "keep") == "keep"
+    )
+    if unsafe:
+        raise typer.BadParameter(
+            f"Privacy modes {unsafe} are 'keep' - refusing external LLM handoff. "
+            "Use --privacy-profile llm-telecom-safe or pass --allow-keep to override."
+        )
+
+
 def _resolve_inspect_output_path(
     out: Path,
     *,
@@ -1031,6 +1057,7 @@ def ask_chatgpt_command(
     max_messages: int = typer.Option(300, "--max-messages", help="Maximum number of normalized detail messages included in the ChatGPT prompt."),
     timeout_seconds: int = typer.Option(120, "--timeout-seconds", help="HTTP timeout for the OpenAI request."),
     api_key_env: str = typer.Option("OPENAI_API_KEY", "--api-key-env", help="Environment variable that contains the OpenAI API key."),
+    allow_keep: bool = typer.Option(False, "--allow-keep", help="Allow external LLM handoff even when sensitive privacy classes are configured as keep."),
 ) -> None:
     config_data = load_config_file(config_path)
     effective_hosts = _resolve_hosts_file(hosts_file, config_data)
@@ -1085,6 +1112,7 @@ def ask_chatgpt_command(
             effective_two_pass = profile.tshark.get("two_pass", False) if two_pass is None else two_pass
             base_modes = _resolve_privacy_base(privacy_profile_name, config_data, profile)
             privacy_modes = _build_modes(base_modes, config_data.get("privacy_modes", {}), {})
+            _refuse_external_llm_keep_modes(privacy_modes, allow_keep=allow_keep)
 
             on_stage(f"Analyze: running focused profile {selected_profile_name}…", 2, 4)
             artifacts = analyze_capture(
@@ -1188,6 +1216,7 @@ def ask_claude_command(
     timeout_seconds: int = typer.Option(120, "--timeout-seconds", help="HTTP timeout for the Anthropic request."),
     api_key_env: str = typer.Option("ANTHROPIC_API_KEY", "--api-key-env", help="Environment variable that contains the Anthropic API key."),
     max_tokens: int = typer.Option(2000, "--max-tokens", help="Maximum Claude response tokens."),
+    allow_keep: bool = typer.Option(False, "--allow-keep", help="Allow external LLM handoff even when sensitive privacy classes are configured as keep."),
 ) -> None:
     config_data = load_config_file(config_path)
     effective_hosts = _resolve_hosts_file(hosts_file, config_data)
@@ -1243,6 +1272,7 @@ def ask_claude_command(
             effective_two_pass = profile.tshark.get("two_pass", False) if two_pass is None else two_pass
             base_modes = _resolve_privacy_base(privacy_profile_name, config_data, profile)
             privacy_modes = _build_modes(base_modes, config_data.get("privacy_modes", {}), {})
+            _refuse_external_llm_keep_modes(privacy_modes, allow_keep=allow_keep)
 
             on_stage(f"Analyze: running focused profile {selected_profile_name}…", 2, 4)
             artifacts = analyze_capture(
@@ -1347,6 +1377,7 @@ def ask_gemini_command(
     max_messages: int = typer.Option(300, "--max-messages", help="Maximum number of normalized detail messages included in the Gemini prompt."),
     timeout_seconds: int = typer.Option(120, "--timeout-seconds", help="HTTP timeout for the Gemini request."),
     api_key_env: str = typer.Option("GEMINI_API_KEY", "--api-key-env", help="Environment variable that contains the Gemini API key."),
+    allow_keep: bool = typer.Option(False, "--allow-keep", help="Allow external LLM handoff even when sensitive privacy classes are configured as keep."),
 ) -> None:
     config_data = load_config_file(config_path)
     effective_hosts = _resolve_hosts_file(hosts_file, config_data)
@@ -1401,6 +1432,7 @@ def ask_gemini_command(
             effective_two_pass = profile.tshark.get("two_pass", False) if two_pass is None else two_pass
             base_modes = _resolve_privacy_base(privacy_profile_name, config_data, profile)
             privacy_modes = _build_modes(base_modes, config_data.get("privacy_modes", {}), {})
+            _refuse_external_llm_keep_modes(privacy_modes, allow_keep=allow_keep)
 
             on_stage(f"Analyze: running focused profile {selected_profile_name}…", 2, 4)
             artifacts = analyze_capture(

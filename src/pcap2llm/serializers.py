@@ -126,7 +126,7 @@ def serialize_detail_artifact(
         messages=packets,
         selected_packets=packets,
     )
-    return artifact.model_dump()
+    return artifact.model_dump(exclude_none=True)
 
 
 def build_markdown_summary(

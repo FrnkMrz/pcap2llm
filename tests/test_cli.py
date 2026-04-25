@@ -357,6 +357,38 @@ def test_ask_chatgpt_dry_run_outputs_plan(tmp_path: Path) -> None:
     assert payload["privacy_profile"] == "llm-telecom-safe"
 
 
+def test_ask_chatgpt_refuses_external_handoff_with_keep_modes(tmp_path: Path) -> None:
+    runner = CliRunner()
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+    out_dir = tmp_path / "artifacts"
+
+    with (
+        patch(
+            "pcap2llm.cli.discover_capture",
+            return_value=({"candidate_profiles": [{"profile": "lte-core"}]}, "# discovery"),
+        ),
+        patch(
+            "pcap2llm.cli.write_discovery_artifacts",
+            return_value={"discovery_json": out_dir / "discovery.json", "discovery_md": out_dir / "discovery.md"},
+        ),
+    ):
+        result = runner.invoke(
+            app,
+            [
+                "ask-chatgpt",
+                str(capture),
+                "--privacy-profile",
+                "lab",
+                "--out",
+                str(out_dir),
+            ],
+        )
+
+    assert result.exit_code == 1
+    assert "refusing external LLM handoff" in result.stdout
+
+
 def test_ask_claude_dry_run_outputs_plan(tmp_path: Path) -> None:
     runner = CliRunner()
     capture = tmp_path / "sample.pcapng"

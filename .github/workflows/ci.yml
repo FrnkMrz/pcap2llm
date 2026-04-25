@@ -18,6 +18,8 @@ jobs:
           python -m pip install -e .[dev]
       - name: Ruff
         run: ruff check .
+      - name: Bandit web hardening scan
+        run: bandit -r -ll src/pcap2llm/web/
 
   test:
     runs-on: ubuntu-latest

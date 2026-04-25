@@ -12,6 +12,7 @@ from __future__ import annotations
 from pcap2llm.models import CaptureMetadata, InspectResult
 from pcap2llm.profiles import load_all_profiles
 from pcap2llm.recommendation import _score_profile, infer_domains, recommend_profiles_from_inspect
+from pcap2llm.signaling import dominant_signaling_protocols
 
 
 def _mock_result(
@@ -49,6 +50,28 @@ def test_5g_n2_strong_signal_detects_5g_sa_core() -> None:
     assert domains, "expected at least one domain"
     assert domains[0]["domain"] == "5g-sa-core"
     assert domains[0]["score"] >= 0.85
+
+
+def test_dominant_signaling_protocols_does_not_reserve_sctp_slot_when_absent() -> None:
+    protocols = {
+        "ngap": 100,
+        "nas-5gs": 100,
+        "http": 100,
+        "json": 100,
+        "pfcp": 100,
+        "s1ap": 100,
+        "diameter": 100,
+        "gtpv2": 100,
+        "sip": 100,
+        "dns": 100,
+        "map": 100,
+    }
+    result = _mock_result(protocols)
+
+    dominant = dominant_signaling_protocols(result, limit=10)
+
+    assert len(dominant) == 10
+    assert all(item["name"] != "sctp" for item in dominant)
 
 
 def test_5g_ngap_only_detects_5g_sa_core() -> None:
@@ -917,6 +940,21 @@ def test_2g3g_isup_suppressed_without_isup_evidence() -> None:
     assert "2g3g-isup" not in top5, (
         f"2g3g-isup must not appear in top-5 without ISUP evidence: {top5}"
     )
+
+
+def test_hard_gate_zero_score_profiles_move_to_suppressed_bucket() -> None:
+    result = _mock_result(
+        {"map": 180, "tcap": 140, "sccp": 160, "mtp3": 90, "ip": 180},
+        None,
+        ["map", "tcap", "sccp", "mtp3", "ip"],
+    )
+    rec = recommend_profiles_from_inspect(result, load_all_profiles(), limit=30)
+
+    recommended_names = [r["profile"] for r in rec["recommended_profiles"]]
+    suppressed_names = [r["profile"] for r in rec["suppressed_profiles"]]
+
+    assert "2g3g-isup" not in recommended_names
+    assert "2g3g-isup" in suppressed_names
 
 
 def test_map_core_and_sccp_mtp_remain_strong_in_ss7_trace() -> None:

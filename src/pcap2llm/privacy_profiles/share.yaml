@@ -3,8 +3,8 @@ description: >
   Safe for sharing with external parties or cross-team review.
   Subscriber identifiers are pseudonymized; tokens and bearer-text removed.
 modes:
-  ip: keep
-  hostname: keep
+  ip: pseudonymize
+  hostname: pseudonymize
   subscriber_id: pseudonymize
   msisdn: pseudonymize
   imsi: pseudonymize

@@ -45,39 +45,42 @@ def _detect_bursts(
 
     Returns a list of burst descriptors ``{start_ms, end_ms, packet_count}``.
     """
-    sorted_times = sorted(
+    times = [
         p["time_rel_ms"]
         for p in detail_packets
         if isinstance(p.get("time_rel_ms"), (int, float))
-    )
-    if len(sorted_times) < min_burst_size:
+    ]
+    if len(times) < min_burst_size:
         return []
 
     bursts: list[dict[str, Any]] = []
-    burst_start = sorted_times[0]
+    burst_start = times[0]
+    burst_end = times[0]
     burst_count = 1
 
-    for i in range(1, len(sorted_times)):
-        gap = sorted_times[i] - sorted_times[i - 1]
-        if gap <= threshold_ms:
+    for i in range(1, len(times)):
+        gap = times[i] - times[i - 1]
+        if 0 <= gap <= threshold_ms:
             burst_count += 1
+            burst_end = times[i]
         else:
             if burst_count >= min_burst_size:
                 bursts.append(
                     {
                         "start_ms": round(burst_start, 3),
-                        "end_ms": round(sorted_times[i - 1], 3),
+                        "end_ms": round(burst_end, 3),
                         "packet_count": burst_count,
                     }
                 )
-            burst_start = sorted_times[i]
+            burst_start = times[i]
+            burst_end = times[i]
             burst_count = 1
 
     if burst_count >= min_burst_size:
         bursts.append(
             {
                 "start_ms": round(burst_start, 3),
-                "end_ms": round(sorted_times[-1], 3),
+                "end_ms": round(burst_end, 3),
                 "packet_count": burst_count,
             }
         )

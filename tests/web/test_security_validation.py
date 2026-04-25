@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 from pathlib import Path
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
@@ -10,7 +11,7 @@ from pcap2llm.web.config import WebSettings
 from pcap2llm.web.jobs import JobStore
 
 
-def _client(tmp_path: Path) -> TestClient:
+def _client(tmp_path: Path, *, support_files_root: Path | None = None) -> TestClient:
     return TestClient(
         create_app(
             WebSettings(
@@ -19,6 +20,7 @@ def _client(tmp_path: Path) -> TestClient:
                 workdir=tmp_path / "web_runs",
                 max_upload_mb=10,
                 command_timeout_seconds=30,
+                support_files_root=support_files_root,
                 default_privacy_profile="share",
             )
         )
@@ -78,6 +80,31 @@ def test_analyze_rejects_support_file_outside_workspace(tmp_path: Path) -> None:
         follow_redirects=False,
     )
     assert response.status_code == 400
+
+
+def test_analyze_allows_configured_support_files_root(tmp_path: Path) -> None:
+    support_root = tmp_path / "support-files"
+    support_root.mkdir()
+    hosts = support_root / "hosts"
+    hosts.write_text("10.0.0.1 mme\n", encoding="utf-8")
+    client = _client(tmp_path, support_files_root=support_root)
+    job_id = _upload(client)
+    captured: dict[str, object] = {}
+
+    def fake_analyze(capture_path, options, out_dir, logs_dir):
+        captured["hosts_file"] = options.hosts_file
+        return SimpleNamespace(ok=True, stderr="", stdout="", returncode=0)
+
+    client.app.state.runner.analyze = fake_analyze
+
+    response = client.post(
+        f"/jobs/{job_id}/analyze",
+        data={"profile": "lte-core", "privacy_profile": "share", "hosts_file": str(hosts)},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert captured["hosts_file"] == str(hosts.resolve())
 
 
 def test_view_text_file_escapes_route_values(tmp_path: Path) -> None:

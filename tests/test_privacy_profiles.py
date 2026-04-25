@@ -31,7 +31,8 @@ class TestLoadBuiltinPrivacyProfiles:
         assert profile.name == "share"
         assert profile.modes["imsi"] == "pseudonymize"
         assert profile.modes["token"] == "remove"
-        assert profile.modes["ip"] == "keep"
+        assert profile.modes["ip"] == "pseudonymize"
+        assert profile.modes["hostname"] == "pseudonymize"
 
     def test_load_lab(self) -> None:
         profile = load_privacy_profile("lab")

@@ -243,7 +243,7 @@ Privacy ist absichtlich von der Profilwahl getrennt.
 Typische Startpunkte:
 
 - `internal`: lokal, unveraendert
-- `share`: intern teilen, Subscriber-Daten pseudonymisieren
+- `share`: intern teilen, Endpunkte und Subscriber-Daten pseudonymisieren
 - `prod-safe`: staerker schuetzen, bevor du nach aussen gehst
 - `llm-telecom-safe`: guter Standard fuer externe LLMs
 

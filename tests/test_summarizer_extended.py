@@ -110,6 +110,11 @@ class TestDetectBursts:
         bursts = _detect_bursts(_packets_with_times(times))
         assert len(bursts) == 2
 
+    def test_uses_packet_order_not_sorted_timestamps(self) -> None:
+        times = [0.0, 50.0, 10000.0, 100.0, 150.0, 200.0, 250.0]
+        bursts = _detect_bursts(_packets_with_times(times), min_burst_size=4)
+        assert bursts == [{"start_ms": 100.0, "end_ms": 250.0, "packet_count": 4}]
+
 
 # ---------------------------------------------------------------------------
 # _classify_anomalies

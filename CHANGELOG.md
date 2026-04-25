@@ -6,6 +6,18 @@ The format is intentionally simple and optimized for humans reading repo history
 
 ## Unreleased
 
+### Fixed — 2026-04-25 (remediation hardening follow-up)
+
+- Completed the remediation-plan hardening pass:
+  - `share` now pseudonymizes endpoint identifiers (`ip`, `hostname`) as well as subscriber identifiers.
+  - summary conversations are covered by a pipeline regression test that verifies no raw endpoint IPs remain.
+  - burst detection now uses packet order instead of timestamp sorting, including reordered-capture coverage.
+  - web support-file paths are limited to per-job uploads plus `PCAP2LLM_WEB_SUPPORT_FILES_ROOT` / local workspace roots.
+  - external LLM handoff commands now have regression coverage for refusing unsafe keep modes unless explicitly overridden.
+  - profile recommendation hard gates and dominant signaling protocol selection have direct regression coverage.
+- CI now runs a Bandit high-confidence web hardening scan with `bandit -r -ll src/pcap2llm/web/`.
+- Privacy and sharing docs were updated to reflect that `share` pseudonymizes endpoints.
+
 ### Fixed — 2026-04-24 (web runtime and local smoke checks)
 
 - **Web GUI runtime compatibility**:

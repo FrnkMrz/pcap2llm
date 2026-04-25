@@ -12,6 +12,7 @@ import pytest
 from pcap2llm.pipeline import _artifact_timestamp_prefix, _check_oversize_ratio, analyze_capture, write_artifacts
 from pcap2llm.profiles import load_profile
 from pcap2llm.protector import ProtectionError, Protector
+from pcap2llm.privacy_profiles import load_privacy_profile
 from pcap2llm.tshark_runner import TSharkError, TSharkRunner
 from testutils import mock_runner_two_pass
 
@@ -488,6 +489,31 @@ class TestAnalyzeCapturePipeline:
         assert artifacts.summary["capture_metadata"]["packet_count"] == 3
         assert isinstance(artifacts.detail["messages"], list)
         assert "# PCAP2LLM Artifact Summary" in artifacts.markdown
+
+    def test_share_profile_protects_summary_conversations(self, tmp_path: Path) -> None:
+        profile = load_profile("lte-core")
+        privacy = load_privacy_profile("share")
+        runner = TSharkRunner()
+        hosts_file = tmp_path / "hosts"
+        hosts_file.write_text("10.0.0.1 mme.internal\n10.0.0.2 hss.internal\n", encoding="utf-8")
+
+        with mock_runner_two_pass(runner, [_make_raw_packet()]):
+            artifacts = analyze_capture(
+                tmp_path / "sample.pcapng",
+                out_dir=tmp_path / "out",
+                runner=runner,
+                profile=profile,
+                privacy_modes=privacy.modes,
+                hosts_file=hosts_file,
+            )
+
+        conversation = artifacts.summary["conversations"][0]
+        assert conversation["src"].startswith("IP_")
+        assert conversation["dst"].startswith("IP_")
+        assert "10.0.0.1" not in json.dumps(artifacts.summary)
+        assert "10.0.0.2" not in json.dumps(artifacts.summary)
+        assert artifacts.pseudonym_mapping["ip"]["10.0.0.1"] == conversation["src"]
+        assert artifacts.summary["privacy_audit"]["pseudonymized_unique_values"]["ip"] == 2
 
     def test_full_pipeline_generates_flow_artifacts_when_enabled(self, tmp_path: Path) -> None:
         profile = load_profile("lte-core")

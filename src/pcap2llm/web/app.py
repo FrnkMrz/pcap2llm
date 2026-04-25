@@ -242,7 +242,6 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             "downloads": store.list_download_entries(record),
             "log_sections": _collect_log_sections(store.logs_dir(job_id)),
             "flow_svg": _first_matching(store.artifacts_dir(job_id), ".svg"),
-            "flow_svg_markup": _read_flow_svg_markup(store.artifacts_dir(job_id)),
             "settings": settings,
             "analyze_defaults": analyze_defaults,
         }
@@ -305,6 +304,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             local_support_defaults = _local_support_file_defaults(settings)
             hosts_path = await _resolve_support_file(
                 store=store,
+                settings=settings,
                 record=record,
                 label="hosts",
                 raw_path=hosts_file,
@@ -313,6 +313,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             )
             mapping_path = await _resolve_support_file(
                 store=store,
+                settings=settings,
                 record=record,
                 label="mapping",
                 raw_path=mapping_file,
@@ -321,6 +322,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             )
             subnets_path = await _resolve_support_file(
                 store=store,
+                settings=settings,
                 record=record,
                 label="subnets",
                 raw_path=subnets_file,
@@ -329,6 +331,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             )
             ss7pcs_path = await _resolve_support_file(
                 store=store,
+                settings=settings,
                 record=record,
                 label="ss7pcs",
                 raw_path=ss7pcs_file,
@@ -337,6 +340,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             )
             network_element_mapping_path = await _resolve_support_file(
                 store=store,
+                settings=settings,
                 record=record,
                 label="network-element-mapping",
                 raw_path=network_element_mapping_file,
@@ -931,6 +935,7 @@ def _parse_optional_float(value: str) -> float | None:
 async def _resolve_support_file(
     *,
     store: JobStore,
+    settings: WebSettings,
     record: JobRecord,
     label: str,
     raw_path: str,
@@ -954,13 +959,14 @@ async def _resolve_support_file(
     candidate = text or default_path
     if not candidate:
         return None
-    return str(_validate_support_path(candidate, store=store, record=record))
+    return str(_validate_support_path(candidate, store=store, settings=settings, record=record))
 
 
-def _validate_support_path(value: str, *, store: JobStore, record: JobRecord) -> Path:
+def _validate_support_path(value: str, *, store: JobStore, settings: WebSettings, record: JobRecord) -> Path:
     path = Path(value)
     resolved = path.resolve()
-    allowed_roots = (store.support_dir(record.job_id), store.workdir.parent / ".local", store.workdir.parent)
+    configured_root = settings.support_files_root or settings.local_workspace_dir
+    allowed_roots = (store.support_dir(record.job_id), configured_root)
     for root in allowed_roots:
         try:
             return ensure_within(root, resolved)
@@ -1062,20 +1068,6 @@ def _read_log(path: Path) -> str:
         return ""
     data = path.read_text(encoding="utf-8", errors="replace")
     return data[-8000:]
-
-
-def _read_flow_svg_markup(folder: Path) -> str | None:
-    filename = _first_matching(folder, ".svg")
-    if not filename:
-        return None
-    path = folder / filename
-    data = path.read_text(encoding="utf-8", errors="replace")
-    lowered = data.lower()
-    if not data.lstrip().startswith("<svg"):
-        return None
-    if "<script" in lowered or "javascript:" in lowered:
-        return None
-    return data
 
 
 def _collect_log_sections(logs_dir: Path) -> list[dict[str, str]]:

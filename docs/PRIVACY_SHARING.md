@@ -16,7 +16,7 @@ Related docs:
 
 | Scenario | Recommended profile | Notes |
 |---|---|---|
-| Internal team troubleshooting | `share` | Good default for most internal work |
+| Internal team troubleshooting | `share` | Good default for most internal work; endpoint and subscriber identifiers are pseudonymized |
 | Vendor ticket | `prod-safe` | Remove tokens, reduce sensitive metadata |
 | Lab replay / test environment | `lab` | Stronger anonymization, still useful context |
 | Personal local analysis | `internal` | Only in fully trusted environments |

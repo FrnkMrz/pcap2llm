@@ -80,3 +80,19 @@ def test_lte_interface_profiles_have_quality_basics() -> None:
             top in profile.full_detail_fields
             or top in profile.verbatim_protocols
         )
+
+
+def test_load_transport_decode_profiles() -> None:
+    expected = {
+        "transport-core": {"tcp", "udp", "sctp"},
+        "transport-sctp": {"sctp"},
+        "transport-tcp": {"tcp"},
+        "transport-udp": {"udp"},
+    }
+    for name, verbatim in expected.items():
+        profile = load_profile(name)
+        assert profile.name == name
+        assert verbatim.issubset(set(profile.verbatim_protocols))
+        assert profile.reduced_transport_fields
+        assert profile.summary_heuristics
+        assert profile.top_protocol_priority[0] in profile.relevant_protocols

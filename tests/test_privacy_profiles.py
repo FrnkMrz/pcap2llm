@@ -59,8 +59,15 @@ class TestLoadBuiltinPrivacyProfiles:
         assert profile.modes["token"] == "remove"
         assert profile.modes["payload_text"] == "remove"
 
+    def test_load_telecom_context(self) -> None:
+        profile = load_privacy_profile("telecom-context")
+        assert profile.name == "telecom-context"
+        assert profile.modes["imsi"] == "keep_mcc_mnc_mask_msin"
+        assert profile.modes["msisdn"] == "keep_cc_ndc_mask_subscriber"
+        assert profile.modes["imei"] == "keep_tac_mask_serial"
+
     def test_all_profiles_have_description(self) -> None:
-        for name in ("internal", "share", "lab", "prod-safe", "llm-telecom-safe"):
+        for name in list_privacy_profiles():
             profile = load_privacy_profile(name)
             assert isinstance(profile.description, str)
             assert len(profile.description) > 0
@@ -68,7 +75,7 @@ class TestLoadBuiltinPrivacyProfiles:
     def test_all_profiles_have_all_data_classes(self) -> None:
         from pcap2llm.models import DATA_CLASSES
 
-        for name in ("internal", "share", "lab", "prod-safe", "llm-telecom-safe"):
+        for name in list_privacy_profiles():
             profile = load_privacy_profile(name)
             for data_class in DATA_CLASSES:
                 assert data_class in profile.modes, (
@@ -90,7 +97,7 @@ class TestLoadPrivacyProfileErrors:
         with pytest.raises(FileNotFoundError) as exc_info:
             load_privacy_profile("nope")
         message = str(exc_info.value)
-        for name in ("internal", "share", "lab", "prod-safe", "llm-telecom-safe"):
+        for name in list_privacy_profiles():
             assert name in message
 
     def test_nonexistent_file_path_raises(self, tmp_path: Path) -> None:
@@ -104,13 +111,20 @@ class TestLoadPrivacyProfileErrors:
 
 
 class TestListPrivacyProfiles:
-    def test_returns_four_profiles(self) -> None:
+    def test_returns_builtin_profiles(self) -> None:
         profiles = list_privacy_profiles()
-        assert len(profiles) == 5
+        assert len(profiles) == 6
 
     def test_returns_all_expected_names(self) -> None:
         profiles = list_privacy_profiles()
-        assert set(profiles) == {"internal", "share", "lab", "prod-safe", "llm-telecom-safe"}
+        assert set(profiles) == {
+            "internal",
+            "share",
+            "lab",
+            "prod-safe",
+            "llm-telecom-safe",
+            "telecom-context",
+        }
 
     def test_returns_sorted(self) -> None:
         profiles = list_privacy_profiles()
@@ -185,6 +199,17 @@ class TestBuildPrivacyModesPrecedence:
     def test_empty_base_defaults_to_keep(self) -> None:
         result = build_privacy_modes({}, {})
         assert all(v == "keep" for v in result.values())
+
+    def test_partial_subscriber_modes_are_normalized(self) -> None:
+        result = build_privacy_modes(
+            {},
+            {
+                "imsi": "keep-plmn-mask-msin",
+                "msisdn": "keep-e164-routing-pseudonymize-subscriber",
+            },
+        )
+        assert result["imsi"] == "keep_mcc_mnc_mask_msin"
+        assert result["msisdn"] == "keep_cc_ndc_pseudonymize_subscriber"
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,19 @@
+name: telecom-context
+description: >
+  Telecom-aware sharing profile. Keeps routing context for subscriber
+  identifiers by preserving IMSI MCC/MNC, MSISDN country code, German mobile
+  NDCs, and IMEI TAC, while masking subscriber-specific suffixes.
+modes:
+  ip: pseudonymize
+  hostname: pseudonymize
+  subscriber_id: pseudonymize
+  msisdn: keep_cc_ndc_mask_subscriber
+  imsi: keep_mcc_mnc_mask_msin
+  imei: keep_tac_mask_serial
+  email: mask
+  distinguished_name: pseudonymize
+  token: remove
+  uri: mask
+  apn_dnn: keep
+  diameter_identity: pseudonymize
+  payload_text: mask

@@ -195,7 +195,7 @@ way until you intentionally open it for troubleshooting or auditability.
 - `Delete job` removes the full job directory
 - dashboard available at `/dashboard` with job and privacy-profile statistics
 - jobs can be multi-selected and deleted from the start page
-- Telekom-inspired magenta/neutral visual theme with active navigation states,
+- Neutral teal/gray visual theme with active navigation states,
   consistent focus rings, and shared light/dark color tokens
 - dark-mode toggle in the header persists via `localStorage`
 - responsive layout for smaller screens
@@ -301,6 +301,18 @@ For IMEI, the UI also exposes the specialized mode:
 This IMEI-only mode keeps the TAC prefix visible and masks the serial suffix.
 It is not an email-specific mode. Email addresses use only the standard modes:
 `keep`, `mask`, `pseudonymize`, `encrypt`, or `remove`.
+
+For IMSI, the UI also exposes:
+
+- `keep_mcc_mnc_mask_msin`
+- `keep_mcc_mnc_pseudonymize_msin`
+- `keep_mcc_mnc_encrypt_msin`
+
+For MSISDN, the UI also exposes:
+
+- `keep_cc_ndc_mask_subscriber`
+- `keep_cc_ndc_pseudonymize_subscriber`
+- `keep_cc_ndc_encrypt_subscriber`
 
 ### API Endpoints
 

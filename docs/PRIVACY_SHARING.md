@@ -17,6 +17,7 @@ Related docs:
 | Scenario | Recommended profile | Notes |
 |---|---|---|
 | Internal team troubleshooting | `share` | Good default for most internal work; endpoint and subscriber identifiers are pseudonymized |
+| Telecom-aware cross-team sharing | `telecom-context` | Keeps MCC/MNC, CC, German mobile NDCs, and IMEI TAC visible while masking subscriber-specific suffixes |
 | Vendor ticket | `prod-safe` | Remove tokens, reduce sensitive metadata |
 | Lab replay / test environment | `lab` | Stronger anonymization, still useful context |
 | Personal local analysis | `internal` | Only in fully trusted environments |
@@ -65,6 +66,34 @@ pcap2llm analyze trace.pcapng --profile lte-core --privacy-profile share --out .
 **Special IMEI masking** (`keep_tac_mask_serial`) is separate from both of the
 above. It keeps the TAC prefix visible and masks the serial suffix. This mode
 exists only for `imei`; it is not available for `email`.
+
+**Telecom-aware partial subscriber protection** keeps routing context visible
+while protecting the subscriber-specific suffix:
+
+- `imsi: keep_mcc_mnc_mask_msin`
+- `imsi: keep_mcc_mnc_pseudonymize_msin`
+- `imsi: keep_mcc_mnc_encrypt_msin`
+- `msisdn: keep_cc_ndc_mask_subscriber`
+- `msisdn: keep_cc_ndc_pseudonymize_subscriber`
+- `msisdn: keep_cc_ndc_encrypt_subscriber`
+
+For IMSI, the default MNC-length heuristic is MCC `3xx` -> 3-digit MNC,
+otherwise 2-digit MNC.
+
+For MSISDN, the default is more conservative: keep only the E.164 country code
+and protect the rest. Germany is the built-in exception; German mobile NDCs for
+`(0)15`, `(0)160`, `(0)162`, `(0)163`, and `(0)17x` are also kept. Add explicit
+roaming-partner CC/NDC prefixes in the config file:
+
+```yaml
+numbering:
+  imsi_mnc_lengths:
+    "262": 2
+    "310": 3
+  msisdn_ndc_prefixes:
+    "31": ["20"]
+    "49": ["15", "160", "162", "163", "170", "171", "172", "173"]
+```
 
 **Encryption does not make casual sharing safe.** If you share an encrypted artifact and the key is shared separately later, the data is fully recoverable. Pseudonymization is the safer choice when you want irreversible protection for the shared artifact.
 

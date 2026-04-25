@@ -92,6 +92,7 @@ Use it when you want to know:
 | [`PROFILES_5G.md`](PROFILES_5G.md) | 5GC users | 5G SA core profile family guide | [`PROFILES.md`](PROFILES.md), [`WORKFLOWS.md`](WORKFLOWS.md), [`QUICKSTART_5GC.md`](QUICKSTART_5GC.md) |
 | [`PROFILES_VOICE.md`](PROFILES_VOICE.md) | IMS voice users | VoLTE / VoNR profile family guide | [`PROFILES.md`](PROFILES.md), [`WORKFLOWS.md`](WORKFLOWS.md) |
 | [`PROFILES_2G3G.md`](PROFILES_2G3G.md) | legacy-core users | 2G/3G / GERAN profile family guide | [`PROFILES.md`](PROFILES.md), [`WORKFLOWS.md`](WORKFLOWS.md) |
+| [`TRANSPORT_DECODE_PROFILE_PLAN.md`](TRANSPORT_DECODE_PROFILE_PLAN.md) | contributors, transport troubleshooters | plan for TCP, UDP, and SCTP-focused decode profiles | [`PROFILES.md`](PROFILES.md), [`REFERENCE.md`](REFERENCE.md) |
 | [`QUICKSTART_LTE_EPC.md`](QUICKSTART_LTE_EPC.md) | LTE/EPC users | smallest LTE/EPC-oriented starting pattern | [`PROFILES_LTE.md`](PROFILES_LTE.md), [`WORKFLOWS.md`](WORKFLOWS.md), [`REFERENCE.md`](REFERENCE.md) |
 | [`QUICKSTART_5GC.md`](QUICKSTART_5GC.md) | 5GC users | smallest 5G core-oriented starting pattern | [`PROFILES_5G.md`](PROFILES_5G.md), [`WORKFLOWS.md`](WORKFLOWS.md), [`QUICKSTART_HTTP2_SBI.md`](QUICKSTART_HTTP2_SBI.md) |
 | [`QUICKSTART_HTTP2_SBI.md`](QUICKSTART_HTTP2_SBI.md) | SBI users | shortest HTTP/2/SBI-focused command pattern | [`PROFILES_5G.md`](PROFILES_5G.md), [`QUICKSTART_5GC.md`](QUICKSTART_5GC.md), [`PRIVACY_SHARING.md`](PRIVACY_SHARING.md) |
@@ -126,6 +127,7 @@ Across the full set, the documentation now covers:
 - optional signaling-flow visualization with `flow.json`, `flow.svg`, and `visualize`
 - protocol-family workflows for LTE, 5G, voice/IMS, and legacy SS7/GERAN
 - profile selection and custom profile authoring
+- transport decode profile planning for TCP, UDP, and SCTP
 - privacy profiles, sharing rules, and encryption model
 - machine-readable `--llm-mode` behavior
 - external LLM handoff workflow

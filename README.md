@@ -118,6 +118,7 @@ Common starting points:
 
 - `internal` for local-only work
 - `share` for internal sharing with subscriber pseudonymization
+- `telecom-context` for sharing that keeps IMSI MCC/MNC and MSISDN CC visible
 - `prod-safe` for stronger masking before external sharing
 - `llm-telecom-safe` for external LLM handoff
 
@@ -131,6 +132,17 @@ pcap2llm analyze trace.pcapng \
 ```
 
 Full privacy guidance: [`docs/PRIVACY_SHARING.md`](docs/PRIVACY_SHARING.md)
+
+`telecom-context` uses telecom-aware partial protection:
+
+- IMSI: `MCC+MNC` stays visible, MSIN is masked
+- MSISDN: E.164 country code stays visible, subscriber suffix is masked
+- German MSISDNs also keep the built-in mobile NDC when it matches `(0)15`,
+  `(0)160`, `(0)162`, `(0)163`, or `(0)17x`
+- IMEI: TAC stays visible, serial suffix is masked
+
+The default IMSI heuristic is intentionally simple: MCC `3xx` uses a 3-digit
+MNC, all other MCCs use a 2-digit MNC unless overridden in config.
 
 ## Important Limits
 

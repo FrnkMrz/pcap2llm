@@ -163,7 +163,7 @@ For bounded analyze runs, the JSON artifacts also include `selection.start_packe
 ```
 Profile & filtering:
   --profile               Protocol profile (default: lte-core)
-  --privacy-profile       Privacy profile: internal | share | lab | prod-safe | llm-telecom-safe | <path>
+  --privacy-profile       Privacy profile: internal | share | lab | prod-safe | llm-telecom-safe | telecom-context | <path>
   -Y / --display-filter   TShark display filter
   --config                YAML config file
 
@@ -757,6 +757,7 @@ For full details and supported types, see [`NETWORK_ELEMENT_DETECTION.md`](NETWO
 | `lab` | Pseudonymize all subscriber data, mask IPs |
 | `prod-safe` | Maximum protection — mask IPs, pseudonymize all PII, remove tokens/email/URI/payload |
 | `llm-telecom-safe` | External LLM-safe default — pseudonymize endpoints and subscriber IDs, remove secrets/payload, keep telecom structure |
+| `telecom-context` | Keep IMSI MCC/MNC, MSISDN CC, German mobile NDCs, and IMEI TAC visible while masking subscriber-specific suffixes |
 
 ```bash
 pcap2llm analyze sample.pcapng --profile lte-core --privacy-profile share
@@ -783,9 +784,31 @@ pcap2llm analyze sample.pcapng \
 - `remove` — delete the field entirely
 - `keep_tac_mask_serial` — IMEI only; keep the TAC prefix and mask the serial
   suffix
+- `keep_mcc_mnc_mask_msin` — IMSI only; keep MCC/MNC and mask MSIN
+- `keep_mcc_mnc_pseudonymize_msin` — IMSI only; keep MCC/MNC and pseudonymize MSIN
+- `keep_mcc_mnc_encrypt_msin` — IMSI only; keep MCC/MNC and encrypt MSIN
+- `keep_cc_ndc_mask_subscriber` — MSISDN only; keep E.164 CC and mask subscriber suffix
+- `keep_cc_ndc_pseudonymize_subscriber` — MSISDN only; keep E.164 CC and pseudonymize subscriber suffix
+- `keep_cc_ndc_encrypt_subscriber` — MSISDN only; keep E.164 CC and encrypt subscriber suffix
 
 `email` does not have a special partial-keep mode. For email addresses, use the
 standard modes: `keep`, `mask`, `pseudonymize`, `encrypt`, or `remove`.
+
+Partial IMSI protection defaults to a simple MNC-length heuristic: MCC `3xx`
+uses 3 MNC digits, all other MCCs use 2. MSISDN protection keeps only the E.164
+country code by default; Germany is the built-in exception and keeps matching
+mobile NDCs for `(0)15`, `(0)160`, `(0)162`, `(0)163`, and `(0)17x`. Override
+IMSI lengths and add roaming-partner NDC prefixes in config:
+
+```yaml
+numbering:
+  imsi_mnc_lengths:
+    "262": 2
+    "310": 3
+  msisdn_ndc_prefixes:
+    "31": ["20"]
+    "49": ["15", "160", "162", "163", "170", "171", "172", "173"]
+```
 
 **Pseudonyms are stable across runs** — the same input value always produces the same alias (BLAKE2s hash). This allows correlation between separate analyses of related captures.
 

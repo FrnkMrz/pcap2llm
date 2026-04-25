@@ -154,6 +154,137 @@ def test_imei_keep_tac_mask_serial_mode_preserves_tac_prefix() -> None:
     assert protected[0]["message"]["fields"]["ngap.pei"] == "49015420XXXXXXX"
 
 
+def test_imsi_keep_mcc_mnc_mask_msin_uses_two_digit_mnc_outside_mcc_3xx() -> None:
+    protector = Protector({"imsi": "keep_mcc_mnc_mask_msin"})
+    packets = [
+        {
+            "message": {
+                "fields": {
+                    "diameter.imsi": "262011234567890",
+                },
+            },
+        }
+    ]
+
+    protected = protector.protect_packets(packets)
+    assert protected[0]["message"]["fields"]["diameter.imsi"] == "26201XXXXXXXXXX (Germany)"
+
+
+def test_imsi_keep_mcc_mnc_mask_msin_uses_three_digit_mnc_for_mcc_3xx() -> None:
+    protector = Protector({"imsi": "keep_mcc_mnc_mask_msin"})
+    packets = [
+        {
+            "message": {
+                "fields": {
+                    "diameter.imsi": "310260123456789",
+                },
+            },
+        }
+    ]
+
+    protected = protector.protect_packets(packets)
+    assert (
+        protected[0]["message"]["fields"]["diameter.imsi"]
+        == "310260XXXXXXXXX (United States of America)"
+    )
+
+
+def test_imsi_partial_mode_supports_configured_mnc_length_override() -> None:
+    protector = Protector({"imsi": "keep_mcc_mnc_mask_msin"}, imsi_mnc_lengths={"262": 3})
+    packets = [
+        {
+            "message": {
+                "fields": {
+                    "diameter.imsi": "262011234567890",
+                },
+            },
+        }
+    ]
+
+    protected = protector.protect_packets(packets)
+    assert protected[0]["message"]["fields"]["diameter.imsi"] == "262011XXXXXXXXX (Germany)"
+
+
+def test_msisdn_keep_cc_ndc_mask_subscriber_preserves_routing_prefix() -> None:
+    protector = Protector({"msisdn": "keep_cc_ndc_mask_subscriber"})
+    packets = [
+        {
+            "message": {
+                "fields": {
+                    "diameter.msisdn": "+491701234567",
+                },
+            },
+        }
+    ]
+
+    protected = protector.protect_packets(packets)
+    assert protected[0]["message"]["fields"]["diameter.msisdn"] == "+49170XXXXXXX (Germany)"
+
+
+def test_msisdn_non_german_number_preserves_only_country_code() -> None:
+    protector = Protector({"msisdn": "keep_cc_ndc_mask_subscriber"})
+    packets = [
+        {
+            "message": {
+                "fields": {
+                    "diameter.msisdn": "+33123456789",
+                },
+            },
+        }
+    ]
+
+    protected = protector.protect_packets(packets)
+    assert protected[0]["message"]["fields"]["diameter.msisdn"] == "+33XXXXXXXXX"
+
+
+def test_msisdn_partial_mode_supports_configured_ndc_prefix_override() -> None:
+    protector = Protector(
+        {"msisdn": "keep_cc_ndc_mask_subscriber"},
+        msisdn_ndc_prefixes={"31": ["20"]},
+    )
+    packets = [
+        {
+            "message": {
+                "fields": {
+                    "diameter.msisdn": "+31201234567",
+                },
+            },
+        }
+    ]
+
+    protected = protector.protect_packets(packets)
+    assert protected[0]["message"]["fields"]["diameter.msisdn"] == "+3120XXXXXXX"
+
+
+def test_partial_subscriber_pseudonymization_keeps_routing_context() -> None:
+    protector = Protector(
+        {
+            "imsi": "keep_mcc_mnc_pseudonymize_msin",
+            "msisdn": "keep_cc_ndc_pseudonymize_subscriber",
+        }
+    )
+    packets = [
+        {
+            "message": {
+                "fields": {
+                    "diameter.imsi": "262011234567890",
+                    "diameter.msisdn": "+491701234567",
+                },
+            },
+        }
+    ]
+
+    protected = protector.protect_packets(packets)
+    fields = protected[0]["message"]["fields"]
+    assert fields["diameter.imsi"].startswith("26201IMSI_SUFFIX_")
+    assert fields["diameter.imsi"].endswith(" (Germany)")
+    assert fields["diameter.msisdn"].startswith("+49170MSISDN_SUFFIX_")
+    assert fields["diameter.msisdn"].endswith(" (Germany)")
+    audit = protector.pseudonym_audit()
+    assert audit["imsi_suffix"] == 1
+    assert audit["msisdn_suffix"] == 1
+
+
 def test_mixed_case_nested_dns_hostname_is_caught() -> None:
     protector = Protector({"hostname": "mask"})
     packets = [

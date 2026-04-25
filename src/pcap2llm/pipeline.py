@@ -136,6 +136,7 @@ def analyze_capture(
     flow_svg_width: int = 1600,
     collapse_repeats: bool = True,
     privacy_profile_name: str | None = None,
+    numbering: dict[str, dict] | None = None,
     on_stage: OnStage | None = None,
 ) -> AnalyzeArtifacts:
     """Run the full two-pass analysis pipeline.
@@ -194,7 +195,13 @@ def analyze_capture(
 
     # Validate the vault key before starting expensive packet processing so
     # the user gets a clear error rather than a crash mid-pipeline.
-    protector = Protector(privacy_modes)
+    numbering = numbering or {}
+    protector = Protector(
+        privacy_modes,
+        imsi_mnc_lengths=numbering.get("imsi_mnc_lengths"),
+        msisdn_ndc_lengths=numbering.get("msisdn_ndc_lengths"),
+        msisdn_ndc_prefixes=numbering.get("msisdn_ndc_prefixes"),
+    )
     protector.validate_vault_key()
 
     # Oversize guard: uses pass-1 counts — same semantics as before.

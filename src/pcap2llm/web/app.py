@@ -504,7 +504,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         margin-bottom: 16px;
       }}
       a {{
-        color: #e20074;
+        color: #0f766e;
         text-decoration: none;
       }}
       a:hover {{
@@ -1258,6 +1258,18 @@ def _profile_mode_options() -> dict[str, list[str]]:
     base = ["keep", "mask", "pseudonymize", "encrypt", "remove"]
     options = {data_class: list(base) for data_class in DATA_CLASSES}
     options["imei"] = [*base, "keep_tac_mask_serial"]
+    options["imsi"] = [
+        *base,
+        "keep_mcc_mnc_mask_msin",
+        "keep_mcc_mnc_pseudonymize_msin",
+        "keep_mcc_mnc_encrypt_msin",
+    ]
+    options["msisdn"] = [
+        *base,
+        "keep_cc_ndc_mask_subscriber",
+        "keep_cc_ndc_pseudonymize_subscriber",
+        "keep_cc_ndc_encrypt_subscriber",
+    ]
     return options
 
 

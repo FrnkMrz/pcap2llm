@@ -244,6 +244,7 @@ Typische Startpunkte:
 
 - `internal`: lokal, unveraendert
 - `share`: intern teilen, Endpunkte und Subscriber-Daten pseudonymisieren
+- `telecom-context`: MCC/MNC, CC, deutsche Mobilfunk-NDCs und IMEI-TAC sichtbar lassen, Rest maskieren
 - `prod-safe`: staerker schuetzen, bevor du nach aussen gehst
 - `llm-telecom-safe`: guter Standard fuer externe LLMs
 
@@ -266,6 +267,39 @@ Mehr dazu:
 
 - [`PRIVACY_SHARING.md`](PRIVACY_SHARING.md)
 - [`LLM_TROUBLESHOOTING_WORKFLOW.md`](LLM_TROUBLESHOOTING_WORKFLOW.md)
+
+### IMSI/MSISDN mit Routing-Kontext schuetzen
+
+Wenn der Empfaenger MCC/MNC oder den E.164-Country-Code fuer die Fehlersuche
+braucht, aber keine vollstaendigen Subscriber-Identifier sehen soll, nutze:
+
+```yaml
+privacy_profile: telecom-context
+```
+
+Oder gezielt pro Lauf:
+
+```yaml
+privacy_modes:
+  imsi: keep_mcc_mnc_mask_msin
+  msisdn: keep_cc_ndc_mask_subscriber
+```
+
+Die IMSI-Heuristik ist bewusst einfach: MCC `3xx` verwendet eine 3-stellige
+MNC, alle anderen MCCs verwenden 2 Stellen. MSISDN ist konservativer: nur der
+Country Code bleibt sichtbar. Deutschland ist die eingebaute Ausnahme; passende
+Mobilfunk-NDCs fuer `(0)15`, `(0)160`, `(0)162`, `(0)163` und `(0)17x` bleiben
+sichtbar. Abweichungen und Partnerlisten kannst du in der Config setzen:
+
+```yaml
+numbering:
+  imsi_mnc_lengths:
+    "262": 2
+    "310": 3
+  msisdn_ndc_prefixes:
+    "31": ["20"]
+    "49": ["15", "160", "162", "163", "170", "171", "172", "173"]
+```
 
 ## Endpunkte lesbarer machen
 

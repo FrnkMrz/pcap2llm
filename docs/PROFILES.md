@@ -24,12 +24,15 @@ Use the family guide that matches the network domain you are troubleshooting:
 | 5G SA Core | 5GC overview, N1/N2, SBI, UDM/AUSF/UDR, policy, charging, DNS, public warning | [`PROFILES_5G.md`](PROFILES_5G.md) |
 | VoLTE / VoNR / IMS | SIP, Diameter, IMS DNS, Session Border Controller, 5GS voice state, auth/policy SBI | [`PROFILES_VOICE.md`](PROFILES_VOICE.md) |
 | 2G/3G Core / GERAN | Gn/Gp, Gr, Gs, GERAN, MAP, CAP, ISUP, SCCP/MTP, legacy DNS | [`PROFILES_2G3G.md`](PROFILES_2G3G.md) |
+| Transport decode | TCP, UDP, SCTP, IP/IPv6, ICMP lower-layer diagnostics | [`TRANSPORT_DECODE_PROFILE_PLAN.md`](TRANSPORT_DECODE_PROFILE_PLAN.md) |
 
 Quick rule:
 
 - Start with the broad family overview profile if the failing interface is still unclear.
 - Move to the narrower interface profile as soon as the real signaling path is known.
 - Prefer the voice family over generic SIP-like thinking when the problem is really IMS voice service.
+- Use `transport-sctp`, `transport-tcp`, `transport-udp`, or `transport-core`
+  when the transport behavior itself is the question or upper-layer decode is unreliable.
 
 ## Where to Put a Custom Profile
 

@@ -35,6 +35,26 @@ Most configurable data classes support the standard protection modes
 the TAC prefix visible and masks the serial suffix. This specialized mode does
 not apply to `email`.
 
+`imsi` supports telecom-aware partial modes:
+
+- `keep_mcc_mnc_mask_msin`
+- `keep_mcc_mnc_pseudonymize_msin`
+- `keep_mcc_mnc_encrypt_msin`
+
+These keep the E.212 MCC/MNC routing context and protect the MSIN suffix. By
+default, MCC `3xx` uses a 3-digit MNC and other MCCs use a 2-digit MNC unless
+`numbering.imsi_mnc_lengths` overrides the MCC.
+
+`msisdn` supports E.164-aware partial modes:
+
+- `keep_cc_ndc_mask_subscriber`
+- `keep_cc_ndc_pseudonymize_subscriber`
+- `keep_cc_ndc_encrypt_subscriber`
+
+These keep the E.164 country code visible and protect the subscriber suffix.
+Germany is the built-in exception: known German mobile NDCs remain visible.
+Use `numbering.msisdn_ndc_prefixes` for roaming-partner-specific CC/NDC plans.
+
 ## Canonical Classes
 
 - `network_address`

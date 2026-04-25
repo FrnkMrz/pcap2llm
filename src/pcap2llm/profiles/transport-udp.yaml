@@ -1,0 +1,44 @@
+name: transport-udp
+description: UDP decode profile for datagram conversations, loss hints, ICMP errors, DNS/NTP/RTP adjacency, and fragmentation context.
+relevant_protocols:
+  - udp
+  - ip
+  - ipv6
+  - icmp
+  - dns
+top_protocol_priority:
+  - udp
+  - dns
+  - icmp
+  - ip
+  - ipv6
+protocol_aliases:
+  udp: [udp]
+  dns: [dns]
+  icmp: [icmp, icmpv6]
+  ip: [ip]
+  ipv6: [ipv6]
+verbatim_protocols:
+  - udp
+full_detail_fields:
+  dns:
+    - dns.id
+    - dns.flags.response
+    - dns.flags.rcode
+    - dns.qry.name
+    - dns.qry.type
+    - dns.a
+    - dns.aaaa
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+tshark:
+  two_pass: false
+  extra_args: []
+summary_heuristics:
+  - Highlight high-volume UDP pairs, ICMP unreachable responses, DNS failures, and fragmentation-related warnings.
+  - Use this profile when datagram behavior matters more than higher-layer decode.

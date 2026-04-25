@@ -197,6 +197,22 @@ _IMEI_MODE_HELP = (
     "encrypt requires PCAP2LLM_VAULT_KEY; vault.json stores metadata only."
 )
 
+_IMSI_MODE_HELP = (
+    "Privacy mode: keep | mask | pseudonymize | encrypt | remove | "
+    "keep_mcc_mnc_mask_msin | keep_mcc_mnc_pseudonymize_msin | "
+    "keep_mcc_mnc_encrypt_msin. The partial modes preserve MCC+MNC and protect MSIN. "
+    "MNC defaults to 3 digits for MCC 3xx and 2 digits otherwise; config numbering "
+    "can override MCC-specific MNC lengths."
+)
+
+_MSISDN_MODE_HELP = (
+    "Privacy mode: keep | mask | pseudonymize | encrypt | remove | "
+    "keep_cc_ndc_mask_subscriber | keep_cc_ndc_pseudonymize_subscriber | "
+    "keep_cc_ndc_encrypt_subscriber. The partial modes preserve E.164 CC, plus "
+    "built-in German mobile NDCs, and protect the subscriber suffix; config "
+    "numbering can add partner NDC prefixes."
+)
+
 
 def _privacy_overrides(
     ip_mode: str | None,
@@ -240,6 +256,25 @@ def _build_modes(
     combined_overrides.update({k: v for k, v in config_overrides.items() if v is not None})
     combined_overrides.update({k: v for k, v in cli_overrides.items() if v is not None})
     return build_privacy_modes(base, combined_overrides)
+
+
+def _numbering_config(config_data: dict) -> dict[str, dict]:
+    raw = config_data.get("numbering", {})
+    if not isinstance(raw, dict):
+        return {}
+    result: dict[str, dict] = {}
+    for key in ("imsi_mnc_lengths", "msisdn_ndc_lengths"):
+        values = raw.get(key, {})
+        if isinstance(values, dict):
+            result[key] = {str(prefix): int(length) for prefix, length in values.items()}
+    prefixes = raw.get("msisdn_ndc_prefixes", {})
+    if isinstance(prefixes, dict):
+        result["msisdn_ndc_prefixes"] = {
+            str(cc): [str(prefix) for prefix in values]
+            for cc, values in prefixes.items()
+            if isinstance(values, list)
+        }
+    return result
 
 
 def _resolve_privacy_base(
@@ -766,8 +801,8 @@ def analyze_command(
     ip_mode: str | None = typer.Option(None, "--ip-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
     hostname_mode: str | None = typer.Option(None, "--hostname-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
     subscriber_id_mode: str | None = typer.Option(None, "--subscriber-id-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
-    msisdn_mode: str | None = typer.Option(None, "--msisdn-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
-    imsi_mode: str | None = typer.Option(None, "--imsi-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
+    msisdn_mode: str | None = typer.Option(None, "--msisdn-mode", help=_MSISDN_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
+    imsi_mode: str | None = typer.Option(None, "--imsi-mode", help=_IMSI_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
     imei_mode: str | None = typer.Option(None, "--imei-mode", help=_IMEI_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
     email_mode: str | None = typer.Option(None, "--email-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
     dn_mode: str | None = typer.Option(None, "--dn-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
@@ -875,6 +910,7 @@ def analyze_command(
                 "flow_svg_width": flow_svg_width,
                 "collapse_repeats": collapse_repeats,
                 "privacy_modes": privacy_modes,
+                "numbering": _numbering_config(config_data),
                 "effective_verbatim_protocols": effective_verbatim_protocols,
                 "effective_profile_overrides": effective_profile_overrides,
                 "hosts_file": str(effective_hosts) if effective_hosts else None,
@@ -919,6 +955,7 @@ def analyze_command(
                 flow_svg_width=flow_svg_width,
                 collapse_repeats=collapse_repeats,
                 privacy_profile_name=privacy_profile_name or config_data.get("privacy_profile"),
+                numbering=_numbering_config(config_data),
                 on_stage=on_stage,
             )
     except Exception as exc:  # noqa: BLE001
@@ -1131,6 +1168,7 @@ def ask_chatgpt_command(
                 max_packets=effective_max_packets,
                 max_capture_size_mb=max_capture_size_mb,
                 oversize_factor=oversize_factor,
+                numbering=_numbering_config(config_data),
             )
             analysis_outputs = write_artifacts(artifacts, out_dir)
 
@@ -1291,6 +1329,7 @@ def ask_claude_command(
                 max_packets=effective_max_packets,
                 max_capture_size_mb=max_capture_size_mb,
                 oversize_factor=oversize_factor,
+                numbering=_numbering_config(config_data),
             )
             analysis_outputs = write_artifacts(artifacts, out_dir)
 
@@ -1451,6 +1490,7 @@ def ask_gemini_command(
                 max_packets=effective_max_packets,
                 max_capture_size_mb=max_capture_size_mb,
                 oversize_factor=oversize_factor,
+                numbering=_numbering_config(config_data),
             )
             analysis_outputs = write_artifacts(artifacts, out_dir)
 

@@ -28,6 +28,54 @@ def normalize_mode(value: str | None) -> str:
         "keep_tac": ProtectionMode.KEEP_TAC_MASK_SERIAL.value,
         "keep-tac": ProtectionMode.KEEP_TAC_MASK_SERIAL.value,
         "tac": ProtectionMode.KEEP_TAC_MASK_SERIAL.value,
+        "keep_mcc_mnc_mask_msin": ProtectionMode.KEEP_MCC_MNC_MASK_MSIN.value,
+        "keep-mcc-mnc-mask-msin": ProtectionMode.KEEP_MCC_MNC_MASK_MSIN.value,
+        "keep_plmn_mask_msin": ProtectionMode.KEEP_MCC_MNC_MASK_MSIN.value,
+        "keep-plmn-mask-msin": ProtectionMode.KEEP_MCC_MNC_MASK_MSIN.value,
+        "keep_mcc_mnc_pseudonymize_msin": (
+            ProtectionMode.KEEP_MCC_MNC_PSEUDONYMIZE_MSIN.value
+        ),
+        "keep-mcc-mnc-pseudonymize-msin": (
+            ProtectionMode.KEEP_MCC_MNC_PSEUDONYMIZE_MSIN.value
+        ),
+        "keep_plmn_pseudonymize_msin": (
+            ProtectionMode.KEEP_MCC_MNC_PSEUDONYMIZE_MSIN.value
+        ),
+        "keep-plmn-pseudonymize-msin": (
+            ProtectionMode.KEEP_MCC_MNC_PSEUDONYMIZE_MSIN.value
+        ),
+        "keep_mcc_mnc_encrypt_msin": ProtectionMode.KEEP_MCC_MNC_ENCRYPT_MSIN.value,
+        "keep-mcc-mnc-encrypt-msin": ProtectionMode.KEEP_MCC_MNC_ENCRYPT_MSIN.value,
+        "keep_plmn_encrypt_msin": ProtectionMode.KEEP_MCC_MNC_ENCRYPT_MSIN.value,
+        "keep-plmn-encrypt-msin": ProtectionMode.KEEP_MCC_MNC_ENCRYPT_MSIN.value,
+        "keep_cc_ndc_mask_subscriber": ProtectionMode.KEEP_CC_NDC_MASK_SUBSCRIBER.value,
+        "keep-cc-ndc-mask-subscriber": ProtectionMode.KEEP_CC_NDC_MASK_SUBSCRIBER.value,
+        "keep_e164_routing_mask_subscriber": (
+            ProtectionMode.KEEP_CC_NDC_MASK_SUBSCRIBER.value
+        ),
+        "keep-e164-routing-mask-subscriber": (
+            ProtectionMode.KEEP_CC_NDC_MASK_SUBSCRIBER.value
+        ),
+        "keep_cc_ndc_pseudonymize_subscriber": (
+            ProtectionMode.KEEP_CC_NDC_PSEUDONYMIZE_SUBSCRIBER.value
+        ),
+        "keep-cc-ndc-pseudonymize-subscriber": (
+            ProtectionMode.KEEP_CC_NDC_PSEUDONYMIZE_SUBSCRIBER.value
+        ),
+        "keep_e164_routing_pseudonymize_subscriber": (
+            ProtectionMode.KEEP_CC_NDC_PSEUDONYMIZE_SUBSCRIBER.value
+        ),
+        "keep-e164-routing-pseudonymize-subscriber": (
+            ProtectionMode.KEEP_CC_NDC_PSEUDONYMIZE_SUBSCRIBER.value
+        ),
+        "keep_cc_ndc_encrypt_subscriber": ProtectionMode.KEEP_CC_NDC_ENCRYPT_SUBSCRIBER.value,
+        "keep-cc-ndc-encrypt-subscriber": ProtectionMode.KEEP_CC_NDC_ENCRYPT_SUBSCRIBER.value,
+        "keep_e164_routing_encrypt_subscriber": (
+            ProtectionMode.KEEP_CC_NDC_ENCRYPT_SUBSCRIBER.value
+        ),
+        "keep-e164-routing-encrypt-subscriber": (
+            ProtectionMode.KEEP_CC_NDC_ENCRYPT_SUBSCRIBER.value
+        ),
     }
     if normalized not in aliases:
         valid = ", ".join(mode.value for mode in ProtectionMode)
@@ -85,5 +133,17 @@ def sample_config_text() -> str:
         "# privacy_modes:",
         "#   imsi: remove",
         "#   token: remove",
+        "",
+        "# Optional numbering-plan hints for partial IMSI/MSISDN protection.",
+        "# Defaults: IMSI MNC length is 3 for MCC 3xx, otherwise 2.",
+        "# MSISDN keeps only CC by default, except built-in German mobile NDCs.",
+        "# Add roaming-partner CC/NDC prefixes when using keep_cc_ndc_* modes.",
+        "# numbering:",
+        "#   imsi_mnc_lengths:",
+        "#     '262': 2",
+        "#     '310': 3",
+        "#   msisdn_ndc_prefixes:",
+        "#     '31': ['20']",
+        "#     '49': ['15', '160', '162', '163', '170', '171', '172', '173']",
     ]
     return "\n".join(lines) + "\n"

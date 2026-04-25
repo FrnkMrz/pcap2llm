@@ -6,6 +6,14 @@ The format is intentionally simple and optimized for humans reading repo history
 
 ## Unreleased
 
+### Changed — 2026-04-25 (web GUI brand polish)
+
+- Updated the local Web GUI to a Telekom-inspired magenta/neutral visual theme.
+- Added a compact brand lockup, active top navigation states, shared light/dark
+  color tokens, consistent focus rings, and tighter 8px panel/card radii.
+- Aligned dashboard, job detail, privacy-profile management, jobs table, and
+  inline Markdown preview surfaces with the refreshed color system.
+
 ### Fixed — 2026-04-25 (remediation hardening follow-up)
 
 - Completed the remediation-plan hardening pass:

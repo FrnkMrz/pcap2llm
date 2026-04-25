@@ -1,39 +1,93 @@
 :root {
-  --bg: #f4f7f2;
-  --ink: #1f2a2a;
-  --muted: #5f6c6c;
-  --panel: #ffffff;
-  --line: #d8dfd4;
-  --accent: #2f6d5f;
-  --error: #a11f1f;
+  --telekom-magenta: #e20074;
+  --telekom-magenta-hover: #c00063;
+  --telekom-magenta-soft: #fce8f2;
+  --telekom-black: #262626;
+  --telekom-gray-700: #4b4b4b;
+  --telekom-gray-500: #737373;
+  --telekom-gray-300: #d0d0d0;
+  --telekom-gray-100: #f3f3f3;
+  --white: #ffffff;
+  --black: #000000;
+  --bg: #f7f7f8;
+  --ink: var(--telekom-black);
+  --muted: var(--telekom-gray-500);
+  --panel: var(--white);
+  --line: var(--telekom-gray-300);
+  --accent: var(--telekom-magenta);
+  --accent-hover: var(--telekom-magenta-hover);
+  --accent-soft: var(--telekom-magenta-soft);
+  --on-accent: var(--white);
+  --code-bg: #111111;
+  --code-ink: #f5f5f5;
+  --info: #00739f;
+  --success: #008a00;
+  --warning: #b35a00;
+  --error: #d90000;
+  --shadow: 0 1px 2px rgba(38, 38, 38, 0.08);
+  --shadow-raised: 0 4px 10px rgba(38, 38, 38, 0.14);
+  --shadow-tooltip: 0 8px 20px rgba(0, 0, 0, 0.22);
 }
 
 :root[data-theme="dark"] {
-  --bg: #0f1515;
-  --ink: #d8e1df;
-  --muted: #93a2a0;
-  --panel: #182121;
-  --line: #2b3a38;
-  --accent: #6eb8a5;
-  --error: #ff7d7d;
+  --bg: #111111;
+  --ink: #f5f5f5;
+  --muted: #b2b2b2;
+  --panel: #1f1f1f;
+  --line: #444444;
+  --accent: #ff4fa3;
+  --accent-hover: #ff7fbd;
+  --accent-soft: #3a1c2b;
+  --on-accent: var(--white);
+  --code-bg: #050505;
+  --code-ink: #f5f5f5;
+  --info: #53c7ef;
+  --success: #55c96b;
+  --warning: #f0a23a;
+  --error: #ff6b6b;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.32);
+  --shadow-raised: 0 4px 12px rgba(0, 0, 0, 0.34);
+  --shadow-tooltip: 0 8px 20px rgba(0, 0, 0, 0.36);
 }
 
 * { box-sizing: border-box; }
 body {
   margin: 0;
-  font-family: "Segoe UI", Tahoma, sans-serif;
-  background: radial-gradient(circle at top right, #dcebe4 0%, var(--bg) 55%);
+  font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+  background: var(--bg);
   color: var(--ink);
 }
 
 .site-header {
   padding: 1.2rem 1rem;
+  border-top: 6px solid var(--accent);
   border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--panel) 85%, #dfeae4 15%);
+  background: var(--panel);
+  box-shadow: var(--shadow);
 }
 .site-header h1 { margin: 0; font-size: 1.4rem; }
 .site-header a { color: inherit; text-decoration: none; }
 .site-header p { margin: 0.35rem 0 0; color: var(--muted); }
+
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.brand-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--on-accent) !important;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 70%, var(--black) 30%);
+}
 
 .container {
   max-width: 1080px;
@@ -46,8 +100,9 @@ body {
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 1rem;
+  box-shadow: var(--shadow);
 }
 
 .stack { display: grid; gap: 0.6rem; }
@@ -57,15 +112,25 @@ input, select, button {
   font: inherit;
 }
 input[type="text"], input[type="number"], input[type="file"], select {
-  border: 1px solid #c9d1c4;
+  border: 1px solid var(--line);
   border-radius: 7px;
   padding: 0.45rem 0.55rem;
-  background: #fff;
+  background: var(--panel);
+  color: var(--ink);
+}
+
+input:focus-visible,
+select:focus-visible,
+button:focus-visible,
+a:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 38%, transparent);
+  outline-offset: 2px;
 }
 button {
   border: 0;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border-radius: 7px;
   padding: 0.55rem 0.85rem;
   cursor: pointer;
@@ -84,7 +149,7 @@ button:hover { filter: brightness(0.95); }
 .mono {
   font-family: Consolas, "Courier New", monospace;
   font-size: 0.9rem;
-  background: #f6f8f4;
+  background: color-mix(in srgb, var(--panel) 88%, var(--telekom-gray-100) 12%);
   border: 1px solid var(--line);
   border-radius: 7px;
   padding: 0.5rem;
@@ -95,8 +160,8 @@ pre {
   margin: 0;
   max-height: 220px;
   overflow: auto;
-  background: #111;
-  color: #d7f3de;
+  background: var(--code-bg);
+  color: var(--code-ink);
   padding: 0.7rem;
   border-radius: 7px;
 }
@@ -106,12 +171,12 @@ pre {
   max-width: 100%;
   border: 1px solid var(--line);
   border-radius: 7px;
-  background: #fff;
+  background: var(--panel);
 }
 
 .site-nav {
   display: flex;
-  gap: 1rem;
+  gap: 0.4rem;
   margin-top: 0.75rem;
 }
 
@@ -134,14 +199,19 @@ pre {
   text-decoration: none;
   color: var(--accent);
   font-size: 0.95rem;
-  font-weight: 500;
+  font-weight: 600;
   padding: 0.35rem 0.7rem;
-  border-radius: 5px;
-  transition: background 0.2s;
+  border-radius: 6px;
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
 }
 
-.nav-link:hover {
-  background: rgba(47, 109, 95, 0.1);
+.nav-link:hover,
+.nav-link.active {
+  background: var(--accent-soft);
+}
+
+.nav-link.active {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 @media (max-width: 760px) {
@@ -166,44 +236,45 @@ pre {
   gap: 1rem;
   align-items: center;
   padding: 0.75rem;
-  background: #e3f2fd;
-  border-radius: 4px;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
+  border-radius: 8px;
 }
 
 .jobs-count {
   margin-left: auto;
   font-weight: 600;
-  color: #333;
+  color: var(--ink);
 }
 
 .jobs-table {
   width: 100%;
   border-collapse: collapse;
-  background: white;
+  background: var(--panel);
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow);
 }
 
 .jobs-table thead tr {
-  background: #f5f5f5;
-  border-bottom: 2px solid #ddd;
+  background: color-mix(in srgb, var(--panel) 80%, var(--telekom-gray-100) 20%);
+  border-bottom: 2px solid var(--line);
 }
 
 .jobs-table th {
   padding: 1rem;
   text-align: left;
   font-weight: 600;
-  color: #333;
+  color: var(--ink);
 }
 
 .jobs-table td {
   padding: 1rem;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--line);
 }
 
 .jobs-table tr:hover {
-  background: #f9f9f9;
+  background: color-mix(in srgb, var(--panel) 90%, var(--accent-soft) 10%);
 }
 
 .jobs-table a {
@@ -222,24 +293,24 @@ pre {
 }
 
 .status-uploaded {
-  color: #f39c12;
+  color: var(--warning);
   font-weight: 600;
 }
 
 .status-discovering,
 .status-analyzing {
-  color: #3498db;
+  color: var(--info);
   font-weight: 600;
 }
 
 .status-completed,
 .status-done {
-  color: #27ae60;
+  color: var(--success);
   font-weight: 600;
 }
 
 .status-failed {
-  color: #e74c3c;
+  color: var(--error);
   font-weight: 600;
 }
 
@@ -251,7 +322,7 @@ button {
 
 button[type="submit"] {
   background-color: var(--accent);
-  color: white;
+  color: var(--on-accent);
   border: none;
   padding: 0.6rem 1rem;
   border-radius: 4px;
@@ -259,13 +330,13 @@ button[type="submit"] {
 }
 
 button[type="submit"]:hover {
-  background-color: #1f5145;
+  background-color: var(--accent-hover);
 }
 
 .btn {
   display: inline-block;
   padding: 0.6rem 1rem;
-  border-radius: 4px;
+  border-radius: 7px;
   border: none;
   text-decoration: none;
   font-weight: 500;
@@ -275,38 +346,38 @@ button[type="submit"]:hover {
 
 .btn-primary {
   background-color: var(--accent);
-  color: white;
+  color: var(--on-accent);
 }
 
 .btn-primary:hover {
-  background-color: #1f5145;
+  background-color: var(--accent-hover);
 }
 
 .btn-secondary {
-  background-color: #95a5a6;
-  color: white;
+  background-color: var(--telekom-gray-700);
+  color: var(--on-accent);
 }
 
 .btn-secondary:hover {
-  background-color: #7f8c8d;
+  background-color: var(--telekom-black);
 }
 
 .btn-warning {
-  background-color: #f39c12;
-  color: white;
+  background-color: var(--warning);
+  color: var(--on-accent);
 }
 
 .btn-warning:hover {
-  background-color: #d68910;
+  background-color: color-mix(in srgb, var(--warning) 78%, var(--black) 22%);
 }
 
 .btn-danger {
-  background-color: #e74c3c;
-  color: white;
+  background-color: var(--error);
+  color: var(--on-accent);
 }
 
 .btn-danger:hover {
-  background-color: #c0392b;
+  background-color: color-mix(in srgb, var(--error) 78%, var(--black) 22%);
 }
 
 .link-button {
@@ -347,4 +418,3 @@ button[type="submit"]:hover {
     padding: 0.35rem 0.6rem;
   }
 }
-

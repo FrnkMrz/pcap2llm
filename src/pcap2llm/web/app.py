@@ -490,8 +490,8 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         margin: 0;
         padding: 24px;
         font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: #f6f8fb;
-        color: #16202a;
+        background: #f7f7f8;
+        color: #262626;
       }}
       .wrap {{
         max-width: 1100px;
@@ -504,7 +504,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         margin-bottom: 16px;
       }}
       a {{
-        color: #1251a3;
+        color: #e20074;
         text-decoration: none;
       }}
       a:hover {{
@@ -514,7 +514,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         white-space: pre-wrap;
         word-break: break-word;
         background: #ffffff;
-        border: 1px solid #d7dee8;
+        border: 1px solid #d0d0d0;
         border-radius: 8px;
         padding: 16px;
         overflow: auto;

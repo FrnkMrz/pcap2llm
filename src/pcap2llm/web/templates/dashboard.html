@@ -112,7 +112,7 @@
     font-size: 1.25rem;
     color: var(--ink);
     margin-bottom: 1rem;
-    border-bottom: 2px solid #2f6d5f;
+    border-bottom: 2px solid var(--accent);
     padding-bottom: 0.5rem;
   }
 
@@ -128,13 +128,13 @@
     border-radius: 8px;
     padding: 1.5rem;
     text-align: center;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow);
     transition: transform 0.2s, box-shadow 0.2s;
   }
 
   .stat-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-raised);
   }
 
   .stat-label {
@@ -152,19 +152,19 @@
   }
 
   .stat-success {
-    color: #27ae60;
+    color: var(--success);
   }
 
   .stat-error {
-    color: #e74c3c;
+    color: var(--error);
   }
 
   .stat-warning {
-    color: #f39c12;
+    color: var(--warning);
   }
 
   .stat-info {
-    color: #3498db;
+    color: var(--info);
   }
 
   .recent-section {
@@ -175,7 +175,7 @@
     font-size: 1.25rem;
     color: var(--ink);
     margin-bottom: 1rem;
-    border-bottom: 2px solid #2f6d5f;
+    border-bottom: 2px solid var(--accent);
     padding-bottom: 0.5rem;
   }
 
@@ -185,11 +185,11 @@
     background: var(--panel);
     border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow);
   }
 
   .recent-table thead tr {
-    background: color-mix(in srgb, var(--panel) 85%, #e9ecea 15%);
+    background: color-mix(in srgb, var(--panel) 82%, var(--telekom-gray-100) 18%);
     border-bottom: 2px solid var(--line);
   }
 
@@ -206,7 +206,7 @@
   }
 
   .recent-table tr:hover {
-    background: color-mix(in srgb, var(--panel) 92%, #f0f3f1 8%);
+    background: color-mix(in srgb, var(--panel) 90%, var(--accent-soft) 10%);
   }
 
   .recent-table a {
@@ -220,36 +220,37 @@
   }
 
   .status-done {
-    color: #27ae60;
+    color: var(--success);
     font-weight: 600;
   }
 
   .status-failed {
-    color: #e74c3c;
+    color: var(--error);
     font-weight: 600;
   }
 
   .status-discovering,
   .status-analyzing {
-    color: #3498db;
+    color: var(--info);
     font-weight: 600;
   }
 
   .status-uploaded {
-    color: #f39c12;
+    color: var(--warning);
     font-weight: 600;
   }
 
   .actions-section {
     margin-bottom: 3rem;
-    background: color-mix(in srgb, var(--panel) 90%, #f0f3f1 10%);
+    background: var(--accent-soft);
+    border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line));
     border-radius: 8px;
     padding: 2rem;
   }
 
   .actions-section h3 {
     font-size: 1.25rem;
-    color: #333;
+    color: var(--ink);
     margin-bottom: 1.5rem;
   }
 
@@ -271,30 +272,30 @@
   }
 
   .btn-primary {
-    background-color: #2f6d5f;
-    color: white;
+    background-color: var(--accent);
+    color: var(--on-accent);
   }
 
   .btn-primary:hover {
-    background-color: #245147;
+    background-color: var(--accent-hover);
   }
 
   .btn-secondary {
-    background-color: #95a5a6;
-    color: white;
+    background-color: var(--telekom-gray-700);
+    color: var(--on-accent);
   }
 
   .btn-secondary:hover {
-    background-color: #7f8c8d;
+    background-color: var(--telekom-black);
   }
 
   .btn-warning {
-    background-color: #f39c12;
-    color: white;
+    background-color: var(--warning);
+    color: var(--on-accent);
   }
 
   .btn-warning:hover {
-    background-color: #d68910;
+    background-color: color-mix(in srgb, var(--warning) 78%, var(--black) 22%);
   }
 
   @media (max-width: 768px) {

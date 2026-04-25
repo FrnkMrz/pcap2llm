@@ -8,13 +8,18 @@
   </head>
   <body>
     <header class="site-header">
-      <h1><a href="/">pcap2llm Web GUI</a></h1>
-      <p>Local processing only. No external upload, no telemetry.</p>
+      <div class="brand-lockup">
+        <a href="/" class="brand-mark" aria-label="pcap2llm home">p2</a>
+        <div>
+          <h1><a href="/">pcap2llm Web GUI</a></h1>
+          <p>Local processing only. No external upload, no telemetry.</p>
+        </div>
+      </div>
       <div class="header-row">
-        <nav class="site-nav">
-          <a href="/dashboard" class="nav-link">Dashboard</a>
-          <a href="/" class="nav-link">Jobs</a>
-          <a href="/profiles" class="nav-link">Privacy Profiles</a>
+        <nav class="site-nav" aria-label="Primary navigation">
+          <a href="/dashboard" class="nav-link {% if request.url.path.startswith('/dashboard') %}active{% endif %}">Dashboard</a>
+          <a href="/" class="nav-link {% if request.url.path == '/' or request.url.path.startswith('/jobs') %}active{% endif %}">Jobs</a>
+          <a href="/profiles" class="nav-link {% if request.url.path.startswith('/profiles') %}active{% endif %}">Privacy Profiles</a>
         </nav>
         <button id="theme-toggle" type="button" class="theme-toggle" aria-label="Toggle color theme">Dark Mode</button>
       </div>

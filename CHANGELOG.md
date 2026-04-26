@@ -6,6 +6,19 @@ The format is intentionally simple and optimized for humans reading repo history
 
 ## Unreleased
 
+### Changed — 2026-04-26 (web GUI profile visibility)
+
+- Reworked the Web GUI analysis-profile picker into visible domain groups:
+  Transport, 2G/3G, 4G/EPC, 5G, Voice/IMS, DNS/Name Resolution, and
+  General/support.
+- Added a built-in analysis-profile overview to the start page so newly added
+  transport and DNS/name-resolution profiles are discoverable before upload.
+- Replaced the previous magenta/P2 Web GUI branding with a neutral teal trace
+  mark and updated the shared web color tokens.
+- Added lightweight favicon and Apple touch icon routes to avoid browser 404s
+  for `/favicon.ico`, `/apple-touch-icon.png`, and
+  `/apple-touch-icon-precomposed.png`.
+
 ### Changed — 2026-04-25 (web GUI brand polish)
 
 - Updated the local Web GUI to a Telekom-inspired magenta/neutral visual theme.

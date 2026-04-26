@@ -65,11 +65,20 @@
       Profile
       <select name="profile" required>
         {% set selected_profile = analyze_defaults.profile %}
-        {% for p in profiles %}
-          <option value="{{ p }}" {% if selected_profile == p %}selected{% endif %}>{{ p }}</option>
+        {% for group in analysis_profile_groups %}
+          <optgroup label="{{ group.name }}">
+            {% for p in group.profiles %}
+              <option value="{{ p.name }}" title="{{ p.description }}" {% if selected_profile == p.name %}selected{% endif %}>{{ p.name }}</option>
+            {% endfor %}
+          </optgroup>
         {% endfor %}
       </select>
     </label>
+
+    <div class="profile-hint-panel">
+      <strong>Profile groups</strong>
+      <span>Transport first for TCP/UDP/SCTP, then 2G/3G, 4G/EPC, 5G, Voice/IMS, and DNS/Name Resolution as the cross-generation view.</span>
+    </div>
 
     <label>
       Privacy profile

@@ -33,6 +33,12 @@ def test_index_route_returns_200(tmp_path: Path) -> None:
     response = client.get("/")
     assert response.status_code == 200
     assert "pcap2llm Web GUI" in response.text
+    assert "Built-in Analysis Profiles" in response.text
+    assert "transport-sctp" in response.text
+    assert "Transport" in response.text
+    assert "2G / 3G" in response.text
+    assert "4G / EPC" in response.text
+    assert "DNS / Name Resolution" in response.text
 
 
 def test_dashboard_route_returns_200(tmp_path: Path) -> None:
@@ -40,6 +46,14 @@ def test_dashboard_route_returns_200(tmp_path: Path) -> None:
     response = client.get("/dashboard")
     assert response.status_code == 200
     assert "Dashboard" in response.text
+
+
+def test_browser_icon_routes_do_not_log_404s(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    for path in ("/favicon.ico", "/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("image/svg+xml")
 
 
 def test_upload_accepts_pcapng_and_creates_job(tmp_path: Path) -> None:
@@ -368,7 +382,8 @@ def test_job_page_persists_last_analyze_form_values(tmp_path: Path) -> None:
     assert page.status_code == 200
     assert 'value="gtpv2"' in page.text
     assert 'value="200"' in page.text
-    assert 'value="lte-s11" selected' in page.text
+    assert 'value="lte-s11"' in page.text
+    assert ">lte-s11</option>" in page.text
     assert 'type="radio" name="privacy_profile" value="lab" checked' in page.text
 
 
@@ -387,6 +402,33 @@ def test_job_page_renders_privacy_profiles_as_visible_options(tmp_path: Path) ->
     assert 'type="radio" name="privacy_profile" value="share" checked' in page.text
     assert 'data-tooltip="Safe for sharing with external parties or cross-team review.' in page.text
     assert '<select name="privacy_profile"' not in page.text
+
+
+def test_job_page_groups_analysis_profiles_and_shows_transport_hint(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    upload = client.post(
+        "/jobs",
+        files={"capture": ("trace.pcap", io.BytesIO(b"abc"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+    job_id = upload.headers["location"].split("/")[-1]
+
+    page = client.get(f"/jobs/{job_id}")
+    assert page.status_code == 200
+    assert page.text.index('<optgroup label="Transport">') < page.text.index(
+        '<optgroup label="2G / 3G">'
+    )
+    assert page.text.index('<optgroup label="2G / 3G">') < page.text.index(
+        '<optgroup label="4G / EPC">'
+    )
+    assert page.text.index('<optgroup label="4G / EPC">') < page.text.index(
+        '<optgroup label="5G">'
+    )
+    assert page.text.index('<optgroup label="5G">') < page.text.index(
+        '<optgroup label="DNS / Name Resolution">'
+    )
+    assert 'value="transport-sctp"' in page.text
+    assert "Profile groups" in page.text
 
 
 def test_job_page_includes_local_privacy_profiles(tmp_path: Path) -> None:

@@ -16,6 +16,28 @@
   </form>
 </section>
 
+<section class="panel">
+  <h2>Built-in Analysis Profiles</h2>
+  <div class="analysis-profile-groups">
+    {% for group in analysis_profile_groups %}
+      <section class="analysis-profile-group">
+        <div class="analysis-profile-group-head">
+          <h3>{{ group.name }}</h3>
+          <span>{{ group.profiles | length }}</span>
+        </div>
+        {% if group.description %}
+          <p>{{ group.description }}</p>
+        {% endif %}
+        <div class="analysis-profile-list">
+          {% for profile in group.profiles %}
+            <span class="analysis-profile-chip" title="{{ profile.description }}">{{ profile.name }}</span>
+          {% endfor %}
+        </div>
+      </section>
+    {% endfor %}
+  </div>
+</section>
+
 {% if jobs %}
 <section class="panel">
   <h2>Recent Jobs</h2>
@@ -67,4 +89,3 @@ function updateSelectedCount() {
 </script>
 {% endif %}
 {% endblock %}
-

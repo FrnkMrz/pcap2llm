@@ -11,7 +11,7 @@ from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -21,7 +21,7 @@ from pcap2llm.config import build_privacy_modes
 from pcap2llm.error_codes import map_error
 from pcap2llm.models import DATA_CLASSES
 from pcap2llm.privacy_profiles import list_privacy_profiles, load_privacy_profile
-from pcap2llm.profiles import list_profile_names
+from pcap2llm.profiles import list_profile_names, load_profile
 
 from .config import WebSettings, load_settings
 from .jobs import SENSITIVE_SIDECARS, JobStore
@@ -94,6 +94,15 @@ def _allowed_origin_values(request: Request) -> set[str]:
     }
 
 
+_APP_ICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+  <rect width="180" height="180" rx="32" fill="#d9f4ef"/>
+  <rect x="42" y="51" width="78" height="14" rx="7" fill="#0f766e"/>
+  <rect x="42" y="83" width="108" height="14" rx="7" fill="#0f766e"/>
+  <rect x="42" y="115" width="62" height="14" rx="7" fill="#0f766e"/>
+</svg>
+"""
+
+
 def create_app(settings: WebSettings | None = None) -> FastAPI:
     settings = settings or load_settings()
     settings.workdir.mkdir(parents=True, exist_ok=True)
@@ -130,6 +139,16 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     templates = Jinja2Templates(directory=str(web_dir / "templates"))
     app.mount("/static", StaticFiles(directory=str(web_dir / "static")), name="static")
 
+    @app.get("/favicon.ico", include_in_schema=False)
+    @app.get("/apple-touch-icon.png", include_in_schema=False)
+    @app.get("/apple-touch-icon-precomposed.png", include_in_schema=False)
+    async def app_icon() -> Response:
+        return Response(
+            content=_APP_ICON_SVG,
+            media_type="image/svg+xml",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request) -> HTMLResponse:
         store: JobStore = request.app.state.store
@@ -141,6 +160,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 "request": request,
                 "settings": settings,
                 "jobs": jobs,
+                "analysis_profile_groups": _analysis_profile_groups(),
             },
         )
 
@@ -233,6 +253,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             "request": request,
             "job": record,
             "profiles": list_profile_names(),
+            "analysis_profile_groups": _analysis_profile_groups(),
             "privacy_profiles": _privacy_profile_options(profile_store),
             "name_resolution_usage": _discovery_name_resolution(store.discovery_dir(job_id)),
             "network_element_overview": _network_element_overview(store.artifacts_dir(job_id)),
@@ -1271,6 +1292,62 @@ def _profile_mode_options() -> dict[str, list[str]]:
         "keep_cc_ndc_encrypt_subscriber",
     ]
     return options
+
+
+def _analysis_profile_group_name(name: str) -> str:
+    if name == "core-name-resolution" or name.endswith("-dns"):
+        return "DNS / Name Resolution"
+    if name.startswith("transport-"):
+        return "Transport"
+    if name.startswith("2g3g-"):
+        return "2G / 3G"
+    if name.startswith("lte-"):
+        return "4G / EPC"
+    if name.startswith("5g-"):
+        return "5G"
+    if name.startswith(("volte-", "vonr-")):
+        return "Voice / IMS"
+    return "General / support"
+
+
+def _analysis_profile_groups() -> list[dict[str, object]]:
+    descriptions = {
+        "Transport": "TCP, UDP, SCTP and packet transport behavior.",
+        "2G / 3G": "Legacy core, GERAN, SS7, MAP, CAP, ISUP and GPRS interfaces.",
+        "4G / EPC": "LTE/EPC control-plane and EPC interface troubleshooting.",
+        "5G": "5GC, N1/N2, SBI, PFCP, NAS-5GS and public warning profiles.",
+        "Voice / IMS": "VoLTE, VoNR, SIP, IMS Diameter, SBC and voice-specific SBI.",
+        "DNS / Name Resolution": "Cross-generation DNS, service discovery and naming patterns.",
+        "General / support": "Support profiles that do not belong to one access generation.",
+    }
+    grouped: dict[str, list[dict[str, str]]] = {}
+    for name in list_profile_names():
+        try:
+            profile = load_profile(name)
+            description = profile.description
+        except Exception:  # noqa: BLE001
+            description = ""
+        group_name = _analysis_profile_group_name(name)
+        grouped.setdefault(group_name, []).append({"name": name, "description": description})
+
+    order = [
+        "Transport",
+        "2G / 3G",
+        "4G / EPC",
+        "5G",
+        "Voice / IMS",
+        "DNS / Name Resolution",
+        "General / support",
+    ]
+    return [
+        {
+            "name": group,
+            "description": descriptions.get(group, ""),
+            "profiles": sorted(grouped[group], key=lambda item: item["name"]),
+        }
+        for group in order
+        if group in grouped
+    ]
 
 
 def _builtin_privacy_profiles() -> list[dict[str, str]]:

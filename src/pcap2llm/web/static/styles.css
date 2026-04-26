@@ -130,6 +130,85 @@ input[type="text"], input[type="number"], input[type="file"], select {
   color: var(--ink);
 }
 
+.analysis-profile-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 0.8rem;
+}
+
+.analysis-profile-group {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.75rem;
+  background: color-mix(in srgb, var(--panel) 88%, var(--neutral-gray-100) 12%);
+}
+
+.analysis-profile-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin-bottom: 0.35rem;
+}
+
+.analysis-profile-group-head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.analysis-profile-group-head span {
+  min-width: 1.7rem;
+  border-radius: 999px;
+  padding: 0.15rem 0.45rem;
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.analysis-profile-group p {
+  margin: 0 0 0.65rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.analysis-profile-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.analysis-profile-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.8rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  border-radius: 999px;
+  padding: 0.25rem 0.55rem;
+  background: var(--panel);
+  color: var(--ink);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.profile-hint-panel {
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+.profile-hint-panel span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 input:focus-visible,
 select:focus-visible,
 button:focus-visible,

@@ -105,49 +105,6 @@ body {
   object-fit: contain;
 }
 
-.brand-mark-image[hidden],
-.brand-mark-fallback[hidden] {
-  display: none !important;
-}
-
-.brand-mark-fallback {
-  display: grid;
-  grid-template-columns: 1fr;
-  align-content: center;
-  justify-items: start;
-  width: 4.1rem;
-  min-height: 3rem;
-  padding: 0.42rem 0.55rem 0.45rem;
-  border-radius: 12px;
-  background: linear-gradient(150deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 74%, var(--black) 26%) 100%);
-  box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 70%, var(--black) 30%);
-}
-
-.brand-mark-top,
-.brand-mark-bottom {
-  display: block;
-  line-height: 1;
-}
-
-.brand-mark-top {
-  font-size: 0.72rem;
-  font-weight: 700;
-  opacity: 0.92;
-}
-
-.brand-mark-divider {
-  display: block;
-  width: 100%;
-  height: 1px;
-  margin: 0.28rem 0 0.25rem;
-  background: color-mix(in srgb, var(--white) 72%, transparent);
-}
-
-.brand-mark-bottom {
-  font-size: 0.98rem;
-  font-weight: 800;
-}
-
 .container {
   max-width: 1080px;
   margin: 1rem auto 2rem;

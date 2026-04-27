@@ -76,17 +76,71 @@ body {
 }
 
 .brand-mark {
-  display: inline-grid;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brand-mark-frame {
+  display: grid;
   place-items: center;
-  width: 2.4rem;
-  height: 2.4rem;
-  border-radius: 8px;
-  background: var(--accent);
+  min-width: 4.1rem;
+  min-height: 3rem;
+  padding: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: transparent;
   color: var(--on-accent) !important;
   font-weight: 800;
-  letter-spacing: 0;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+  box-shadow: none;
+}
+
+.brand-mark-image {
+  display: block;
+  width: auto;
+  height: 3.2rem;
+  max-width: 8rem;
+  object-fit: contain;
+}
+
+.brand-mark-fallback {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: center;
+  justify-items: start;
+  width: 4.1rem;
+  min-height: 3rem;
+  padding: 0.42rem 0.55rem 0.45rem;
+  border-radius: 12px;
+  background: linear-gradient(150deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 74%, var(--black) 26%) 100%);
   box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 70%, var(--black) 30%);
+}
+
+.brand-mark-top,
+.brand-mark-bottom {
+  display: block;
+  line-height: 1;
+}
+
+.brand-mark-top {
+  font-size: 0.72rem;
+  font-weight: 700;
+  opacity: 0.92;
+}
+
+.brand-mark-divider {
+  display: block;
+  width: 100%;
+  height: 1px;
+  margin: 0.28rem 0 0.25rem;
+  background: color-mix(in srgb, var(--white) 72%, transparent);
+}
+
+.brand-mark-bottom {
+  font-size: 0.98rem;
+  font-weight: 800;
 }
 
 .container {

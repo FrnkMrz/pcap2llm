@@ -11,7 +11,7 @@ from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -144,6 +144,10 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 "jobs": jobs,
             },
         )
+
+    @app.get("/.well-known/appspecific/com.chrome.devtools.json")
+    async def chrome_devtools_probe() -> Response:
+        return Response(status_code=204)
 
     @app.get("/dashboard", response_class=HTMLResponse)
     async def dashboard(request: Request) -> HTMLResponse:

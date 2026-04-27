@@ -9,7 +9,21 @@
   <body>
     <header class="site-header">
       <div class="brand-lockup">
-        <a href="/" class="brand-mark" aria-label="pcap2llm home">p2</a>
+        <a href="/" class="brand-mark" aria-label="pcap2llm home">
+          <span class="brand-mark-frame">
+            <img
+              src="/static/pcap2llm-logo.png"
+              alt=""
+              class="brand-mark-image"
+              onerror="this.hidden=true; this.nextElementSibling.hidden=false;"
+            />
+            <span class="brand-mark-fallback" hidden>
+              <span class="brand-mark-top">pcap</span>
+              <span class="brand-mark-divider"></span>
+              <span class="brand-mark-bottom">llm</span>
+            </span>
+          </span>
+        </a>
         <div>
           <h1><a href="/">pcap2llm Web GUI</a></h1>
           <p>Local processing only. No external upload, no telemetry.</p>

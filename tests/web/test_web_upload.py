@@ -42,6 +42,13 @@ def test_dashboard_route_returns_200(tmp_path: Path) -> None:
     assert "Dashboard" in response.text
 
 
+def test_chrome_devtools_probe_returns_no_content(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    response = client.get("/.well-known/appspecific/com.chrome.devtools.json")
+    assert response.status_code == 204
+    assert response.text == ""
+
+
 def test_upload_accepts_pcapng_and_creates_job(tmp_path: Path) -> None:
     client = _build_client(tmp_path)
 

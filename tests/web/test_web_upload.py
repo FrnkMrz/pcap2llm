@@ -363,6 +363,9 @@ def test_job_page_persists_last_analyze_form_values(tmp_path: Path) -> None:
             "profile": "lte-s11",
             "privacy_profile": "lab",
             "display_filter": "gtpv2",
+            "verbatim_protocols_add": "pfcp, ngap",
+            "verbatim_protocols_remove": "diameter",
+            "keep_raw_avps": "true",
             "max_packets": "200",
             "collapse_repeats": "true",
             "two_pass": "true",
@@ -374,10 +377,55 @@ def test_job_page_persists_last_analyze_form_values(tmp_path: Path) -> None:
     page = client.get(f"/jobs/{job_id}")
     assert page.status_code == 200
     assert 'value="gtpv2"' in page.text
+    assert 'name="verbatim_protocols_add" value="pfcp, ngap"' in page.text
+    assert 'name="verbatim_protocols_remove" value="diameter"' in page.text
+    assert '<option value="true" selected>Force enabled</option>' in page.text
     assert 'value="200"' in page.text
     assert 'option value="lte-s11"' in page.text
     assert 'value="lte-s11"' in page.text and 'selected' in page.text
     assert 'type="radio" name="privacy_profile" value="lab" checked' in page.text
+    assert "--verbatim-protocol pfcp" in page.text
+    assert "--verbatim-protocol ngap" in page.text
+    assert "--no-verbatim-protocol diameter" in page.text
+    assert "--keep-raw-avps" in page.text
+
+
+def test_analyze_passes_verbatim_protocol_overrides_to_runner(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    upload = client.post(
+        "/jobs",
+        files={"capture": ("trace.pcap", io.BytesIO(b"abc"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+    job_id = upload.headers["location"].split("/")[-1]
+
+    captured: dict[str, object] = {}
+
+    def fake_analyze(capture_path, options, out_dir, logs_dir):
+        captured["options"] = options
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "sample_summary.json").write_text("{}", encoding="utf-8")
+        return SimpleNamespace(ok=True, stderr="", stdout="", returncode=0)
+
+    client.app.state.runner.analyze = fake_analyze
+
+    response = client.post(
+        f"/jobs/{job_id}/analyze",
+        data={
+            "profile": "lte-core",
+            "privacy_profile": "share",
+            "verbatim_protocols_add": "pfcp, ngap, pfcp",
+            "verbatim_protocols_remove": "diameter",
+            "keep_raw_avps": "false",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    options = captured["options"]
+    assert options.verbatim_protocols_add == ["pfcp", "ngap"]
+    assert options.verbatim_protocols_remove == ["diameter"]
+    assert options.keep_raw_avps is False
 
 
 def test_job_page_renders_privacy_profiles_as_visible_options(tmp_path: Path) -> None:

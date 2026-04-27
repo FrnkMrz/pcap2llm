@@ -24,6 +24,9 @@ class AnalyzeOptions:
     profile: str
     privacy_profile: str = "share"
     display_filter: str | None = None
+    verbatim_protocols_add: list[str] = field(default_factory=list)
+    verbatim_protocols_remove: list[str] = field(default_factory=list)
+    keep_raw_avps: bool | None = None
     max_packets: int | None = None
     all_packets: bool = False
     fail_on_truncation: bool = False

@@ -178,6 +178,8 @@ Output control:
   --llm-mode              Output strict JSON for agent/automation use
   --verbatim-protocol     Add a protocol to verbatim preservation for this run
   --no-verbatim-protocol  Remove a protocol from verbatim preservation for this run
+  --keep-raw-avps / --no-keep-raw-avps
+                          Override the profile's raw Diameter AVP preservation for this run
   --render-flow-svg       Write additional flow.json and flow.svg artifacts
   --flow-title            Optional title for generated flow artifacts
   --flow-max-events       Limit rendered flow events (default: 120, 0=unlimited)

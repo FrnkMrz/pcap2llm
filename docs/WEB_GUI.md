@@ -53,6 +53,9 @@ Currently exposed in the Analyze form:
 - `profile`
 - `privacy-profile`
 - `display-filter`
+- `verbatim-protocols-add`
+- `verbatim-protocols-remove`
+- `keep-raw-avps` override
 - `max-packets`
 - `all-packets`
 - `fail-on-truncation`
@@ -84,6 +87,13 @@ Currently exposed in the Analyze form:
 - `Render flow diagram`: adds `flow.json` and `flow.svg`.
 - `Merge repeated messages`: collapses adjacent identical flow events into `xN`
   markers.
+- `Temporarily add/remove verbatim protocols`: applies one-run CLI overrides on
+  top of the selected profile's `verbatim_protocols`. Use this when you want to
+  preserve minimally transformed detail for a protocol without editing the
+  profile itself.
+- `Keep raw AVPs`: expert override for Diameter-focused troubleshooting. This
+  can preserve raw `diameter.avp` and related tree structures even when the
+  selected profile would normally suppress them.
 
 ## Environment Variables
 

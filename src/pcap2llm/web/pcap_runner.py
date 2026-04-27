@@ -12,6 +12,7 @@ from .security import WebValidationError
 
 
 _DISPLAY_FILTER_PATTERN = re.compile(r"^[A-Za-z0-9._=!&|()<>\x22' \-+:/]+$")
+_PROTOCOL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 def _base_cli_command() -> list[str]:
@@ -29,6 +30,13 @@ def _safe_display_filter(value: str) -> str:
     text = _safe_argv_value(value)
     if not _DISPLAY_FILTER_PATTERN.fullmatch(text):
         raise WebValidationError("Invalid display filter.")
+    return text
+
+
+def _safe_protocol_name(value: str) -> str:
+    text = _safe_argv_value(value)
+    if not _PROTOCOL_NAME_PATTERN.fullmatch(text):
+        raise WebValidationError("Invalid protocol name in verbatim override.")
     return text
 
 
@@ -86,6 +94,17 @@ class Pcap2LlmRunner:
 
         if options.display_filter:
             cmd.extend(["--display-filter", _safe_display_filter(options.display_filter)])
+
+        for protocol in options.verbatim_protocols_add:
+            cmd.extend(["--verbatim-protocol", _safe_protocol_name(protocol)])
+
+        for protocol in options.verbatim_protocols_remove:
+            cmd.extend(["--no-verbatim-protocol", _safe_protocol_name(protocol)])
+
+        if options.keep_raw_avps is True:
+            cmd.append("--keep-raw-avps")
+        elif options.keep_raw_avps is False:
+            cmd.append("--no-keep-raw-avps")
 
         if options.max_packets is not None and not options.all_packets:
             cmd.extend(["--max-packets", str(options.max_packets)])

@@ -426,6 +426,30 @@ def test_llm_mode_dry_run_includes_effective_verbatim_configuration(tmp_path: Pa
     assert payload["effective_profile_overrides"]["verbatim_protocols"]["removed"] == ["diameter"]
 
 
+def test_llm_mode_dry_run_includes_keep_raw_avps_override(tmp_path: Path) -> None:
+    capture = tmp_path / "sample.pcapng"
+    capture.write_bytes(b"fake")
+
+    result = runner.invoke(
+        app,
+        [
+            "analyze",
+            str(capture),
+            "--llm-mode",
+            "--dry-run",
+            "--profile",
+            "lte-s6a",
+            "--keep-raw-avps",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["effective_profile_overrides"]["keep_raw_avps"]["profile_default"] is False
+    assert payload["effective_profile_overrides"]["keep_raw_avps"]["effective"] is True
+    assert payload["effective_profile_overrides"]["keep_raw_avps"]["overridden"] is True
+
+
 def test_llm_mode_dry_run_includes_privacy_profile_when_set(tmp_path: Path) -> None:
     """--llm-mode --dry-run must echo back the --privacy-profile argument."""
     capture = tmp_path / "sample.pcapng"

@@ -145,6 +145,33 @@
     </label>
 
     <label>Filter <input type="text" name="display_filter" value="{{ analyze_defaults.display_filter }}" placeholder="diameter || gtpv2" /></label>
+    <div class="advanced-group advanced-group-inline">
+      <h3>Verbatim Protocols</h3>
+      <div class="advanced-group-grid">
+        <label>Temporarily add
+          <input type="hidden" name="verbatim_protocols_add" value="{{ analyze_defaults.verbatim_protocols_add }}" data-chip-hidden />
+          <div class="protocol-chip-editor" data-chip-editor>
+            <div class="protocol-chip-list" data-chip-list></div>
+            <input type="text" class="protocol-chip-entry" data-chip-entry placeholder="Type protocol, press Enter" />
+          </div>
+        </label>
+        <label>Temporarily remove
+          <input type="hidden" name="verbatim_protocols_remove" value="{{ analyze_defaults.verbatim_protocols_remove }}" data-chip-hidden />
+          <div class="protocol-chip-editor" data-chip-editor>
+            <div class="protocol-chip-list" data-chip-list></div>
+            <input type="text" class="protocol-chip-entry" data-chip-entry placeholder="Type protocol, press Enter" />
+          </div>
+        </label>
+        <label>Keep raw AVPs
+          <select name="keep_raw_avps">
+            <option value="" {% if not analyze_defaults.keep_raw_avps %}selected{% endif %}>Use profile default</option>
+            <option value="true" {% if analyze_defaults.keep_raw_avps == 'true' %}selected{% endif %}>Force enabled</option>
+            <option value="false" {% if analyze_defaults.keep_raw_avps == 'false' %}selected{% endif %}>Force disabled</option>
+          </select>
+        </label>
+      </div>
+      <p class="advanced-help">One-run CLI overrides for <code>verbatim_protocols</code> on top of the selected profile. Press Enter or comma to create chips. Use Keep raw AVPs mainly for Diameter-heavy troubleshooting.</p>
+    </div>
     {% set has_support_defaults = analyze_defaults.hosts_file or analyze_defaults.mapping_file or analyze_defaults.subnets_file or analyze_defaults.ss7pcs_file or analyze_defaults.network_element_mapping_file or analyze_defaults.tshark_path %}
     {% if has_support_defaults %}
     <div class="support-defaults">
@@ -454,6 +481,50 @@
     margin: 10px 0 0;
     color: var(--muted);
     font-size: 0.9rem;
+  }
+
+  .protocol-chip-editor {
+    display: grid;
+    gap: 8px;
+    margin-top: 6px;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+  }
+
+  .protocol-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 1.5rem;
+  }
+
+  .protocol-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0.3rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+    background: var(--accent-soft);
+    color: var(--ink);
+    font-size: 0.85rem;
+    line-height: 1;
+  }
+
+  .protocol-chip button {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0;
+    font-size: 0.95rem;
+    line-height: 1;
+  }
+
+  .protocol-chip-entry {
+    min-width: 0;
   }
 
   .downloads-actions {

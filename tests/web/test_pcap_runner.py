@@ -20,6 +20,9 @@ def test_build_analyze_command_selected_flags(tmp_path: Path) -> None:
             profile="lte-s11",
             privacy_profile="share",
             display_filter="gtpv2",
+            verbatim_protocols_add=["pfcp", "ngap"],
+            verbatim_protocols_remove=["diameter"],
+            keep_raw_avps=True,
             max_packets=500,
             all_packets=False,
             fail_on_truncation=True,
@@ -46,6 +49,10 @@ def test_build_analyze_command_selected_flags(tmp_path: Path) -> None:
     assert "--profile" in cmd and "lte-s11" in cmd
     assert "--privacy-profile" in cmd and "share" in cmd
     assert "--display-filter" in cmd and "gtpv2" in cmd
+    assert cmd.count("--verbatim-protocol") == 2
+    assert "pfcp" in cmd and "ngap" in cmd
+    assert "--no-verbatim-protocol" in cmd and "diameter" in cmd
+    assert "--keep-raw-avps" in cmd
     assert "--max-packets" in cmd and "500" in cmd
     assert "--all-packets" not in cmd
     assert "--fail-on-truncation" in cmd
@@ -85,6 +92,10 @@ def test_build_analyze_command_omits_unset_optional_flags(tmp_path: Path) -> Non
     assert "--no-two-pass" not in cmd
     assert "--max-capture-size-mb" not in cmd
     assert "--oversize-factor" not in cmd
+    assert "--verbatim-protocol" not in cmd
+    assert "--no-verbatim-protocol" not in cmd
+    assert "--keep-raw-avps" not in cmd
+    assert "--no-keep-raw-avps" not in cmd
     assert "--hosts-file" not in cmd
     assert "--mapping-file" not in cmd
     assert "--subnets-file" not in cmd
@@ -166,3 +177,29 @@ def test_build_analyze_command_rejects_dash_prefixed_support_file(tmp_path: Path
         return
 
     raise AssertionError("dash-prefixed support file should be rejected")
+
+
+def test_build_analyze_command_rejects_invalid_verbatim_protocol_name(tmp_path: Path) -> None:
+    runner = Pcap2LlmRunner(command_timeout_seconds=30)
+
+    try:
+        runner.build_analyze_command(
+            tmp_path / "sample.pcapng",
+            AnalyzeOptions(profile="lte-core", privacy_profile="share", verbatim_protocols_add=["gtpv2;"]),
+            tmp_path / "artifacts",
+        )
+    except WebValidationError:
+        return
+
+    raise AssertionError("invalid verbatim protocol should be rejected")
+
+
+def test_build_analyze_command_supports_disabling_raw_avps(tmp_path: Path) -> None:
+    runner = Pcap2LlmRunner(command_timeout_seconds=30)
+    cmd = runner.build_analyze_command(
+        tmp_path / "sample.pcapng",
+        AnalyzeOptions(profile="lte-core", privacy_profile="share", keep_raw_avps=False),
+        tmp_path / "artifacts",
+    )
+
+    assert "--no-keep-raw-avps" in cmd

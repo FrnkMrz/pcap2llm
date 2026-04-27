@@ -19,6 +19,84 @@
   let lastStatus = statusNode ? statusNode.textContent.trim() : "";
   const storageKey = "pcap2llm-job-run-focus";
 
+  function parseProtocols(raw) {
+    return String(raw || "")
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .filter((value, index, items) => value && items.indexOf(value) === index);
+  }
+
+  function initChipEditors() {
+    document.querySelectorAll("[data-chip-editor]").forEach((editor) => {
+      const hidden = editor.parentElement ? editor.parentElement.querySelector("[data-chip-hidden]") : null;
+      const list = editor.querySelector("[data-chip-list]");
+      const entry = editor.querySelector("[data-chip-entry]");
+      if (!hidden || !list || !entry) {
+        return;
+      }
+
+      let values = parseProtocols(hidden.value);
+
+      function syncHidden() {
+        hidden.value = values.join(", ");
+      }
+
+      function render() {
+        list.innerHTML = "";
+        values.forEach((value) => {
+          const chip = document.createElement("span");
+          chip.className = "protocol-chip";
+          chip.textContent = value;
+
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.setAttribute("aria-label", `Remove ${value}`);
+          remove.textContent = "x";
+          remove.addEventListener("click", () => {
+            values = values.filter((item) => item !== value);
+            syncHidden();
+            render();
+          });
+
+          chip.appendChild(remove);
+          list.appendChild(chip);
+        });
+      }
+
+      function commitEntry() {
+        const additions = parseProtocols(entry.value);
+        if (!additions.length) {
+          entry.value = "";
+          return;
+        }
+        additions.forEach((value) => {
+          if (!values.includes(value)) {
+            values.push(value);
+          }
+        });
+        entry.value = "";
+        syncHidden();
+        render();
+      }
+
+      entry.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === ",") {
+          event.preventDefault();
+          commitEntry();
+        }
+        if (event.key === "Backspace" && !entry.value && values.length) {
+          values = values.slice(0, -1);
+          syncHidden();
+          render();
+        }
+      });
+
+      entry.addEventListener("blur", commitEntry);
+      syncHidden();
+      render();
+    });
+  }
+
   function readPendingAction() {
     try {
       const raw = window.sessionStorage.getItem(storageKey);
@@ -127,6 +205,7 @@
     });
   });
 
+  initChipEditors();
   applyPendingFeedback();
   tick();
 })();

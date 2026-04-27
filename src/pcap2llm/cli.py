@@ -707,6 +707,11 @@ def analyze_command(
             "If the same protocol is also passed via --verbatim-protocol, removal wins."
         ),
     ),
+    keep_raw_avps: bool | None = typer.Option(
+        None,
+        "--keep-raw-avps/--no-keep-raw-avps",
+        help="Override the profile's keep_raw_avps setting for this run.",
+    ),
     tshark_path: str = typer.Option("tshark", "--tshark-path", help="TShark executable path."),
     tshark_arg: list[str] = typer.Option(None, "--tshark-arg", help="Extra argument passed to tshark."),
     max_packets: int = typer.Option(
@@ -796,7 +801,13 @@ def analyze_command(
         verbatim_protocol,
         no_verbatim_protocol,
     )
-    effective_profile = profile.model_copy(update={"verbatim_protocols": effective_verbatim_protocols})
+    effective_keep_raw_avps = profile.keep_raw_avps if keep_raw_avps is None else keep_raw_avps
+    effective_profile = profile.model_copy(
+        update={
+            "verbatim_protocols": effective_verbatim_protocols,
+            "keep_raw_avps": effective_keep_raw_avps,
+        }
+    )
     runner = TSharkRunner(binary=tshark_path)
     extra_args = list(config_data.get("tshark_extra_args", [])) + list(tshark_arg or [])
     effective_two_pass = profile.tshark.get("two_pass", False) if two_pass is None else two_pass
@@ -804,7 +815,12 @@ def analyze_command(
         "verbatim_protocols": {
             **verbatim_overlay,
             "effective": effective_verbatim_protocols,
-        }
+        },
+        "keep_raw_avps": {
+            "profile_default": profile.keep_raw_avps,
+            "effective": effective_keep_raw_avps,
+            "overridden": keep_raw_avps is not None,
+        },
     }
     if verbatim_overlay["added"] or verbatim_overlay["removed"]:
         typer.echo(

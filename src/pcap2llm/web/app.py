@@ -320,6 +320,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         profile: str = Form(...),
         privacy_profile: str = Form("share"),
         display_filter: str = Form(""),
+        verbatim_protocols_add: str = Form(""),
+        verbatim_protocols_remove: str = Form(""),
+        keep_raw_avps: str = Form(""),
         max_packets: str = Form("1000"),
         all_packets: bool = Form(False),
         fail_on_truncation: bool = Form(False),
@@ -405,6 +408,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 profile=profile,
                 privacy_profile=_resolve_privacy_profile_cli_value(profile_store, privacy_profile),
                 display_filter=display_filter.strip() or None,
+                verbatim_protocols_add=_parse_protocol_list(verbatim_protocols_add),
+                verbatim_protocols_remove=_parse_protocol_list(verbatim_protocols_remove),
+                keep_raw_avps=_parse_optional_bool_string(keep_raw_avps),
                 max_packets=_parse_optional_int(max_packets),
                 all_packets=all_packets,
                 fail_on_truncation=fail_on_truncation,
@@ -434,6 +440,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             "profile": profile,
             "privacy_profile": privacy_profile,
             "display_filter": display_filter.strip(),
+            "verbatim_protocols_add": ", ".join(_parse_protocol_list(verbatim_protocols_add)),
+            "verbatim_protocols_remove": ", ".join(_parse_protocol_list(verbatim_protocols_remove)),
+            "keep_raw_avps": keep_raw_avps.strip(),
             "max_packets": max_packets.strip(),
             "all_packets": all_packets,
             "fail_on_truncation": fail_on_truncation,
@@ -1340,6 +1349,9 @@ def _build_analyze_defaults(record: JobRecord, local_support_defaults: dict[str,
         "profile": "",
         "privacy_profile": "",
         "display_filter": "",
+        "verbatim_protocols_add": "",
+        "verbatim_protocols_remove": "",
+        "keep_raw_avps": "",
         "max_packets": "1000",
         "all_packets": False,
         "fail_on_truncation": False,
@@ -1391,6 +1403,9 @@ def _build_preview_options(
             str(analyze_defaults.get("privacy_profile") or selected_privacy),
         ),
         display_filter=_string_or_none(analyze_defaults.get("display_filter")),
+        verbatim_protocols_add=_parse_protocol_list(analyze_defaults.get("verbatim_protocols_add")),
+        verbatim_protocols_remove=_parse_protocol_list(analyze_defaults.get("verbatim_protocols_remove")),
+        keep_raw_avps=_parse_optional_bool_string(analyze_defaults.get("keep_raw_avps")),
         max_packets=_parse_optional_int(str(analyze_defaults.get("max_packets", ""))),
         all_packets=bool(analyze_defaults.get("all_packets")),
         fail_on_truncation=bool(analyze_defaults.get("fail_on_truncation")),
@@ -1409,6 +1424,35 @@ def _build_preview_options(
         tshark_path=_string_or_none(analyze_defaults.get("tshark_path")),
         two_pass=bool(analyze_defaults.get("two_pass")),
     )
+
+
+def _parse_protocol_list(value: object) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        items = value
+    else:
+        items = str(value).split(",")
+
+    out: list[str] = []
+    for item in items:
+        text = str(item).strip().lower()
+        if not text:
+            continue
+        if text not in out:
+            out.append(text)
+    return out
+
+
+def _parse_optional_bool_string(value: object) -> bool | None:
+    text = str(value or "").strip().lower()
+    if not text:
+        return None
+    if text in {"true", "1", "yes", "on"}:
+        return True
+    if text in {"false", "0", "no", "off"}:
+        return False
+    raise ValueError("Invalid boolean analyze option.")
 
 
 def _discovery_support_files(

@@ -3,6 +3,11 @@
 {% block content %}
 <div class="dashboard">
   <h2>Dashboard</h2>
+  <p class="dashboard-intro">
+    pcap2llm converts local PCAP and PCAPNG files into compact, privacy-controlled analysis artifacts.
+    It helps structure network and signaling traces so issues can be investigated faster and shared safely
+    with the appropriate privacy profiles.
+  </p>
 
   <!-- Job Statistics -->
   <section class="stat-section">
@@ -100,8 +105,16 @@
 
   .dashboard h2 {
     font-size: 2rem;
-    margin-bottom: 2rem;
+    margin-bottom: 0.75rem;
     color: var(--accent);
+  }
+
+  .dashboard-intro {
+    max-width: 72ch;
+    margin: 0 0 2rem;
+    color: var(--muted);
+    line-height: 1.6;
+    font-size: 1rem;
   }
 
   .stat-section {

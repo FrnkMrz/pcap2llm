@@ -4,6 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ title or "pcap2llm Web GUI" }}</title>
+    <link rel="icon" type="image/png" sizes="48x48" href="/static/pcap2llm-logo_48.png" />
+    <link rel="apple-touch-icon" sizes="256x256" href="/static/pcap2llm-logo_256.png" />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
@@ -12,7 +14,9 @@
         <a href="/" class="brand-mark" aria-label="pcap2llm home">
           <span class="brand-mark-frame">
             <img
-              src="/static/pcap2llm-logo.png"
+              src="/static/pcap2llm-logo_48.png"
+              srcset="/static/pcap2llm-logo_48.png 48w, /static/pcap2llm-logo_256.png 256w"
+              sizes="48px"
               alt=""
               class="brand-mark-image"
               onerror="this.hidden=true; this.nextElementSibling.hidden=false;"

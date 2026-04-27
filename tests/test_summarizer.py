@@ -77,6 +77,41 @@ def test_build_summary_no_anomalies_produces_findings() -> None:
     assert any("diameter" in f for f in summary["probable_notable_findings"])
 
 
+def test_build_summary_surfaces_diameter_peer_identities() -> None:
+    profile = load_profile("lte-s6a")
+    inspect_result = _make_inspect_result()
+    detail = [
+        {
+            "top_protocol": "diameter",
+            "packet_no": 1,
+            "message": {
+                "protocol": "diameter",
+                "fields": {
+                    "diameter.Origin-Host": "mme01.epc.example.net",
+                    "diameter.Destination-Host": "hss01.epc.example.net",
+                },
+            },
+        },
+        {
+            "top_protocol": "diameter",
+            "packet_no": 2,
+            "message": {
+                "protocol": "diameter",
+                "fields": {
+                    "diameter.Origin-Host": "hss01.epc.example.net",
+                    "diameter.Destination-Host": "mme01.epc.example.net",
+                },
+            },
+        },
+    ]
+
+    summary = build_summary(inspect_result, detail, profile=profile, privacy_modes={})
+
+    findings_text = " ".join(summary["deterministic_findings"])
+    assert "Diameter peer identities observed" in findings_text
+    assert "mme01.epc.example.net -> hss01.epc.example.net" in findings_text
+
+
 def test_build_markdown_summary_contains_key_sections() -> None:
     profile = load_profile("lte-core")
     inspect_result = _make_inspect_result()

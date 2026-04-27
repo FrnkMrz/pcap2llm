@@ -67,11 +67,13 @@
   },
   "deterministic_findings": [
     "1 anomalies detected (diameter: 1)",
-    "diameter accounts for 1 normalized packets"
+    "diameter accounts for 1 normalized packets",
+    "Diameter peer identities observed: DIAMETER_IDENTITY_44b73391 -> DIAMETER_IDENTITY_19e1758c (1)"
   ],
   "probable_notable_findings": [
     "1 anomalies detected (diameter: 1)",
-    "diameter accounts for 1 normalized packets"
+    "diameter accounts for 1 normalized packets",
+    "Diameter peer identities observed: DIAMETER_IDENTITY_44b73391 -> DIAMETER_IDENTITY_19e1758c (1)"
   ],
   "privacy_modes": {
     "diameter_identity": "pseudonymize",

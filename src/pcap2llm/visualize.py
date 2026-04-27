@@ -668,6 +668,38 @@ def _endpoint_key(endpoint: dict[str, Any] | None) -> str:
     return "unknown"
 
 
+def _first_text_field(fields: dict[str, Any], keys: tuple[str, ...]) -> str | None:
+    for key in keys:
+        value = fields.get(key)
+        if value is None:
+            continue
+        if isinstance(value, list):
+            value = next((item for item in value if item not in (None, "")), None)
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return None
+
+
+def _diameter_route_identities(packet: dict[str, Any]) -> tuple[str | None, str | None]:
+    fields = (packet.get("message") or {}).get("fields") or {}
+    if not isinstance(fields, dict):
+        return None, None
+    origin = _first_text_field(fields, ("diameter.Origin-Host", "diameter.origin_host"))
+    destination = _first_text_field(fields, ("diameter.Destination-Host", "diameter.destination_host"))
+    return origin, destination
+
+
+def _with_endpoint_alias(endpoint: dict[str, Any], alias: str | None) -> dict[str, Any]:
+    enriched = dict(endpoint)
+    if not alias:
+        return enriched
+    enriched.setdefault("alias", alias)
+    return enriched
+
+
 def _event_name(packet: dict[str, Any]) -> str:
     message = packet.get("message") or {}
     fields = message.get("fields") or {}
@@ -1118,12 +1150,24 @@ def build_flow_model(
         )
 
     node_map: dict[str, dict[str, Any]] = {}
+    diameter_alias_by_ip: dict[str, str] = {}
     events: list[dict[str, Any]] = []
     last_signature: tuple[str, str, str, str] | None = None
 
     for index, packet in enumerate(event_packets, start=1):
         src = packet.get("src") or {}
         dst = packet.get("dst") or {}
+        origin_host, destination_host = _diameter_route_identities(packet)
+        src = _with_endpoint_alias(src, origin_host)
+        dst = _with_endpoint_alias(dst, destination_host)
+        for endpoint, alias in ((src, origin_host), (dst, destination_host)):
+            ip = _to_text(endpoint.get("ip"))
+            if ip and alias:
+                diameter_alias_by_ip[ip] = alias
+        for endpoint in (src, dst):
+            ip = _to_text(endpoint.get("ip"))
+            if ip and ip in diameter_alias_by_ip and not endpoint.get("alias"):
+                endpoint["alias"] = diameter_alias_by_ip[ip]
         src_key = _endpoint_key(src)
         dst_key = _endpoint_key(dst)
 

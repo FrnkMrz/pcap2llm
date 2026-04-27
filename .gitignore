@@ -19,6 +19,7 @@ vault.key
 artifacts/
 output/
 tmp/
+web_runs/
 pcap2llm.config.yaml
 batches/*.local.toml
 batches/*.private.toml

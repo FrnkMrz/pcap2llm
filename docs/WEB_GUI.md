@@ -195,7 +195,7 @@ way until you intentionally open it for troubleshooting or auditability.
 - `Delete job` removes the full job directory
 - dashboard available at `/dashboard` with job and privacy-profile statistics
 - jobs can be multi-selected and deleted from the start page
-- Neutral teal/gray visual theme with active navigation states,
+- Magenta/gray visual theme with active navigation states,
   consistent focus rings, and shared light/dark color tokens
 - dark-mode toggle in the header persists via `localStorage`
 - responsive layout for smaller screens

@@ -6,6 +6,7 @@ import json
 import shutil
 from collections import Counter
 from contextlib import asynccontextmanager
+from difflib import get_close_matches
 from io import BytesIO, StringIO
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -95,10 +96,10 @@ def _allowed_origin_values(request: Request) -> set[str]:
 
 
 _APP_ICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
-  <rect width="180" height="180" rx="32" fill="#d9f4ef"/>
-  <rect x="42" y="51" width="78" height="14" rx="7" fill="#0f766e"/>
-  <rect x="42" y="83" width="108" height="14" rx="7" fill="#0f766e"/>
-  <rect x="42" y="115" width="62" height="14" rx="7" fill="#0f766e"/>
+  <rect width="180" height="180" rx="32" fill="#fce8f2"/>
+  <rect x="42" y="51" width="78" height="14" rx="7" fill="#e20074"/>
+  <rect x="42" y="83" width="108" height="14" rx="7" fill="#e20074"/>
+  <rect x="42" y="115" width="62" height="14" rx="7" fill="#e20074"/>
 </svg>
 """
 
@@ -320,6 +321,31 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         except FileNotFoundError:
             raise HTTPException(status_code=404, detail="Job not found.")
 
+        profile = profile.strip()
+        try:
+            validate_profile_name(profile)
+        except WebValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        try:
+            load_profile(profile)
+        except FileNotFoundError:
+            record.selected_profile = None
+            record.selected_privacy_profile = privacy_profile
+            record.analyze_form = {
+                **record.analyze_form,
+                "profile": "",
+                "privacy_profile": privacy_profile,
+            }
+            store.save(record)
+            store.set_status(
+                record.job_id,
+                "failed",
+                last_error=_unknown_analysis_profile_message(profile),
+                last_error_code="profile_unknown",
+            )
+            return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
+
         try:
             validate_display_filter(display_filter.strip())
             local_support_defaults = _local_support_file_defaults(settings)
@@ -525,7 +551,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         margin-bottom: 16px;
       }}
       a {{
-        color: #0f766e;
+        color: #e20074;
         text-decoration: none;
       }}
       a:hover {{
@@ -939,6 +965,14 @@ def _default_profile(record: JobRecord) -> str:
     return "lte-core"
 
 
+def _unknown_analysis_profile_message(profile: str) -> str:
+    message = f"Unknown analysis profile '{profile}'. Choose one of the profiles from the dropdown."
+    matches = get_close_matches(profile, list_profile_names(), n=1, cutoff=0.75)
+    if matches:
+        message += f" Did you mean '{matches[0]}'?"
+    return message
+
+
 
 def _parse_optional_int(value: str) -> int | None:
     text = value.strip()
@@ -1018,9 +1052,7 @@ def _discovery_name_resolution(folder: Path) -> dict[str, bool | int] | None:
         "ss7pcs_file_used": bool(name_resolution.get("ss7pcs_file_used")),
         "resolved_peer_count": int(name_resolution.get("resolved_peer_count", 0) or 0),
     }
-    if any(bool(flags[key]) for key in ("hosts_file_used", "mapping_file_used", "subnets_file_used", "ss7pcs_file_used")):
-        return flags
-    return None
+    return flags
 
 
 def _network_element_overview(folder: Path) -> dict[str, object] | None:
@@ -1149,6 +1181,10 @@ def _friendly_error(stderr: str, *, default_message: str) -> tuple[str, str]:
     }
     if "Command timed out" in text:
         return "Analyze command timed out.", "runtime_error"
+    unknown_marker = "Unknown profile '"
+    if unknown_marker in text:
+        profile = text.split(unknown_marker, 1)[1].split("'", 1)[0]
+        return _unknown_analysis_profile_message(profile), "profile_unknown"
     return mapped.get(code, text), code
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -40,7 +41,7 @@ def test_build_analyze_command_selected_flags(tmp_path: Path) -> None:
         out_dir,
     )
 
-    assert cmd[:3] == ["pcap2llm", "analyze", str(capture)]
+    assert cmd[:5] == [sys.executable, "-m", "pcap2llm.cli", "analyze", str(capture)]
     assert "--profile" in cmd and "lte-s11" in cmd
     assert "--privacy-profile" in cmd and "share" in cmd
     assert "--display-filter" in cmd and "gtpv2" in cmd
@@ -115,6 +116,7 @@ def test_run_uses_no_shell_and_maps_failures(tmp_path: Path, monkeypatch) -> Non
 
     assert result.ok is False
     assert result.returncode == 2
+    assert captured["args"][0][:3] == [sys.executable, "-m", "pcap2llm.cli"]
     assert captured["kwargs"]["shell"] is False
     assert (logs_dir / "analyze_stdout.log").exists()
     assert (logs_dir / "analyze_stderr.log").read_text(encoding="utf-8") == "boom"
@@ -134,6 +136,23 @@ def test_build_command_preview_shell_quotes_paths_with_spaces(tmp_path: Path) ->
 
     assert f"'{capture}'" in preview
     assert f"'{out_dir}'" in preview
+
+
+def test_runner_uses_current_python_for_discovery_and_recommendations(tmp_path: Path, monkeypatch) -> None:
+    runner = Pcap2LlmRunner(command_timeout_seconds=30)
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        return SimpleNamespace(returncode=0, stdout="{}", stderr="")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    runner.discover(tmp_path / "trace.pcap", tmp_path / "discovery", tmp_path / "logs")
+    runner.recommend_profiles(tmp_path / "discovery.json", tmp_path / "logs")
+
+    assert calls[0][:4] == [sys.executable, "-m", "pcap2llm.cli", "discover"]
+    assert calls[1][:4] == [sys.executable, "-m", "pcap2llm.cli", "recommend-profiles"]
 
 
 def test_build_analyze_command_rejects_dash_prefixed_display_filter(tmp_path: Path) -> None:

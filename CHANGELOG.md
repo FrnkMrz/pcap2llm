@@ -6,6 +6,21 @@ The format is intentionally simple and optimized for humans reading repo history
 
 ## Unreleased
 
+### Fixed — 2026-04-26 (web analyzer launch)
+
+- The Web GUI now launches `discover`, `recommend-profiles`, and `analyze`
+  through the same Python interpreter as the running web server, avoiding stale
+  `pcap2llm` console scripts from `PATH`.
+- Unknown analysis profiles are rejected before execution and shown as visible
+  job-page errors with a close-match hint, e.g. `transport-upd` suggests
+  `transport-udp`.
+- The job page now keeps the discovery name-resolution transparency block
+  visible even when no hosts, mapping, subnet, or SS7 point-code file was used.
+- Diameter `Origin-Host` and `Destination-Host` identities are now surfaced in
+  deterministic summary findings and used as flow-diagram lane labels when
+  present.
+- Local `web_runs/` runtime output is ignored by git.
+
 ### Changed — 2026-04-26 (web GUI profile visibility)
 
 - Reworked the Web GUI analysis-profile picker into visible domain groups:
@@ -13,8 +28,8 @@ The format is intentionally simple and optimized for humans reading repo history
   General/support.
 - Added a built-in analysis-profile overview to the start page so newly added
   transport and DNS/name-resolution profiles are discoverable before upload.
-- Replaced the previous magenta/P2 Web GUI branding with a neutral teal trace
-  mark and updated the shared web color tokens.
+- Replaced the previous P2 Web GUI logo with an abstract trace mark while
+  keeping the magenta color system.
 - Added lightweight favicon and Apple touch icon routes to avoid browser 404s
   for `/favicon.ico`, `/apple-touch-icon.png`, and
   `/apple-touch-icon-precomposed.png`.

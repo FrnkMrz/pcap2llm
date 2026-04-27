@@ -324,6 +324,39 @@ def test_build_flow_model_endpoint_label_includes_name_and_ip() -> None:
     assert "hss01.local (10.0.0.20)" in labels
 
 
+def test_build_flow_model_uses_diameter_origin_destination_hosts_as_lane_labels() -> None:
+    packets = [
+        {
+            "packet_no": 1,
+            "time_rel_ms": 1.0,
+            "time_epoch": "1712390001.0",
+            "top_protocol": "diameter",
+            "src": {"ip": "10.0.0.10", "role": "diameter"},
+            "dst": {"ip": "10.0.0.20", "role": "diameter"},
+            "anomalies": [],
+            "message": {
+                "protocol": "diameter",
+                "fields": {
+                    "message_name": "Update-Location Request",
+                    "diameter.Origin-Host": "mme01.epc.example.net",
+                    "diameter.Destination-Host": "hss01.epc.example.net",
+                },
+            },
+        }
+    ]
+
+    flow = build_flow_model(
+        packets,
+        capture_file="sample.pcapng",
+        profile="lte-s6a",
+        privacy_profile=None,
+    )
+
+    labels = [node["label"] for node in flow["nodes"]]
+    assert "mme01.epc.example.net (10.0.0.10)" in labels
+    assert "hss01.epc.example.net (10.0.0.20)" in labels
+
+
 def test_build_flow_model_expands_diameter_command_code_label() -> None:
     packets = [
         {

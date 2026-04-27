@@ -1805,3 +1805,7 @@ def visualize_command(
 
 
 app.add_typer(session_app, name="session")
+
+
+if __name__ == "__main__":
+    app()

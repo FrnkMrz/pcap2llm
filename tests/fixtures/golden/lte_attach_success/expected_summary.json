@@ -69,10 +69,12 @@
   "anomalies": [],
   "anomaly_counts_by_layer": {},
   "deterministic_findings": [
-    "diameter accounts for 2 normalized packets"
+    "diameter accounts for 2 normalized packets",
+    "Diameter host identities observed: mme01.epc.local (1)"
   ],
   "probable_notable_findings": [
-    "diameter accounts for 2 normalized packets"
+    "diameter accounts for 2 normalized packets",
+    "Diameter host identities observed: mme01.epc.local (1)"
   ],
   "privacy_modes": {
     "imsi": "pseudonymize",

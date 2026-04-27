@@ -4,6 +4,7 @@ import json
 import re
 import shlex
 import subprocess
+import sys
 from pathlib import Path
 
 from .models import AnalyzeOptions, RunResult
@@ -33,13 +34,13 @@ class Pcap2LlmRunner:
         self.default_tshark_path = default_tshark_path.strip()
 
     def discover(self, capture_path: Path, out_dir: Path, logs_dir: Path) -> RunResult:
-        cmd = ["pcap2llm", "discover", str(capture_path), "--out", str(out_dir)]
+        cmd = [*_cli_command(), "discover", str(capture_path), "--out", str(out_dir)]
         if self.default_tshark_path:
             cmd.extend(["--tshark-path", _safe_argv_value(self.default_tshark_path)])
         return self._run(cmd, logs_dir=logs_dir, artifacts_dir=out_dir, log_prefix="discovery")
 
     def recommend_profiles(self, source_path: Path, logs_dir: Path) -> RunResult:
-        cmd = ["pcap2llm", "recommend-profiles", str(source_path)]
+        cmd = [*_cli_command(), "recommend-profiles", str(source_path)]
         if self.default_tshark_path:
             cmd.extend(["--tshark-path", _safe_argv_value(self.default_tshark_path)])
         return self._run(cmd, logs_dir=logs_dir, artifacts_dir=source_path.parent, log_prefix="recommend")
@@ -50,7 +51,7 @@ class Pcap2LlmRunner:
 
     def build_analyze_command(self, capture_path: Path, options: AnalyzeOptions, out_dir: Path) -> list[str]:
         cmd = [
-            "pcap2llm",
+            *_cli_command(),
             "analyze",
             str(capture_path),
             "--profile",
@@ -161,3 +162,7 @@ class Pcap2LlmRunner:
             command=cmd,
             artifacts=artifacts,
         )
+
+
+def _cli_command() -> list[str]:
+    return [sys.executable, "-m", "pcap2llm.cli"]

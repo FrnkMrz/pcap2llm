@@ -104,6 +104,53 @@ def _classify_anomalies(anomalies: list[str]) -> dict[str, int]:
     return counts
 
 
+def _first_text_field(fields: dict[str, Any], keys: tuple[str, ...]) -> str | None:
+    for key in keys:
+        value = fields.get(key)
+        if value is None:
+            continue
+        if isinstance(value, list):
+            value = next((item for item in value if item not in (None, "")), None)
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return None
+
+
+def _diameter_peer_findings(detail_packets: list[dict[str, Any]]) -> list[str]:
+    pair_counts: Counter[tuple[str, str]] = Counter()
+    host_counts: Counter[str] = Counter()
+
+    for packet in detail_packets:
+        fields = (packet.get("message") or {}).get("fields") or {}
+        if not isinstance(fields, dict):
+            continue
+        origin = _first_text_field(fields, ("diameter.Origin-Host", "diameter.origin_host"))
+        destination = _first_text_field(fields, ("diameter.Destination-Host", "diameter.destination_host"))
+        if origin:
+            host_counts[origin] += 1
+        if destination:
+            host_counts[destination] += 1
+        if origin and destination:
+            pair_counts[(origin, destination)] += 1
+
+    findings: list[str] = []
+    if pair_counts:
+        rendered_pairs = ", ".join(
+            f"{origin} -> {destination} ({count})"
+            for (origin, destination), count in pair_counts.most_common(5)
+        )
+        findings.append(f"Diameter peer identities observed: {rendered_pairs}")
+    elif host_counts:
+        rendered_hosts = ", ".join(
+            f"{host} ({count})" for host, count in host_counts.most_common(5)
+        )
+        findings.append(f"Diameter host identities observed: {rendered_hosts}")
+    return findings
+
+
 # ---------------------------------------------------------------------------
 # Main summary builder
 # ---------------------------------------------------------------------------
@@ -146,6 +193,8 @@ def build_summary(
     # Protocol-count sentences are detail-derived (based on selected window)
     for protocol, count in top_protocols.most_common(3):
         deterministic_findings.append(f"{protocol} accounts for {count} normalized packets")
+
+    deterministic_findings.extend(_diameter_peer_findings(detail_packets))
 
     # Timing and burst detection are detail-derived (selected window only)
     timing = _timing_stats(detail_packets)

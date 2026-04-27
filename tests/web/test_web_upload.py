@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
-from pcap2llm.web.app import create_app
+from pcap2llm.web.app import _friendly_error, create_app
 from pcap2llm.web.config import WebSettings
 from pcap2llm.web.jobs import JobStore
 from pcap2llm.web.profiles import ProfileStore
@@ -521,6 +521,41 @@ def test_job_page_shows_discovery_name_resolution_usage(tmp_path: Path) -> None:
     assert "Resolved peers: 7" in page.text
 
 
+def test_job_page_shows_name_resolution_even_when_no_files_were_used(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    upload = client.post(
+        "/jobs",
+        files={"capture": ("trace.pcap", io.BytesIO(b"abc"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+    job_id = upload.headers["location"].split("/")[-1]
+
+    store = JobStore(tmp_path / "web_runs")
+    (store.discovery_dir(job_id) / "discover_trace.json").write_text(
+        json.dumps(
+            {
+                "name_resolution": {
+                    "hosts_file_used": False,
+                    "mapping_file_used": False,
+                    "subnets_file_used": False,
+                    "ss7pcs_file_used": False,
+                    "resolved_peer_count": 0,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    page = client.get(f"/jobs/{job_id}")
+    assert page.status_code == 200
+    assert "Name resolution used" in page.text
+    assert "Hosts file: no" in page.text
+    assert "Mapping file: no" in page.text
+    assert "Subnets file: no" in page.text
+    assert "SS7 PCS file: no" in page.text
+    assert "Resolved peers: 0" in page.text
+
+
 def test_analyze_uses_local_support_file_defaults_when_form_is_blank(tmp_path: Path) -> None:
     local_root = tmp_path / ".local"
     local_root.mkdir()
@@ -702,6 +737,55 @@ def test_analyze_failure_exposes_error_code(tmp_path: Path) -> None:
     assert record.status == "failed"
     assert record.last_error == "TShark was not found in PATH."
     assert record.last_error_code == "tshark_missing"
+
+
+def test_unknown_analysis_profile_is_visible_on_job_page(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    upload = client.post(
+        "/jobs",
+        files={"capture": ("trace.pcap", io.BytesIO(b"abc"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+    job_id = upload.headers["location"].split("/")[-1]
+
+    called = False
+
+    def fake_analyze(capture_path, options, out_dir, logs_dir):
+        nonlocal called
+        called = True
+        return SimpleNamespace(ok=True, stderr="", stdout="", returncode=0)
+
+    client.app.state.runner.analyze = fake_analyze
+
+    response = client.post(
+        f"/jobs/{job_id}/analyze",
+        data={"profile": "transport-upd", "privacy_profile": "share", "collapse_repeats": "true"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert called is False
+
+    store = JobStore(tmp_path / "web_runs")
+    record = store.load(job_id)
+    assert record.status == "failed"
+    assert record.last_error_code == "profile_unknown"
+    assert "Unknown analysis profile 'transport-upd'" in (record.last_error or "")
+    assert "Did you mean 'transport-udp'?" in (record.last_error or "")
+
+    page = client.get(f"/jobs/{job_id}")
+    assert "Unknown analysis profile" in page.text
+    assert "transport-udp" in page.text
+
+
+def test_unknown_analysis_profile_traceback_maps_to_readable_error() -> None:
+    message, code = _friendly_error(
+        "FileNotFoundError: Unknown profile 'transport-upd'",
+        default_message="Analyze failed. See stderr.log.",
+    )
+
+    assert code == "profile_unknown"
+    assert "Unknown analysis profile 'transport-upd'" in message
+    assert "Did you mean 'transport-udp'?" in message
 
 
 def test_zip_download_contains_job_files(tmp_path: Path) -> None:

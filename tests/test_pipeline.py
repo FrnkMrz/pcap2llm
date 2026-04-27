@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
+import pcap2llm.tshark_runner as tshark_runner_module
 from pcap2llm.pipeline import _artifact_timestamp_prefix, _check_oversize_ratio, analyze_capture, write_artifacts
 from pcap2llm.profiles import load_profile
 from pcap2llm.protector import ProtectionError, Protector
@@ -243,6 +244,55 @@ class TestTSharkRunnerJsonParsing:
         assert isinstance(avp_tree, list)
         assert avp_tree[0]["diameter.Origin-Host"] == "mme.example.net"
         assert avp_tree[1]["diameter.Origin-Realm"] == "example.net"
+
+
+class TestTSharkRunnerResolution:
+    def test_directory_binary_path_resolves_to_executable(self, tmp_path: Path, monkeypatch) -> None:
+        tshark_dir = tmp_path / "Wireshark"
+        tshark_dir.mkdir()
+        tshark_binary = tshark_dir / "tshark"
+        tshark_binary.write_text("", encoding="utf-8")
+
+        runner = TSharkRunner(binary=str(tshark_dir))
+        monkeypatch.setattr(tshark_runner_module, "_tshark_executable_name", lambda: "tshark")
+        monkeypatch.setattr(runner, "_probe_capabilities", lambda resolved_binary: None)
+
+        runner.ensure_available()
+
+        command = runner.build_export_command(tmp_path / "sample.pcapng")
+        assert command[0] == str(tshark_binary.resolve())
+
+    def test_env_tshark_path_is_used_when_path_lookup_fails(self, tmp_path: Path, monkeypatch) -> None:
+        tshark_binary = tmp_path / "tools" / "tshark"
+        tshark_binary.parent.mkdir()
+        tshark_binary.write_text("", encoding="utf-8")
+
+        runner = TSharkRunner()
+        monkeypatch.setenv("PCAP2LLM_TSHARK_PATH", str(tshark_binary))
+        monkeypatch.setattr(tshark_runner_module.shutil, "which", lambda value: None)
+        monkeypatch.setattr(runner, "_probe_capabilities", lambda resolved_binary: None)
+
+        runner.ensure_available()
+
+        command = runner.build_export_command(tmp_path / "sample.pcapng")
+        assert command[0] == str(tshark_binary.resolve())
+
+    def test_incompatible_tshark_without_json_support_is_rejected(self, monkeypatch) -> None:
+        runner = TSharkRunner(binary="tshark")
+        monkeypatch.setattr(runner, "_resolve_binary", lambda: "/usr/bin/tshark")
+
+        results = [
+            type("R", (), {"returncode": 0, "stdout": "TShark (Wireshark) 1.10.0", "stderr": ""})(),
+            type("R", (), {"returncode": 0, "stdout": "Usage: tshark -T ps|text|pdml|psml|fields", "stderr": ""})(),
+        ]
+
+        def fake_run(*args, **kwargs):
+            return results.pop(0)
+
+        monkeypatch.setattr(tshark_runner_module.subprocess, "run", fake_run)
+
+        with pytest.raises(TSharkError, match="does not support '-T json'"):
+            runner.ensure_available()
 
 
 # ---------------------------------------------------------------------------

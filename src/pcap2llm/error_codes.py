@@ -5,13 +5,16 @@ from typing import Any
 
 def map_error(exc: Exception) -> tuple[str, dict[str, Any]]:
     message = str(exc)
+    lower = message.lower()
 
     if "exceeds --max-capture-size-mb" in message:
         return "capture_too_large", {}
     if "oversize" in message and "detail limit is" in message:
         return "capture_oversize", {}
-    if "tshark was not found in PATH" in message:
+    if "tshark was not found" in lower or "tshark executable was not found at configured path" in lower:
         return "tshark_missing", {}
+    if "does not support '-t json'" in lower or "does not support '-t fields'" in lower:
+        return "tshark_incompatible", {}
     if "tshark output is not valid JSON" in message:
         return "invalid_tshark_json", {}
     if "Unexpected tshark JSON structure" in message or "unknown tshark error" in message:

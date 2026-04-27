@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -40,7 +41,8 @@ def test_build_analyze_command_selected_flags(tmp_path: Path) -> None:
         out_dir,
     )
 
-    assert cmd[:3] == ["pcap2llm", "analyze", str(capture)]
+    assert cmd[:4] == [sys.executable, "-m", "pcap2llm", "analyze"]
+    assert str(capture) in cmd
     assert "--profile" in cmd and "lte-s11" in cmd
     assert "--privacy-profile" in cmd and "share" in cmd
     assert "--display-filter" in cmd and "gtpv2" in cmd

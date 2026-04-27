@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -21,6 +23,50 @@ logger = logging.getLogger(__name__)
 # filters (>10 000 chars) can cause parser slowdowns.  500 frame numbers
 # produce a filter string of ~3 000 characters — comfortably within limits.
 _FRAME_CHUNK_SIZE = 500
+
+
+def _tshark_executable_name() -> str:
+    return "tshark.exe" if os.name == "nt" else "tshark"
+
+
+def _looks_like_path(value: str) -> bool:
+    return any(sep and sep in value for sep in (os.sep, os.altsep)) or ":" in value or value.startswith(".") or value.startswith("~")
+
+
+def _standard_tshark_locations() -> list[Path]:
+    executable = _tshark_executable_name()
+    if os.name == "nt":
+        candidates: list[Path] = []
+        for env_name in ("ProgramFiles", "ProgramFiles(x86)"):
+            base = os.getenv(env_name)
+            if base:
+                candidates.append(Path(base) / "Wireshark" / executable)
+        return candidates
+    return [
+        Path("/Applications/Wireshark.app/Contents/MacOS") / executable,
+        Path("/opt/homebrew/bin") / executable,
+        Path("/usr/local/bin") / executable,
+        Path("/usr/bin") / executable,
+        Path("/snap/bin") / executable,
+    ]
+
+
+def _resolve_path_candidate(value: str) -> Path:
+    candidate = Path(value).expanduser()
+    if candidate.exists() and candidate.is_dir():
+        candidate = candidate / _tshark_executable_name()
+    return candidate
+
+
+def _format_probe_failure(stderr: str, *, binary: str) -> str:
+    detail = stderr.strip()
+    if detail:
+        return f"TShark at '{binary}' could not be started: {detail}"
+    return f"TShark at '{binary}' could not be started."
+
+
+def _supports_output_format(help_text: str, output_format: str) -> bool:
+    return re.search(rf"\b{re.escape(output_format)}\b", help_text, flags=re.IGNORECASE) is not None
 
 
 def _merge_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -60,13 +106,97 @@ class TSharkError(RuntimeError):
 
 class TSharkRunner:
     def __init__(self, binary: str = "tshark") -> None:
-        self.binary = binary
+        self.binary = (binary or "tshark").strip() or "tshark"
+        self._resolved_binary: str | None = None
+        self._validated_binary: str | None = None
+        self._version_banner: str = ""
+
+    def _command_binary(self) -> str:
+        return self._resolved_binary or self.binary
+
+    def _resolve_binary(self) -> str:
+        if self._resolved_binary:
+            return self._resolved_binary
+
+        requested = self.binary
+        if _looks_like_path(requested):
+            candidate = _resolve_path_candidate(requested)
+            if candidate.exists() and candidate.is_file():
+                self._resolved_binary = str(candidate.resolve())
+                return self._resolved_binary
+            raise TSharkError(
+                f"TShark executable was not found at configured path: {candidate}"
+            )
+
+        resolved = shutil.which(requested)
+        if resolved:
+            self._resolved_binary = resolved
+            return resolved
+
+        if requested != "tshark":
+            raise TSharkError(
+                f"TShark executable '{requested}' was not found in PATH."
+            )
+
+        env_candidate = os.getenv("PCAP2LLM_TSHARK_PATH", "").strip()
+        if env_candidate:
+            candidate = _resolve_path_candidate(env_candidate)
+            if candidate.exists() and candidate.is_file():
+                self._resolved_binary = str(candidate.resolve())
+                return self._resolved_binary
+
+        for candidate in _standard_tshark_locations():
+            if candidate.exists() and candidate.is_file():
+                self._resolved_binary = str(candidate.resolve())
+                return self._resolved_binary
+
+        raise TSharkError(
+            "tshark was not found. Install Wireshark/TShark, add it to PATH, or set --tshark-path / PCAP2LLM_TSHARK_PATH."
+        )
+
+    def _probe_capabilities(self, resolved_binary: str) -> None:
+        version = subprocess.run(
+            [resolved_binary, "-v"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if version.returncode != 0:
+            raise TSharkError(_format_probe_failure(version.stderr or version.stdout, binary=resolved_binary))
+        lines = [line.strip() for line in (version.stdout or version.stderr or "").splitlines() if line.strip()]
+        self._version_banner = lines[0] if lines else ""
+
+        help_result = subprocess.run(
+            [resolved_binary, "-h"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        help_text = "\n".join(part for part in (help_result.stdout, help_result.stderr) if part)
+        if help_result.returncode != 0 and not help_text.strip():
+            raise TSharkError(_format_probe_failure(help_result.stderr or help_result.stdout, binary=resolved_binary))
+
+        if not _supports_output_format(help_text, "json"):
+            raise TSharkError(
+                f"TShark at '{resolved_binary}' does not support '-T json'. Install a newer Wireshark/TShark version and retry."
+            )
+        if not _supports_output_format(help_text, "fields"):
+            raise TSharkError(
+                f"TShark at '{resolved_binary}' does not support '-T fields'. Install a compatible Wireshark/TShark version and retry."
+            )
 
     def ensure_available(self) -> None:
-        if shutil.which(self.binary) is None:
-            raise TSharkError(
-                "tshark was not found in PATH. Install Wireshark/TShark and retry."
-            )
+        resolved_binary = self._resolve_binary()
+        if self._validated_binary == resolved_binary:
+            return
+        self._probe_capabilities(resolved_binary)
+        self._validated_binary = resolved_binary
+
+    def runtime_info(self) -> dict[str, str]:
+        return {
+            "binary": self._resolved_binary or self.binary,
+            "version": self._version_banner,
+        }
 
     def build_export_command(
         self,
@@ -76,7 +206,7 @@ class TSharkRunner:
         extra_args: list[str] | None = None,
         two_pass: bool = False,
     ) -> list[str]:
-        command = [self.binary, "-n", "-r", str(capture_path), "-T", "json"]
+        command = [self._command_binary(), "-n", "-r", str(capture_path), "-T", "json"]
         if two_pass:
             command.append("-2")
         if display_filter:
@@ -127,7 +257,7 @@ class TSharkRunner:
         subset when some field names are not supported by the local TShark
         version (see :meth:`export_packet_index` for the retry logic).
         """
-        command = [self.binary, "-n", "-r", str(capture_path), "-T", "fields"]
+        command = [self._command_binary(), "-n", "-r", str(capture_path), "-T", "fields"]
         if two_pass:
             command.append("-2")
         if display_filter:
@@ -259,7 +389,7 @@ class TSharkRunner:
         """Build TShark command that exports only the given frame numbers as JSON."""
         numbers_str = ",".join(str(n) for n in frame_numbers)
         display_filter = f"frame.number in {{{numbers_str}}}"
-        command = [self.binary, "-n", "-r", str(capture_path), "-T", "json"]
+        command = [self._command_binary(), "-n", "-r", str(capture_path), "-T", "json"]
         if two_pass:
             command.append("-2")
         command.extend(["-Y", display_filter])

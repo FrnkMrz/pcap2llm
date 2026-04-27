@@ -10,7 +10,7 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 
 from pcap2llm.web.app import create_app
-from pcap2llm.web.config import WebSettings
+from pcap2llm.web.config import WebSettings, load_settings
 from pcap2llm.web.jobs import JobStore
 from pcap2llm.web.profiles import ProfileStore
 
@@ -368,7 +368,8 @@ def test_job_page_persists_last_analyze_form_values(tmp_path: Path) -> None:
     assert page.status_code == 200
     assert 'value="gtpv2"' in page.text
     assert 'value="200"' in page.text
-    assert 'value="lte-s11" selected' in page.text
+    assert 'option value="lte-s11"' in page.text
+    assert 'value="lte-s11"' in page.text and 'selected' in page.text
     assert 'type="radio" name="privacy_profile" value="lab" checked' in page.text
 
 
@@ -658,8 +659,73 @@ def test_analyze_failure_exposes_error_code(tmp_path: Path) -> None:
     store = JobStore(tmp_path / "web_runs")
     record = store.load(job_id)
     assert record.status == "failed"
-    assert record.last_error == "TShark was not found in PATH."
+    assert record.last_error == "TShark was not found. Install Wireshark/TShark, add it to PATH, or configure a valid TShark path."
     assert record.last_error_code == "tshark_missing"
+
+
+def test_load_settings_falls_back_to_generic_tshark_env(monkeypatch) -> None:
+    monkeypatch.delenv("PCAP2LLM_WEB_TSHARK_PATH", raising=False)
+    monkeypatch.setenv("PCAP2LLM_TSHARK_PATH", "/opt/tools/tshark")
+
+    settings = load_settings()
+
+    assert settings.tshark_path == "/opt/tools/tshark"
+
+
+def test_load_settings_reads_local_settings_file_and_env_overrides(monkeypatch, tmp_path: Path) -> None:
+    settings_file = tmp_path / "web_settings.json"
+    settings_file.write_text(
+        json.dumps(
+            {
+                "host": "127.0.0.9",
+                "port": 9988,
+                "max_upload_mb": 5,
+                "command_timeout_seconds": 42,
+                "tshark_path": "/file/tshark",
+                "default_privacy_profile": "lab",
+                "cleanup_enabled": False,
+                "cleanup_max_age_days": 21,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("PCAP2LLM_WEB_SETTINGS_FILE", str(settings_file))
+    monkeypatch.setenv("PCAP2LLM_WEB_PORT", "8766")
+    monkeypatch.delenv("PCAP2LLM_WEB_TSHARK_PATH", raising=False)
+    monkeypatch.delenv("PCAP2LLM_TSHARK_PATH", raising=False)
+
+    settings = load_settings()
+
+    assert settings.host == "127.0.0.9"
+    assert settings.port == 8766
+    assert settings.max_upload_mb == 5
+    assert settings.command_timeout_seconds == 42
+    assert settings.tshark_path == "/file/tshark"
+    assert settings.default_privacy_profile == "lab"
+    assert settings.cleanup_enabled is False
+    assert settings.cleanup_max_age_days == 21
+
+
+def test_job_page_shows_grouped_profiles_and_tshark_status(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    upload = client.post(
+        "/jobs",
+        files={"capture": ("trace.pcap", io.BytesIO(b"abc"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+    job_id = upload.headers["location"].split("/")[-1]
+
+    response = client.get(f"/jobs/{job_id}")
+
+    assert response.status_code == 200
+    assert "<optgroup label=\"Transport\">" in response.text
+    assert "transport-udp" in response.text
+    assert "transport-sctp" in response.text
+    assert "transport-tcp" in response.text
+    assert "transport-core" in response.text
+    assert "core-name-resolution" in response.text
+    assert "Transport first for TCP/UDP/SCTP" in response.text
+    assert "TShark runtime" in response.text
 
 
 def test_zip_download_contains_job_files(tmp_path: Path) -> None:

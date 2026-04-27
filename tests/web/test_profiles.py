@@ -114,4 +114,27 @@ def test_profile_store_stats_include_builtin_profiles(tmp_path: Path) -> None:
     stats = store.get_stats()
     assert stats["total_profiles"] == 1
     assert stats["local_profiles"] == 1
+    assert stats["built_in_overrides"] == 0
     assert stats["built_in_profiles"] >= 5
+
+
+def test_profile_store_builtin_override_lifecycle(tmp_path: Path) -> None:
+    store = ProfileStore(tmp_path)
+
+    saved = store.save_builtin_override(
+        "share",
+        "share",
+        "override",
+        {"subscriber_id": "encrypt"},
+    )
+    assert saved.source == "built-in-override"
+    assert saved.builtin_name == "share"
+    assert store.load_builtin_override("share") is not None
+
+    all_profiles = store.list_all()
+    assert len(all_profiles) == 1
+    assert store.list_local_profiles() == []
+    assert len(store.list_builtin_overrides()) == 1
+
+    assert store.delete_builtin_override("share") is True
+    assert store.load_builtin_override("share") is None

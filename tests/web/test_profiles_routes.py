@@ -22,7 +22,9 @@ def test_profiles_page_loads(tmp_path: Path) -> None:
     assert "Privacy Profiles" in response.text
     assert "Built-in Privacy Profiles" in response.text
     assert "llm-telecom-safe" in response.text
-    assert "Duplicate as local profile" in response.text
+    assert "Built-in Profiles" in response.text
+    assert "Save Local Override" in response.text
+    assert "Edit" in response.text
     assert "Export JSON" not in response.text
     assert "Bulk Delete" not in response.text
 
@@ -32,7 +34,7 @@ def test_profiles_page_explains_empty_local_profiles(tmp_path: Path) -> None:
 
     response = client.get("/profiles")
     assert response.status_code == 200
-    assert "No Local Privacy Profiles Yet" in response.text
+    assert "No local profiles yet." in response.text
 
 
 def test_api_list_profiles_empty(tmp_path: Path) -> None:
@@ -196,6 +198,35 @@ def test_duplicate_builtin_privacy_profile_creates_local_copy(tmp_path: Path) ->
     assert "Safe for sharing" in profiles[0]["description"]
     assert profiles[0]["modes"]["subscriber_id"] == "pseudonymize"
     assert profiles[0]["modes"]["token"] == "remove"
+
+
+def test_builtin_override_save_and_reset(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+
+    save_resp = client.post(
+        "/profiles/privacy/share/override",
+        data={
+            "name": "share",
+            "description": "override",
+            "mode_subscriber_id": "encrypt",
+        },
+        follow_redirects=False,
+    )
+    assert save_resp.status_code == 303
+    assert save_resp.headers["location"] == "/profiles?builtin=share"
+
+    page = client.get("/profiles?builtin=share")
+    assert page.status_code == 200
+    assert "Local override active" in page.text
+    assert "Reset to Built-in" in page.text
+
+    reset_resp = client.post("/profiles/privacy/share/reset", follow_redirects=False)
+    assert reset_resp.status_code == 303
+    assert reset_resp.headers["location"] == "/profiles?builtin=share"
+
+    page_after = client.get("/profiles?builtin=share")
+    assert page_after.status_code == 200
+    assert "Read-only base, save creates local override" in page_after.text
 
 
 def test_export_profiles_json_and_csv(tmp_path: Path) -> None:

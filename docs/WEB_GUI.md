@@ -93,11 +93,45 @@ Currently exposed in the Analyze form:
 - `PCAP2LLM_WEB_MAX_UPLOAD_MB` (default `1`)
 - `PCAP2LLM_WEB_COMMAND_TIMEOUT_SECONDS` (default `600`)
 - `PCAP2LLM_WEB_TSHARK_PATH` (optional)
+- `PCAP2LLM_TSHARK_PATH` (optional generic fallback used by CLI and Web GUI)
+- `PCAP2LLM_WEB_SETTINGS_FILE` (optional path to persistent JSON settings file)
 - `PCAP2LLM_WEB_DEFAULT_PRIVACY_PROFILE` (default `share`)
 - `PCAP2LLM_WEB_CLEANUP_ENABLED` (default `true`) to enable automatic cleanup of
   old jobs
 - `PCAP2LLM_WEB_CLEANUP_MAX_AGE_DAYS` (default `7`) to delete jobs older than N
   days
+
+## TShark Resolution
+
+The Web GUI and CLI now resolve TShark in this order:
+
+- explicit `--tshark-path`
+- `PCAP2LLM_WEB_TSHARK_PATH`
+- `PCAP2LLM_TSHARK_PATH`
+- `PATH`
+- common platform-specific install locations such as `C:/Program Files/Wireshark/tshark.exe`, `/opt/homebrew/bin/tshark`, and `/usr/bin/tshark`
+
+If you pass a Wireshark installation directory instead of the executable, `pcap2llm` automatically appends `tshark` / `tshark.exe`.
+
+At startup and before running discovery/analyze, `pcap2llm` validates that the resolved TShark supports both `-T json` and `-T fields`. Older Wireshark/TShark builds that cannot emit JSON are rejected early with a dedicated compatibility error.
+
+## Persistent Web Settings
+
+To keep local Web GUI behavior stable across terminal sessions, you can store settings in a JSON file.
+
+Default location:
+
+- `.local/web_settings.json` (or the path from `PCAP2LLM_WEB_SETTINGS_FILE`)
+
+Supported keys include:
+
+- `host`, `port`, `workdir`
+- `max_upload_mb`, `command_timeout_seconds`
+- `tshark_path`, `support_files_root`
+- `default_privacy_profile`
+- `cleanup_enabled`, `cleanup_max_age_days`
+
+Environment variables still override values from the JSON file.
 
 ## Local `.local` Defaults
 
@@ -191,6 +225,7 @@ way until you intentionally open it for troubleshooting or auditability.
 ## UX Details
 
 - the Analyze form remembers the last values used for that job
+- the Job page includes a `TShark runtime` panel with detected path/version (or a concrete compatibility/path error)
 - failures show both a human-readable message and a machine-readable error code
 - `Delete job` removes the full job directory
 - dashboard available at `/dashboard` with job and privacy-profile statistics

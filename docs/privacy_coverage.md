@@ -35,6 +35,23 @@ Most configurable data classes support the standard protection modes
 the TAC prefix visible and masks the serial suffix. This specialized mode does
 not apply to `email`.
 
+`imsi` also supports partial network-preserving modes:
+
+- `keep_mcc_mnc_mask_msin`
+- `keep_mcc_mnc_pseudonymize_msin`
+- `keep_mcc_mnc_encrypt_msin`
+
+These keep the MCC/MNC portion visible and only protect the MSIN suffix.
+
+`msisdn` also supports partial routing-preserving modes:
+
+- `keep_cc_ndc_mask_subscriber`
+- `keep_cc_ndc_pseudonymize_subscriber`
+- `keep_cc_ndc_encrypt_subscriber`
+
+These keep the E.164 country code and, where configured or recognized, the NDC
+routing prefix visible while protecting only the subscriber part.
+
 ## Canonical Classes
 
 - `network_address`

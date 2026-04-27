@@ -242,6 +242,18 @@ def _build_modes(
     return build_privacy_modes(base, combined_overrides)
 
 
+def _numbering_config(config_data: dict) -> dict[str, dict]:
+    numbering = config_data.get("numbering", {}) or {}
+    if not isinstance(numbering, dict):
+        return {}
+    out: dict[str, dict] = {}
+    for key in ("imsi_mnc_lengths", "msisdn_ndc_lengths", "msisdn_ndc_prefixes"):
+        value = numbering.get(key, {}) or {}
+        if isinstance(value, dict):
+            out[key] = value
+    return out
+
+
 def _resolve_privacy_base(
     cli_privacy_profile: str | None,
     config_data: dict,
@@ -919,6 +931,7 @@ def analyze_command(
                 flow_svg_width=flow_svg_width,
                 collapse_repeats=collapse_repeats,
                 privacy_profile_name=privacy_profile_name or config_data.get("privacy_profile"),
+                numbering=_numbering_config(config_data),
                 on_stage=on_stage,
             )
     except Exception as exc:  # noqa: BLE001
@@ -1131,6 +1144,7 @@ def ask_chatgpt_command(
                 max_packets=effective_max_packets,
                 max_capture_size_mb=max_capture_size_mb,
                 oversize_factor=oversize_factor,
+                numbering=_numbering_config(config_data),
             )
             analysis_outputs = write_artifacts(artifacts, out_dir)
 
@@ -1291,6 +1305,7 @@ def ask_claude_command(
                 max_packets=effective_max_packets,
                 max_capture_size_mb=max_capture_size_mb,
                 oversize_factor=oversize_factor,
+                numbering=_numbering_config(config_data),
             )
             analysis_outputs = write_artifacts(artifacts, out_dir)
 
@@ -1451,6 +1466,7 @@ def ask_gemini_command(
                 max_packets=effective_max_packets,
                 max_capture_size_mb=max_capture_size_mb,
                 oversize_factor=oversize_factor,
+                numbering=_numbering_config(config_data),
             )
             analysis_outputs = write_artifacts(artifacts, out_dir)
 

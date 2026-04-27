@@ -1,0 +1,31 @@
+name: transport-sctp
+description: SCTP decode profile for association, stream, chunk, SACK, ABORT, SHUTDOWN, and retransmission analysis.
+relevant_protocols:
+  - sctp
+  - ip
+  - ipv6
+top_protocol_priority:
+  - sctp
+  - ip
+  - ipv6
+protocol_aliases:
+  sctp: [sctp]
+  ip: [ip]
+  ipv6: [ipv6]
+verbatim_protocols:
+  - sctp
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - sctp_stream
+  - anomaly
+  - notes
+tshark:
+  two_pass: false
+  extra_args: []
+summary_heuristics:
+  - Highlight INIT, INIT ACK, COOKIE ECHO, COOKIE ACK, DATA, SACK, HEARTBEAT, ABORT, and SHUTDOWN chunk patterns.
+  - Flag retransmitted TSNs, duplicate TSNs, SACK gap reports, stream resets, and association aborts.
+  - Prefer verbatim SCTP decode when troubleshooting telecom protocols carried over SCTP.

@@ -1,0 +1,41 @@
+name: transport-core
+description: Transport-layer overview profile for TCP, UDP, SCTP, IP, IPv6, and ICMP diagnostics.
+relevant_protocols:
+  - tcp
+  - udp
+  - sctp
+  - ip
+  - ipv6
+  - icmp
+top_protocol_priority:
+  - sctp
+  - tcp
+  - udp
+  - icmp
+  - ip
+  - ipv6
+protocol_aliases:
+  tcp: [tcp]
+  udp: [udp]
+  sctp: [sctp]
+  ip: [ip]
+  ipv6: [ipv6]
+  icmp: [icmp, icmpv6]
+verbatim_protocols:
+  - tcp
+  - udp
+  - sctp
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - sctp_stream
+  - anomaly
+  - notes
+tshark:
+  two_pass: false
+  extra_args: []
+summary_heuristics:
+  - Highlight retransmissions, duplicate ACK/SACK behavior, resets, unreachable messages, and transport analysis warnings.
+  - Use this profile when upper-layer decode is unknown, encrypted, malformed, or intentionally out of scope.

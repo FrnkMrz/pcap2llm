@@ -1,0 +1,32 @@
+name: transport-tcp
+description: TCP decode profile for stream, handshake, retransmission, reset, window, and TLS-adjacent diagnostics.
+relevant_protocols:
+  - tcp
+  - ip
+  - ipv6
+  - tls
+top_protocol_priority:
+  - tcp
+  - tls
+  - ip
+  - ipv6
+protocol_aliases:
+  tcp: [tcp]
+  tls: [tls, ssl]
+  ip: [ip]
+  ipv6: [ipv6]
+verbatim_protocols:
+  - tcp
+reduced_transport_fields:
+  - proto
+  - src_port
+  - dst_port
+  - stream
+  - anomaly
+  - notes
+tshark:
+  two_pass: false
+  extra_args: []
+summary_heuristics:
+  - Highlight SYN/SYN-ACK/ACK timing, retransmissions, duplicate ACKs, zero-window events, resets, and out-of-order segments.
+  - Keep TLS as adjacent context without turning this into an application-layer TLS profile.

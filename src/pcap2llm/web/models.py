@@ -95,6 +95,8 @@ class SecurityProfile:
     modes: dict[str, str] = field(default_factory=dict)
     created_at: str = field(default_factory=now_utc_iso)
     updated_at: str = field(default_factory=now_utc_iso)
+    source: str = "local"
+    builtin_name: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -110,4 +112,6 @@ class SecurityProfile:
             modes=build_privacy_modes({}, payload.get("modes", {})),
             created_at=str(payload.get("created_at", now_utc_iso())),
             updated_at=str(payload.get("updated_at", now_utc_iso())),
+            source=str(payload.get("source", "local")),
+            builtin_name=str(payload["builtin_name"]) if payload.get("builtin_name") else None,
         )

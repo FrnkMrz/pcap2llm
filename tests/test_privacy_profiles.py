@@ -186,6 +186,17 @@ class TestBuildPrivacyModesPrecedence:
         result = build_privacy_modes({}, {})
         assert all(v == "keep" for v in result.values())
 
+    def test_partial_mode_aliases_are_normalized(self) -> None:
+        result = build_privacy_modes(
+            {},
+            {
+                "imsi": "keep-plmn-mask-msin",
+                "msisdn": "keep-e164-routing-pseudonymize-subscriber",
+            },
+        )
+        assert result["imsi"] == "keep_mcc_mnc_mask_msin"
+        assert result["msisdn"] == "keep_cc_ndc_pseudonymize_subscriber"
+
 
 # ---------------------------------------------------------------------------
 # Backward compat: analysis profile with default_privacy_modes → DeprecationWarning

@@ -16,6 +16,12 @@ class ProtectionMode(str, Enum):
     ENCRYPT = "encrypt"
     REMOVE = "remove"
     KEEP_TAC_MASK_SERIAL = "keep_tac_mask_serial"
+    KEEP_MCC_MNC_MASK_MSIN = "keep_mcc_mnc_mask_msin"
+    KEEP_MCC_MNC_PSEUDONYMIZE_MSIN = "keep_mcc_mnc_pseudonymize_msin"
+    KEEP_MCC_MNC_ENCRYPT_MSIN = "keep_mcc_mnc_encrypt_msin"
+    KEEP_CC_NDC_MASK_SUBSCRIBER = "keep_cc_ndc_mask_subscriber"
+    KEEP_CC_NDC_PSEUDONYMIZE_SUBSCRIBER = "keep_cc_ndc_pseudonymize_subscriber"
+    KEEP_CC_NDC_ENCRYPT_SUBSCRIBER = "keep_cc_ndc_encrypt_subscriber"
 
 
 DATA_CLASSES = [

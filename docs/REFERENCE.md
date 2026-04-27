@@ -203,7 +203,9 @@ Per-class privacy overrides:
   --apn-dnn-mode          APN / DNN
   --diameter-identity-mode  Diameter identities
   --payload-text-mode     Payload text
-                          Values: keep | mask | pseudonymize | encrypt | remove | keep_tac_mask_serial (IMEI only)
+                          Values: keep | mask | pseudonymize | encrypt | remove | keep_tac_mask_serial (IMEI only) |
+                          keep_mcc_mnc_mask_msin | keep_mcc_mnc_pseudonymize_msin | keep_mcc_mnc_encrypt_msin |
+                          keep_cc_ndc_mask_subscriber | keep_cc_ndc_pseudonymize_subscriber | keep_cc_ndc_encrypt_subscriber
 
 `keep_tac_mask_serial` is a specialized IMEI-only mode. It keeps the TAC
 prefix visible and masks the serial suffix. It does not apply to `email` or
@@ -783,6 +785,12 @@ pcap2llm analyze sample.pcapng \
 - `remove` — delete the field entirely
 - `keep_tac_mask_serial` — IMEI only; keep the TAC prefix and mask the serial
   suffix
+- `keep_mcc_mnc_mask_msin` — IMSI only; keep MCC/MNC and mask the MSIN suffix
+- `keep_mcc_mnc_pseudonymize_msin` — IMSI only; keep MCC/MNC and pseudonymize the MSIN suffix
+- `keep_mcc_mnc_encrypt_msin` — IMSI only; keep MCC/MNC and encrypt the MSIN suffix
+- `keep_cc_ndc_mask_subscriber` — MSISDN only; keep country code and routing/NDC prefix, mask subscriber digits
+- `keep_cc_ndc_pseudonymize_subscriber` — MSISDN only; keep country code and routing/NDC prefix, pseudonymize subscriber digits
+- `keep_cc_ndc_encrypt_subscriber` — MSISDN only; keep country code and routing/NDC prefix, encrypt subscriber digits
 
 `email` does not have a special partial-keep mode. For email addresses, use the
 standard modes: `keep`, `mask`, `pseudonymize`, `encrypt`, or `remove`.

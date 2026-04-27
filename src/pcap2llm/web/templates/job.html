@@ -15,6 +15,18 @@
   </form>
   <p class="error" data-job-error>{% if job.last_error %}{{ job.last_error }}{% endif %}</p>
   <p class="mono">Error code: <span data-job-error-code>{% if job.last_error_code %}{{ job.last_error_code }}{% endif %}</span></p>
+  {% if tshark_status %}
+  <div class="runtime-status {% if tshark_status.ok == 'true' %}runtime-status-ok{% else %}runtime-status-error{% endif %}">
+    <strong>TShark runtime</strong>
+    {% if tshark_status.ok == 'true' %}
+      <span>{{ tshark_status.version if tshark_status.version else "ready" }}</span>
+      <small>Path: {{ tshark_status.path }} ({{ tshark_status.source }})</small>
+    {% else %}
+      <span>{{ tshark_status.error }}</span>
+      {% if tshark_status.path %}<small>Configured path: {{ tshark_status.path }}</small>{% endif %}
+    {% endif %}
+  </div>
+  {% endif %}
 </section>
 
 <section class="panel" id="discovery" data-discovery-panel>
@@ -101,11 +113,20 @@
       Profile
       <select name="profile" required>
         {% set selected_profile = analyze_defaults.profile %}
-        {% for p in profiles %}
-          <option value="{{ p }}" {% if selected_profile == p %}selected{% endif %}>{{ p }}</option>
+        {% for group in analysis_profile_groups %}
+          <optgroup label="{{ group.name }}">
+            {% for p in group.profiles %}
+            <option value="{{ p.name }}" title="{{ p.description }}" {% if selected_profile == p.name %}selected{% endif %}>{{ p.name }}</option>
+            {% endfor %}
+          </optgroup>
         {% endfor %}
       </select>
     </label>
+
+    <div class="profile-hint-panel">
+      <strong>Profile groups</strong>
+      <span>Transport first for TCP/UDP/SCTP, then 2G/3G, 4G/EPC, 5G, Voice/IMS, and DNS/Name Resolution as the cross-generation view.</span>
+    </div>
 
     <label>
       Privacy profile
@@ -304,6 +325,43 @@
     border-radius: 8px;
     padding: 12px 14px;
     background: color-mix(in srgb, var(--panel) 90%, var(--telekom-gray-100) 10%);
+  }
+
+  .runtime-status {
+    margin-top: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: grid;
+    gap: 4px;
+    background: color-mix(in srgb, var(--panel) 92%, var(--telekom-gray-100) 8%);
+  }
+
+  .runtime-status-ok {
+    border-color: color-mix(in srgb, var(--success) 45%, var(--line));
+  }
+
+  .runtime-status-error {
+    border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+  }
+
+  .runtime-status small {
+    color: var(--muted);
+    overflow-wrap: anywhere;
+  }
+
+  .profile-hint-panel {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: grid;
+    gap: 4px;
+    background: color-mix(in srgb, var(--panel) 92%, var(--telekom-gray-100) 8%);
+  }
+
+  .profile-hint-panel span {
+    color: var(--muted);
+    font-size: 0.93rem;
   }
 
   .support-defaults strong {

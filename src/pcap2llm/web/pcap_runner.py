@@ -4,6 +4,7 @@ import json
 import re
 import shlex
 import subprocess
+import sys
 from pathlib import Path
 
 from .models import AnalyzeOptions, RunResult
@@ -11,6 +12,10 @@ from .security import WebValidationError
 
 
 _DISPLAY_FILTER_PATTERN = re.compile(r"^[A-Za-z0-9._=!&|()<>\x22' \-+:/]+$")
+
+
+def _base_cli_command() -> list[str]:
+    return [sys.executable, "-m", "pcap2llm"]
 
 
 def _safe_argv_value(value: str, *, allow_dash: bool = False) -> str:
@@ -43,7 +48,7 @@ class Pcap2LlmRunner:
         subnets_file: str | None = None,
         ss7pcs_file: str | None = None,
     ) -> RunResult:
-        cmd = ["pcap2llm", "discover", str(capture_path), "--out", str(out_dir)]
+        cmd = [*_base_cli_command(), "discover", str(capture_path), "--out", str(out_dir)]
         if hosts_file:
             cmd.extend(["--hosts-file", _safe_argv_value(hosts_file)])
         if mapping_file:
@@ -57,7 +62,7 @@ class Pcap2LlmRunner:
         return self._run(cmd, logs_dir=logs_dir, artifacts_dir=out_dir, log_prefix="discovery")
 
     def recommend_profiles(self, source_path: Path, logs_dir: Path) -> RunResult:
-        cmd = ["pcap2llm", "recommend-profiles", str(source_path)]
+        cmd = [*_base_cli_command(), "recommend-profiles", str(source_path)]
         if self.default_tshark_path:
             cmd.extend(["--tshark-path", _safe_argv_value(self.default_tshark_path)])
         return self._run(cmd, logs_dir=logs_dir, artifacts_dir=source_path.parent, log_prefix="recommend")
@@ -68,7 +73,7 @@ class Pcap2LlmRunner:
 
     def build_analyze_command(self, capture_path: Path, options: AnalyzeOptions, out_dir: Path) -> list[str]:
         cmd = [
-            "pcap2llm",
+            *_base_cli_command(),
             "analyze",
             str(capture_path),
             "--profile",

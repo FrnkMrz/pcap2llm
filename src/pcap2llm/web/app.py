@@ -82,7 +82,7 @@ class OriginCheckMiddleware(BaseHTTPMiddleware):
             return True
         if not path.startswith(cls._PROTECTED_PREFIXES):
             return False
-        return path.endswith("/delete") or path.endswith("/outputs/delete")
+        return path.endswith("/delete") or path.endswith("/reset") or path.endswith("/outputs/delete")
 
 
 def _allowed_origin_values(request: Request) -> set[str]:
@@ -683,28 +683,58 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         )
 
     @app.get("/profiles", response_class=HTMLResponse)
-    async def list_profiles(request: Request, id: str | None = None) -> HTMLResponse:
+    async def list_profiles(
+        request: Request,
+        id: str | None = None,
+        builtin: str | None = None,
+    ) -> HTMLResponse:
         """Local privacy profile management page."""
         profile_store: ProfileStore = request.app.state.profile_store
-        profiles = profile_store.list_all()
+        profiles = profile_store.list_local_profiles()
         selected_profile = None
+        selected_kind = ""
+        selected_builtin_name = None
+        selected_has_override = False
 
-        if id:
+        if builtin:
+            selected_builtin_name = builtin
+            selected_profile = _builtin_editor_profile(profile_store, builtin)
+            selected_kind = "built-in"
+            selected_has_override = profile_store.load_builtin_override(builtin) is not None
+        elif id:
             try:
                 selected_profile = profile_store.load(id)
+                if selected_profile.source == "built-in-override" and selected_profile.builtin_name:
+                    selected_builtin_name = selected_profile.builtin_name
+                    selected_kind = "built-in"
+                    selected_has_override = True
+                else:
+                    selected_kind = "local"
             except FileNotFoundError:
                 pass
 
         if not selected_profile and profiles:
             selected_profile = profiles[0]
+            selected_kind = "local"
+        elif not selected_profile:
+            first_builtin = list_privacy_profiles()[0]
+            selected_builtin_name = first_builtin
+            selected_profile = _builtin_editor_profile(profile_store, first_builtin)
+            selected_kind = "built-in"
+            selected_has_override = profile_store.load_builtin_override(first_builtin) is not None
 
         context = {
             "request": request,
             "profiles": profiles,
-            "privacy_profiles": _builtin_privacy_profiles(),
+            "privacy_profiles": _builtin_privacy_profiles(profile_store),
+            "profile_editor_data": _profile_editor_data(profile_store),
             "selected_profile": selected_profile,
+            "selected_kind": selected_kind,
+            "selected_builtin_name": selected_builtin_name,
+            "selected_has_override": selected_has_override,
             "data_classes": DATA_CLASSES,
             "protection_modes": _profile_mode_options(),
+            "mode_help": _profile_mode_help(),
         }
         return templates.TemplateResponse(request=request, name="profiles.html", context=context)
 
@@ -712,14 +742,14 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     async def api_list_profiles(request: Request) -> JSONResponse:
         """API: List all profiles as JSON."""
         profile_store: ProfileStore = request.app.state.profile_store
-        profiles = profile_store.list_all()
+        profiles = profile_store.list_local_profiles()
         return JSONResponse([p.to_dict() for p in profiles])
 
     @app.get("/profiles/export")
     async def export_profiles(request: Request, fmt: str = "json") -> StreamingResponse:
         """Export local privacy profiles in JSON or CSV format."""
         profile_store: ProfileStore = request.app.state.profile_store
-        profiles = profile_store.list_all()
+        profiles = profile_store.list_local_profiles()
 
         if fmt == "json":
             payload = [p.to_dict() for p in profiles]
@@ -793,6 +823,8 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             profile = profile_store.load(profile_id)
         except FileNotFoundError:
             raise HTTPException(status_code=404, detail="Profile not found.")
+        if profile.source == "built-in-override":
+            raise HTTPException(status_code=400, detail="Built-in privacy profile overrides can only be edited from the built-in editor.")
 
         # Validate and sanitize inputs
         name = name.strip()
@@ -823,13 +855,14 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     async def delete_profile(request: Request, profile_id: str) -> RedirectResponse:
         """Delete a local privacy profile."""
         profile_store: ProfileStore = request.app.state.profile_store
+        try:
+            profile = profile_store.load(profile_id)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Profile not found.")
+        if profile.source == "built-in-override":
+            raise HTTPException(status_code=400, detail="Built-in privacy profile overrides can only be reset.")
         profile_store.delete(profile_id)
         return RedirectResponse(url="/profiles", status_code=303)
-
-    @app.post("/profiles/{profile_id:path}/delete")
-    async def delete_profile_invalid_path(request: Request, profile_id: str) -> RedirectResponse:
-        validate_id(profile_id)
-        raise HTTPException(status_code=404, detail="Profile not found.")
 
     @app.post("/profiles/{profile_id}/duplicate")
     async def duplicate_profile(request: Request, profile_id: str) -> RedirectResponse:
@@ -840,8 +873,21 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         except FileNotFoundError:
             raise HTTPException(status_code=404, detail="Profile not found.")
 
-        candidate = _next_profile_copy_name(profile_store, original.name)
-        clone = profile_store.create(candidate, original.description, original.modes)
+        form = await request.form()
+        if "name" in form:
+            try:
+                modes = _profile_modes_from_form(form)
+            except WebValidationError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            base_name = str(form.get("name") or original.name).strip()
+            description = str(form.get("description") or original.description).strip()
+        else:
+            modes = original.modes
+            base_name = original.name
+            description = original.description
+
+        candidate = _next_profile_copy_name(profile_store, base_name)
+        clone = profile_store.create(candidate, description, modes)
         profile_store.save(clone)
 
         return RedirectResponse(url=f"/profiles?id={clone.id}", status_code=303)
@@ -856,11 +902,72 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         except FileNotFoundError:
             raise HTTPException(status_code=404, detail="Privacy profile not found.")
 
-        candidate = _next_profile_copy_name(profile_store, builtin.name)
-        clone = profile_store.create(candidate, builtin.description, builtin.modes)
+        form = await request.form()
+        if "name" in form:
+            try:
+                modes = _profile_modes_from_form(form)
+            except WebValidationError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            base_name = str(form.get("name") or builtin.name).strip()
+            description = str(form.get("description") or builtin.description).strip()
+        else:
+            override = profile_store.load_builtin_override(profile_name)
+            modes = override.modes if override is not None else builtin.modes
+            base_name = override.name if override is not None else builtin.name
+            description = override.description if override is not None else builtin.description
+
+        candidate = _next_profile_copy_name(profile_store, base_name)
+        clone = profile_store.create(candidate, description, modes)
         profile_store.save(clone)
 
         return RedirectResponse(url=f"/profiles?id={clone.id}", status_code=303)
+
+    @app.post("/profiles/privacy/{profile_name}/override")
+    async def save_privacy_profile_override(request: Request, profile_name: str) -> RedirectResponse:
+        """Save a local override for a built-in privacy profile."""
+        profile_store: ProfileStore = request.app.state.profile_store
+        try:
+            load_privacy_profile(profile_name)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Privacy profile not found.")
+
+        form = await request.form()
+        name = str(form.get("name") or profile_name).strip()
+        description = str(form.get("description") or "").strip()
+        try:
+            validate_profile_name(name)
+            validate_string_length(description, 1000, "Description")
+            modes = _profile_modes_from_form(form)
+        except WebValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        profile_store.save_builtin_override(profile_name, name, description, modes)
+        return RedirectResponse(url=f"/profiles?builtin={profile_name}", status_code=303)
+
+    @app.post("/profiles/privacy/{profile_name}/reset")
+    async def reset_privacy_profile_override(request: Request, profile_name: str) -> RedirectResponse:
+        """Remove the local override for a built-in privacy profile."""
+        profile_store: ProfileStore = request.app.state.profile_store
+        try:
+            load_privacy_profile(profile_name)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Privacy profile not found.")
+        profile_store.delete_builtin_override(profile_name)
+        return RedirectResponse(url=f"/profiles?builtin={profile_name}", status_code=303)
+
+    @app.post("/profiles/privacy/{profile_name}/delete")
+    async def delete_builtin_privacy_profile(request: Request, profile_name: str) -> RedirectResponse:
+        """Built-in privacy profiles are immutable and cannot be deleted."""
+        try:
+            load_privacy_profile(profile_name)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Privacy profile not found.")
+        raise HTTPException(status_code=400, detail="Built-in privacy profiles cannot be deleted.")
+
+    @app.post("/profiles/{profile_id:path}/delete")
+    async def delete_profile_invalid_path(request: Request, profile_id: str) -> RedirectResponse:
+        validate_id(profile_id)
+        raise HTTPException(status_code=404, detail="Profile not found.")
 
     @app.post("/profiles/actions/bulk-delete")
     async def bulk_delete_profiles(request: Request) -> RedirectResponse:
@@ -872,8 +979,11 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         for profile_id in profile_ids:
             try:
                 validate_id(str(profile_id))
+                profile = profile_store.load(str(profile_id))
+                if profile.source == "built-in-override":
+                    continue
                 profile_store.delete(str(profile_id))
-            except WebValidationError:
+            except (FileNotFoundError, WebValidationError):
                 continue
         
         return RedirectResponse(url="/profiles", status_code=303)
@@ -1297,8 +1407,8 @@ def _string_or_none(value: object) -> str | None:
 
 
 def _privacy_profile_options(profile_store: ProfileStore) -> list[dict[str, str]]:
-    options = _builtin_privacy_profiles()
-    for profile in profile_store.list_all():
+    options = _builtin_privacy_profiles(profile_store)
+    for profile in profile_store.list_local_profiles():
         options.append(
             {
                 "name": profile.name,
@@ -1328,6 +1438,16 @@ def _profile_mode_options() -> dict[str, list[str]]:
         "keep_cc_ndc_encrypt_subscriber",
     ]
     return options
+
+
+def _profile_mode_help() -> dict[str, str]:
+    return {
+        "email": "Email addresses can be masked, pseudonymized, encrypted, or removed.",
+        "imei": "IMEI can preserve TAC with keep_tac_mask_serial and mask the device serial.",
+        "imsi": "IMSI partial modes preserve MCC/MNC and protect MSIN.",
+        "msisdn": "MSISDN partial modes preserve country code, German NDCs, or configured partner NDC prefixes.",
+        "subscriber_id": "Generic subscriber identifiers; prefer IMSI/MSISDN-specific modes when those classes are detected.",
+    }
 
 
 def _analysis_profile_group_name(name: str) -> str:
@@ -1386,17 +1506,25 @@ def _analysis_profile_groups() -> list[dict[str, object]]:
     ]
 
 
-def _builtin_privacy_profiles() -> list[dict[str, str]]:
+def _builtin_privacy_profiles(profile_store: ProfileStore | None = None) -> list[dict[str, str]]:
     options: list[dict[str, str]] = []
     for name in list_privacy_profiles():
         profile = load_privacy_profile(name)
+        modes = profile.modes
+        has_override = False
+        if profile_store is not None:
+            override = profile_store.load_builtin_override(name)
+            if override is not None:
+                modes = override.modes
+                has_override = True
         options.append(
             {
                 "name": profile.name,
                 "description": profile.description,
                 "value": profile.name,
                 "kind": "built-in",
-                "summary": _privacy_mode_summary(profile.modes),
+                "summary": _privacy_mode_summary(modes),
+                "has_override": "true" if has_override else "false",
             }
         )
     return options
@@ -1405,8 +1533,68 @@ def _builtin_privacy_profiles() -> list[dict[str, str]]:
 def _resolve_privacy_profile_cli_value(profile_store: ProfileStore, selection: str) -> str:
     profile_id = _local_profile_id(selection)
     if profile_id is None:
+        override = profile_store.load_builtin_override(selection)
+        if override is not None:
+            return str(profile_store.profile_path(override.id))
         return selection
     return str(profile_store.profile_path(profile_id))
+
+
+def _builtin_editor_profile(profile_store: ProfileStore, profile_name: str):
+    builtin = load_privacy_profile(profile_name)
+    override = profile_store.load_builtin_override(profile_name)
+    if override is not None:
+        return override
+    return {
+        "id": profile_name,
+        "name": builtin.name,
+        "description": builtin.description,
+        "modes": build_privacy_modes({}, builtin.modes),
+        "created_at": "built-in",
+        "updated_at": "built-in",
+        "source": "built-in",
+        "builtin_name": profile_name,
+    }
+
+
+def _profile_editor_data(profile_store: ProfileStore) -> list[dict[str, object]]:
+    data: list[dict[str, object]] = []
+    for name in list_privacy_profiles():
+        builtin = load_privacy_profile(name)
+        override = profile_store.load_builtin_override(name)
+        profile = override if override is not None else _builtin_editor_profile(profile_store, name)
+        data.append(
+            {
+                "kind": "built-in",
+                "id": name,
+                "builtin_name": name,
+                "name": profile.name if hasattr(profile, "name") else str(profile["name"]),
+                "description": profile.description if hasattr(profile, "description") else str(profile["description"]),
+                "modes": profile.modes if hasattr(profile, "modes") else dict(profile["modes"]),
+                "created_at": profile.created_at if hasattr(profile, "created_at") else str(profile["created_at"]),
+                "updated_at": profile.updated_at if hasattr(profile, "updated_at") else str(profile["updated_at"]),
+                "has_override": override is not None,
+                "is_builtin_base": override is None,
+                "base_description": builtin.description,
+            }
+        )
+    for profile in profile_store.list_local_profiles():
+        data.append(
+            {
+                "kind": "local",
+                "id": profile.id,
+                "builtin_name": None,
+                "name": profile.name,
+                "description": profile.description,
+                "modes": profile.modes,
+                "created_at": profile.created_at,
+                "updated_at": profile.updated_at,
+                "has_override": False,
+                "is_builtin_base": False,
+                "base_description": "",
+            }
+        )
+    return data
 
 
 def _local_profile_id(selection: str) -> str | None:

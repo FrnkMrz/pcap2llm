@@ -16,12 +16,12 @@ Related docs:
 
 | Scenario | Recommended profile | Notes |
 |---|---|---|
-| Internal team troubleshooting | `share` | Good default for most internal work; endpoint and subscriber identifiers are pseudonymized |
+| Internal team troubleshooting | `share` | Good default for most internal work; endpoints are pseudonymized while IMSI/MSISDN/IMEI keep routing prefixes |
 | Telecom-aware cross-team sharing | `telecom-context` | Keeps MCC/MNC, CC, German mobile NDCs, and IMEI TAC visible while masking subscriber-specific suffixes |
 | Vendor ticket | `prod-safe` | Remove tokens, reduce sensitive metadata |
 | Lab replay / test environment | `lab` | Stronger anonymization, still useful context |
 | Personal local analysis | `internal` | Only in fully trusted environments |
-| LLM sharing outside trusted boundary | `llm-telecom-safe` | Keeps topology correlation through pseudonyms without exposing raw endpoints |
+| LLM sharing outside trusted boundary | `llm-telecom-safe` | Keeps topology correlation and telecom routing context without exposing raw endpoints |
 
 ```bash
 pcap2llm analyze trace.pcapng --profile lte-core --privacy-profile share --out ./artifacts
@@ -103,7 +103,7 @@ numbering:
 
 - **Sharing `pseudonym_mapping.json` with the artifact set.** This file maps pseudonyms back to real subscriber IDs and IP addresses. Sharing it alongside `detail.json` undoes all pseudonymization.
 - **Assuming `vault.json` is a recovery package.** It contains key metadata only — not the key itself. An encrypted artifact is unreadable without `PCAP2LLM_VAULT_KEY` stored separately.
-- **Using `share` when `prod-safe` or `llm-telecom-safe` is more appropriate.** `share` is a sensible default for internal work. If the artifact is leaving your team — vendor ticket, external LLM, third-party review — use `prod-safe` for maximum suppression or `llm-telecom-safe` when the receiver needs correlated node relationships without raw endpoint exposure.
+- **Using `share` when `prod-safe` or `llm-telecom-safe` is more appropriate.** `share` is a sensible default for internal work and keeps telecom routing prefixes visible. If the artifact is leaving your team — vendor ticket, external LLM, third-party review — use `prod-safe` for maximum suppression or `llm-telecom-safe` when the receiver needs correlated node relationships and telecom context without raw endpoint exposure.
 - **Sending `detail.json` when `summary.json` would be enough.** For most vendor tickets, `summary.json` + `summary.md` contain the protocol counts, anomalies, and timing needed to diagnose an issue. Attach `detail.json` only when the recipient needs packet-level fields.
 - **Assuming `flow.svg` is automatically safe because it is visual.** Flow labels and hover tooltips can contain endpoint names, DNS queries, APN/DNN values, result codes, and failure causes. Treat it as a derived artifact that still needs privacy review.
 - **Trusting the profile name instead of reading the output.** Profile, config overrides, and CLI flags all interact. Read `privacy_modes` in `summary.json` before sharing — not just the command line you ran.

@@ -64,7 +64,8 @@ It protects subscriber and secret-bearing fields while preserving enough technic
 
 - `ip`: pseudonymized
 - `hostname`: pseudonymized
-- `subscriber_id`, `msisdn`, `imsi`, `imei`: pseudonymized
+- `subscriber_id`: pseudonymized
+- `msisdn`, `imsi`, `imei`: partial protection keeps CC/NDC, MCC/MNC, and TAC context visible while masking subscriber-specific suffixes
 - `token`, `email`, `payload_text`: removed
 - `diameter_identity`: pseudonymized
 - `apn_dnn`: kept

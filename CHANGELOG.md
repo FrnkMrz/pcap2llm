@@ -6,6 +6,22 @@ The format is intentionally simple and optimized for humans reading repo history
 
 ## Unreleased
 
+### Added — 2026-04-27 (editable built-in privacy policies)
+
+- Built-in Web GUI privacy profiles can now be edited by saving a local override,
+  duplicated from the current editor state, and reset back to the shipped
+  default without exposing a delete action for built-ins; direct built-in delete
+  requests are rejected server-side.
+- Built-in overrides are used automatically when selecting the matching
+  built-in privacy profile for analysis, while remaining separate from local
+  profile lists, exports, and bulk-delete actions.
+- The privacy-profile page now keeps the compact profile list name-only,
+  switches the editor without a page reload or scroll jump, and formats
+  Created/Updated timestamps with the browser's locale and timezone.
+- The `share` and `llm-telecom-safe` defaults now keep telecom routing context
+  for IMSI, MSISDN, and IMEI by masking subscriber-specific suffixes instead of
+  fully pseudonymizing those fields.
+
 ### Fixed — 2026-04-26 (web analyzer launch)
 
 - The Web GUI now launches `discover`, `recommend-profiles`, and `analyze`

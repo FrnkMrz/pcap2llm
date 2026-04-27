@@ -113,9 +113,11 @@ If you start the app with `PCAP2LLM_WEB_WORKDIR=.local/web_runs`, these paths
 are prefilled automatically in the Analyze form and applied even without manual
 entry.
 
-Local privacy profiles are stored in `.local/profiles/` in that mode and are
-loaded again on restart. Older profiles from the legacy path
-`.local/web_runs/profiles/` are migrated automatically.
+Local privacy profiles and built-in profile overrides are stored in
+`.local/profiles/` in that mode and are loaded again on restart. Older profiles
+from the legacy path `.local/web_runs/profiles/` are migrated automatically.
+Built-in overrides are internal records: they affect analysis when the matching
+built-in profile is selected, but they are not listed as local profiles.
 
 ## Job Layout
 
@@ -253,7 +255,11 @@ GUI.
 
 - view built-in privacy profiles such as `internal`, `share`, `lab`,
   `prod-safe`, and `llm-telecom-safe`
-- duplicate a built-in profile as a local editable profile
+- edit a built-in profile by saving a local override
+- reset a built-in profile override back to the shipped default
+- duplicate a built-in profile or current built-in editor state as a local editable profile
+- select a profile from the compact list without reloading the page or jumping
+  the scroll position
 - create a new local profile
 - edit a local profile
 - save changes
@@ -261,7 +267,18 @@ GUI.
 - duplicate a local profile
 - bulk-delete local profiles
 - export local profiles as JSON or CSV
-- search local profiles by name or description
+- search listed profiles by name
+
+Built-in profiles are immutable. The UI never offers a delete action for them,
+and the server rejects direct built-in delete requests. Saving changes to a
+built-in profile creates or updates a local override; resetting removes only
+that override and restores the shipped default. Overrides are used automatically
+when the matching built-in profile is selected for analysis, but they are kept
+out of the local profile API, exports, and bulk-delete actions.
+
+The profile editor shows `Created` and `Updated` timestamps using the browser's
+local locale and timezone. The underlying value remains ISO 8601 in the HTML
+`datetime` attribute for machine-readable output.
 
 ### Editable Fields
 
@@ -316,7 +333,8 @@ For MSISDN, the UI also exposes:
 
 ### API Endpoints
 
-List all local profiles as JSON:
+List local profiles as JSON. Built-in profiles and built-in overrides are not
+included:
 
 ```bash
 curl http://127.0.0.1:8765/api/profiles

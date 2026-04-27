@@ -1,14 +1,15 @@
 name: llm-telecom-safe
 description: >
   External LLM troubleshooting for telecom traces.
-  Subscriber and secret-bearing fields are protected, while network relationships stay analyzable via pseudonymized endpoints and node identities.
+  Subscriber and secret-bearing fields are protected, while telecom routing
+  prefixes and network relationships stay analyzable.
 modes:
   ip: pseudonymize
   hostname: pseudonymize
   subscriber_id: pseudonymize
-  msisdn: pseudonymize
-  imsi: pseudonymize
-  imei: pseudonymize
+  msisdn: keep_cc_ndc_mask_subscriber
+  imsi: keep_mcc_mnc_mask_msin
+  imei: keep_tac_mask_serial
   email: remove
   distinguished_name: pseudonymize
   token: remove

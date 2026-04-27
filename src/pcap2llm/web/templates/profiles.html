@@ -28,15 +28,14 @@
         </div>
         <p class="builtin-card-description">{{ profile.description }}</p>
         <small>{{ profile.summary }}</small>
-        <form method="post" action="/profiles/privacy/{{ profile.name }}/duplicate">
-          <button type="submit" class="builtin-duplicate-link">Duplicate as local profile</button>
-        </form>
+        {% if profile.has_override == "true" %}
+        <span class="override-badge">Modified locally</span>
+        {% endif %}
       </article>
       {% endfor %}
     </div>
   </section>
 
-  {% if profiles %}
   <div class="profiles-layout">
     <aside class="profiles-sidebar">
       <input
@@ -48,34 +47,73 @@
       />
 
       <div class="profile-list">
+        <div class="profile-list-section">
+          <h3>Built-in Profiles</h3>
+          {% for profile in privacy_profiles %}
+          <div class="profile-row">
+            <div
+              data-profile-kind="built-in"
+              data-profile-id="{{ profile.name }}"
+              class="profile-item {% if selected_kind == 'built-in' and selected_builtin_name == profile.name %}active{% endif %}"
+              onclick="selectBuiltin({{ profile.name | tojson }})"
+            >
+              <div class="profile-item-top">
+                <strong class="profile-name">{{ profile.name }}</strong>
+                <span class="profile-item-actions">
+                {% if profile.has_override == "true" %}
+                <span class="profile-override-dot" title="Modified locally"></span>
+                {% endif %}
+                <button type="button" class="profile-edit-button" onclick="event.stopPropagation(); selectBuiltin({{ profile.name | tojson }})">Edit</button>
+                </span>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="profile-list-section">
+          <h3>Local Profiles</h3>
+          {% if profiles %}
         {% for profile in profiles %}
         <div class="profile-row">
           <div
-            class="profile-item {% if selected_profile and selected_profile.id == profile.id %}active{% endif %}"
-            onclick="selectProfile('{{ profile.id }}')"
+            data-profile-kind="local"
+            data-profile-id="{{ profile.id }}"
+            class="profile-item {% if selected_kind == 'local' and selected_profile and selected_profile.id == profile.id %}active{% endif %}"
+            onclick="selectProfile({{ profile.id | tojson }})"
           >
             <div class="profile-item-top">
               <strong class="profile-name">{{ profile.name }}</strong>
-              <span class="kind-badge">Local</span>
-            </div>
-            <div class="profile-desc">{{ profile.description }}</div>
-            <div class="profile-summary">
-              {% for mode in protection_modes %}
-                {% set count = profile.modes.values() | select("equalto", mode) | list | length %}
-                {% if count %}
-                <span>{{ mode }} {{ count }}</span>
-                {% endif %}
-              {% endfor %}
+              <button type="button" class="profile-edit-button" onclick="event.stopPropagation(); selectProfile({{ profile.id | tojson }})">Edit</button>
             </div>
           </div>
         </div>
         {% endfor %}
+          {% else %}
+          <p class="empty-list-note">No local profiles yet.</p>
+          {% endif %}
+        </div>
       </div>
     </aside>
 
     <section class="profile-editor">
-      {% if selected_profile %}
-      <form method="post" action="/profiles/{{ selected_profile.id }}" class="editor-form">
+      {% if selected_kind == "built-in" %}
+      <form id="editorForm" method="post" action="/profiles/privacy/{{ selected_builtin_name }}/override" class="editor-form">
+      {% else %}
+      <form id="editorForm" method="post" action="/profiles/{{ selected_profile.id }}" class="editor-form">
+      {% endif %}
+        <div id="editorStatus" class="editor-status">
+          {% if selected_kind == "built-in" %}
+          <span class="kind-badge">Built-in</span>
+          {% if selected_has_override %}
+          <span class="override-badge">Local override active</span>
+          {% else %}
+          <span class="kind-badge">Read-only base, save creates local override</span>
+          {% endif %}
+          {% else %}
+          <span class="kind-badge">Local</span>
+          {% endif %}
+        </div>
         <div class="editor-meta">
           <div class="form-field">
             <label for="name">Profile Name</label>
@@ -90,13 +128,16 @@
         <section class="modes-panel">
           <div class="modes-header">
             <h2>Data Handling Rules</h2>
-            <small>`keep`, `mask`, `pseudonymize`, `encrypt`, `remove`, IMEI: `keep_tac_mask_serial`</small>
+            <small>Use partial telecom modes for IMSI, MSISDN, and IMEI when routing context should stay visible.</small>
           </div>
           <div class="modes-table">
             {% for data_class in data_classes %}
             <div class="mode-row">
               <div class="mode-copy">
                 <strong>{{ data_class }}</strong>
+                {% if mode_help.get(data_class) %}
+                <small>{{ mode_help.get(data_class) }}</small>
+                {% endif %}
               </div>
               <label class="mode-select">
                 <span class="sr-only">{{ data_class }} mode</span>
@@ -113,45 +154,150 @@
         </section>
 
         <div class="form-actions">
-          <button type="submit" class="btn-primary">Save Profile</button>
-          <button type="button" class="btn-secondary" onclick="document.getElementById('duplicateForm').submit()">Duplicate Profile</button>
-          <button type="button" class="btn-danger" onclick="if(confirm('Delete this profile?')) document.getElementById('deleteForm').submit()">Delete Profile</button>
+          <button id="saveButton" type="submit" class="btn-primary">{% if selected_kind == "built-in" %}Save Local Override{% else %}Save Profile{% endif %}</button>
+          <button id="duplicateButton" type="submit" class="btn-secondary" formaction="{% if selected_kind == "built-in" %}/profiles/privacy/{{ selected_builtin_name }}/duplicate{% else %}/profiles/{{ selected_profile.id }}/duplicate{% endif %}">Duplicate Profile</button>
+          <button id="resetButton" type="button" class="btn-secondary" {% if selected_kind != "built-in" or not selected_has_override %}hidden{% endif %} onclick="document.getElementById('resetBuiltinForm').submit()">{% if selected_kind == "built-in" and selected_has_override %}Reset to Built-in{% endif %}</button>
+          <button id="deleteButton" type="button" class="btn-danger" {% if selected_kind == "built-in" %}hidden{% endif %} onclick="if(confirm('Delete this profile?')) document.getElementById('deleteForm').submit()">{% if selected_kind == "local" %}Delete Profile{% endif %}</button>
         </div>
       </form>
 
-      <form id="deleteForm" method="post" action="/profiles/{{ selected_profile.id }}/delete" style="display:none;"></form>
-      <form id="duplicateForm" method="post" action="/profiles/{{ selected_profile.id }}/duplicate" style="display:none;"></form>
+      <form id="resetBuiltinForm" method="post" action="{% if selected_kind == "built-in" %}/profiles/privacy/{{ selected_builtin_name }}/reset{% endif %}" style="display:none;"></form>
+      <form id="deleteForm" method="post" action="{% if selected_kind == "local" %}/profiles/{{ selected_profile.id }}/delete{% endif %}" style="display:none;"></form>
 
-      <div class="timestamps">
-        <small>Created: {{ selected_profile.created_at }}<br />Updated: {{ selected_profile.updated_at }}</small>
+      <div id="profileTimestamps" class="timestamps">
+        <small>
+          Created:
+          <time data-local-datetime="{{ selected_profile.created_at }}" datetime="{{ selected_profile.created_at }}">{{ selected_profile.created_at }}</time><br />
+          Updated:
+          <time data-local-datetime="{{ selected_profile.updated_at }}" datetime="{{ selected_profile.updated_at }}">{{ selected_profile.updated_at }}</time>
+        </small>
       </div>
-      {% else %}
-      <div class="empty-editor">Select a local profile to edit it.</div>
-      {% endif %}
     </section>
   </div>
-  {% else %}
-  <section class="empty-state-card">
-    <h2>No Local Privacy Profiles Yet</h2>
-    <p>The built-in profiles above are ready to use. Duplicate one if you want to customize how IPs, IMSIs, emails, URIs, and payload text are handled.</p>
-    <button type="button" class="btn-primary" onclick="newProfile()">+ New Profile</button>
-  </section>
-  {% endif %}
 </div>
 
+<script id="profileEditorData" type="application/json">{{ profile_editor_data | tojson }}</script>
 <script>
+  const profileEditorData = JSON.parse(document.getElementById("profileEditorData").textContent);
+
   function selectProfile(profileId) {
+    const profile = profileEditorData.find((item) => item.kind === "local" && item.id === profileId);
+    if (!profile) return;
+    renderEditor(profile);
+    setActiveProfile("local", profileId);
     const url = new URL(window.location);
     url.searchParams.set("id", profileId);
-    window.location.replace(url.toString());
+    url.searchParams.delete("builtin");
+    window.history.replaceState(null, "", url.toString());
   }
+
+  function selectBuiltin(profileName) {
+    const profile = profileEditorData.find((item) => item.kind === "built-in" && item.id === profileName);
+    if (!profile) return;
+    renderEditor(profile);
+    setActiveProfile("built-in", profileName);
+    const url = new URL(window.location);
+    url.searchParams.set("builtin", profileName);
+    url.searchParams.delete("id");
+    window.history.replaceState(null, "", url.toString());
+  }
+
+  function renderEditor(profile) {
+    const form = document.getElementById("editorForm");
+    const resetForm = document.getElementById("resetBuiltinForm");
+    const deleteForm = document.getElementById("deleteForm");
+    const saveButton = document.getElementById("saveButton");
+    const duplicateButton = document.getElementById("duplicateButton");
+    const resetButton = document.getElementById("resetButton");
+    const deleteButton = document.getElementById("deleteButton");
+
+    document.getElementById("name").value = profile.name;
+    document.getElementById("description").value = profile.description;
+    Object.entries(profile.modes || {}).forEach(([dataClass, mode]) => {
+      const select = form.elements[`mode_${dataClass}`];
+      if (select) select.value = mode;
+    });
+
+    if (profile.kind === "built-in") {
+      form.action = `/profiles/privacy/${encodeURIComponent(profile.id)}/override`;
+      resetForm.action = `/profiles/privacy/${encodeURIComponent(profile.id)}/reset`;
+      deleteForm.removeAttribute("action");
+      saveButton.textContent = "Save Local Override";
+      duplicateButton.formAction = `/profiles/privacy/${encodeURIComponent(profile.id)}/duplicate`;
+      resetButton.hidden = !profile.has_override;
+      resetButton.textContent = profile.has_override ? "Reset to Built-in" : "";
+      deleteButton.hidden = true;
+      deleteButton.textContent = "";
+      document.getElementById("editorStatus").innerHTML = profile.has_override
+        ? '<span class="kind-badge">Built-in</span><span class="override-badge">Local override active</span>'
+        : '<span class="kind-badge">Built-in</span><span class="kind-badge">Read-only base, save creates local override</span>';
+    } else {
+      form.action = `/profiles/${encodeURIComponent(profile.id)}`;
+      resetForm.removeAttribute("action");
+      deleteForm.action = `/profiles/${encodeURIComponent(profile.id)}/delete`;
+      saveButton.textContent = "Save Profile";
+      duplicateButton.formAction = `/profiles/${encodeURIComponent(profile.id)}/duplicate`;
+      resetButton.hidden = true;
+      resetButton.textContent = "";
+      deleteButton.hidden = false;
+      deleteButton.textContent = "Delete Profile";
+      document.getElementById("editorStatus").innerHTML = '<span class="kind-badge">Local</span>';
+    }
+
+    document.getElementById("profileTimestamps").innerHTML =
+      `<small>Created: ${renderTimeElement(profile.created_at)}<br />Updated: ${renderTimeElement(profile.updated_at)}</small>`;
+    formatLocalDateTimes();
+  }
+
+  function setActiveProfile(kind, id) {
+    document.querySelectorAll(".profile-item").forEach((item) => {
+      item.classList.toggle("active", item.dataset.profileKind === kind && item.dataset.profileId === id);
+    });
+  }
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    }[char]));
+  }
+
+  function renderTimeElement(value) {
+    const escaped = escapeHtml(value);
+    return `<time data-local-datetime="${escaped}" datetime="${escaped}">${escaped}</time>`;
+  }
+
+  function formatLocalDateTimes() {
+    document.querySelectorAll("time[data-local-datetime]").forEach((element) => {
+      const rawValue = element.dataset.localDatetime;
+      if (!rawValue || rawValue === "built-in") {
+        element.textContent = rawValue || "";
+        return;
+      }
+
+      const date = new Date(rawValue);
+      if (Number.isNaN(date.getTime())) {
+        element.textContent = rawValue;
+        return;
+      }
+
+      element.textContent = new Intl.DateTimeFormat(undefined, {
+        dateStyle: "medium",
+        timeStyle: "medium",
+      }).format(date);
+    });
+  }
+
+  formatLocalDateTimes();
 
   function filterProfiles() {
     const query = document.getElementById("searchInput").value.toLowerCase();
     document.querySelectorAll(".profile-item").forEach((item) => {
       const name = item.querySelector(".profile-name").textContent.toLowerCase();
-      const desc = item.querySelector(".profile-desc").textContent.toLowerCase();
-      item.parentElement.style.display = name.includes(query) || desc.includes(query) ? "" : "none";
+      item.parentElement.style.display = name.includes(query) ? "" : "none";
     });
   }
 
@@ -266,22 +412,21 @@
     line-height: 1.45;
   }
 
-  .profile-desc,
   .empty-state-card p {
     margin: 0;
     color: var(--muted);
     line-height: 1.45;
   }
 
-  .builtin-duplicate-link {
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: var(--accent);
-    font-size: 0.9rem;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-    justify-self: start;
+  .override-badge {
+    display: inline-flex;
+    width: fit-content;
+    border-radius: 999px;
+    padding: 3px 9px;
+    background: var(--accent-soft);
+    color: var(--accent-hover);
+    font-size: 0.82rem;
+    font-weight: 700;
   }
 
   .profiles-layout {
@@ -303,8 +448,26 @@
 
   .profile-list {
     display: grid;
-    gap: 10px;
+    gap: 18px;
     margin-top: 14px;
+  }
+
+  .profile-list-section {
+    display: grid;
+    gap: 10px;
+  }
+
+  .profile-list-section h3 {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.86rem;
+    text-transform: uppercase;
+  }
+
+  .empty-list-note {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.9rem;
   }
 
   .profile-row {
@@ -315,10 +478,9 @@
 
   .profile-item {
     display: grid;
-    gap: 8px;
     border: 1px solid var(--line);
     border-radius: 8px;
-    padding: 12px;
+    padding: 11px 12px;
     cursor: pointer;
     min-width: 0;
   }
@@ -329,12 +491,35 @@
     background: color-mix(in srgb, var(--accent) 8%, var(--panel) 92%);
   }
 
-  .profile-summary {
-    display: flex;
-    flex-wrap: wrap;
+  .profile-override-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--accent);
+    flex: 0 0 auto;
+  }
+
+  .profile-item-actions {
+    display: inline-flex;
+    align-items: center;
     gap: 8px;
+    flex: 0 0 auto;
+  }
+
+  .profile-edit-button {
+    padding: 4px 8px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--panel);
+    color: var(--accent);
     font-size: 0.82rem;
-    color: var(--muted);
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .profile-edit-button:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
   }
 
   .editor-form,
@@ -342,6 +527,12 @@
   .modes-table {
     display: grid;
     gap: 14px;
+  }
+
+  .editor-status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .form-field {
@@ -369,6 +560,13 @@
 
   .mode-copy {
     min-width: 0;
+  }
+
+  .mode-copy small {
+    display: block;
+    margin-top: 4px;
+    color: var(--muted);
+    line-height: 1.35;
   }
 
   .mode-select,

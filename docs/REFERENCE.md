@@ -753,10 +753,10 @@ For full details and supported types, see [`NETWORK_ELEMENT_DETECTION.md`](NETWO
 | Profile | What it does |
 |---|---|
 | `internal` | Keep everything as-is |
-| `share` | Pseudonymize endpoints and subscriber IDs (IP, hostnames, IMSI, MSISDN), remove tokens |
+| `share` | Pseudonymize endpoints, protect subscriber IDs, keep telecom routing prefixes for IMSI/MSISDN/IMEI, remove tokens |
 | `lab` | Pseudonymize all subscriber data, mask IPs |
 | `prod-safe` | Maximum protection — mask IPs, pseudonymize all PII, remove tokens/email/URI/payload |
-| `llm-telecom-safe` | External LLM-safe default — pseudonymize endpoints and subscriber IDs, remove secrets/payload, keep telecom structure |
+| `llm-telecom-safe` | External LLM-safe default — pseudonymize endpoints, keep telecom routing prefixes, remove secrets/payload |
 | `telecom-context` | Keep IMSI MCC/MNC, MSISDN CC, German mobile NDCs, and IMEI TAC visible while masking subscriber-specific suffixes |
 
 ```bash

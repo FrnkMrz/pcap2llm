@@ -117,7 +117,8 @@ Privacy is controlled separately from the analysis profile.
 Common starting points:
 
 - `internal` for local-only work
-- `share` for internal sharing with subscriber pseudonymization
+- `share` for internal sharing with pseudonymized endpoints and telecom-aware
+  partial protection for IMSI/MSISDN/IMEI
 - `telecom-context` for sharing that keeps IMSI MCC/MNC and MSISDN CC visible
 - `prod-safe` for stronger masking before external sharing
 - `llm-telecom-safe` for external LLM handoff
@@ -192,7 +193,8 @@ Typical use cases:
 
 - upload a capture and run `discover` / `analyze` from the browser
 - inspect generated artifacts, logs, and flow previews on a per-job page
-- manage local privacy profiles through a dedicated UI
+- manage local privacy profiles and local overrides for built-in privacy
+  profiles through a dedicated UI
 
 Start it with:
 

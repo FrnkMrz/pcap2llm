@@ -1,14 +1,15 @@
 name: share
 description: >
   Safe for sharing with external parties or cross-team review.
-  Subscriber identifiers are pseudonymized; tokens and bearer-text removed.
+  Subscriber identifiers are protected while telecom routing prefixes stay visible;
+  tokens and bearer-text removed.
 modes:
   ip: pseudonymize
   hostname: pseudonymize
   subscriber_id: pseudonymize
-  msisdn: pseudonymize
-  imsi: pseudonymize
-  imei: mask
+  msisdn: keep_cc_ndc_mask_subscriber
+  imsi: keep_mcc_mnc_mask_msin
+  imei: keep_tac_mask_serial
   email: mask
   distinguished_name: pseudonymize
   token: remove

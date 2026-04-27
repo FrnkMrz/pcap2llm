@@ -66,6 +66,25 @@ def test_profile_store_exists_by_name(tmp_path: Path) -> None:
     assert store.exists_by_name("Unique Name", exclude_id=profile.id) is False
 
 
+def test_profile_store_builtin_overrides_are_separate_from_local_profiles(tmp_path: Path) -> None:
+    store = ProfileStore(tmp_path)
+    local = store.create("Local", "local profile")
+    override = store.save_builtin_override("share", "share", "edited built-in", {"email": "remove"})
+
+    assert store.list_local_profiles() == [local]
+    assert store.list_builtin_overrides() == [override]
+    assert store.exists_by_name("share") is False
+
+    loaded = store.load_builtin_override("share")
+    assert loaded is not None
+    assert loaded.source == "built-in-override"
+    assert loaded.builtin_name == "share"
+    assert loaded.modes["email"] == "remove"
+
+    assert store.delete_builtin_override("share") is True
+    assert store.load_builtin_override("share") is None
+
+
 def test_profile_to_dict_and_from_dict() -> None:
     profile = SecurityProfile(
         id="test-id",
@@ -110,8 +129,10 @@ def test_profile_store_migrates_legacy_web_run_profiles(tmp_path: Path) -> None:
 def test_profile_store_stats_include_builtin_profiles(tmp_path: Path) -> None:
     store = ProfileStore(tmp_path)
     store.create("One", "first")
+    store.save_builtin_override("share", "share", "edited", {"email": "remove"})
 
     stats = store.get_stats()
-    assert stats["total_profiles"] == 1
+    assert stats["total_profiles"] == 2
     assert stats["local_profiles"] == 1
+    assert stats["built_in_overrides"] == 1
     assert stats["built_in_profiles"] >= 5

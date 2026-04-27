@@ -29,7 +29,9 @@ class TestLoadBuiltinPrivacyProfiles:
     def test_load_share(self) -> None:
         profile = load_privacy_profile("share")
         assert profile.name == "share"
-        assert profile.modes["imsi"] == "pseudonymize"
+        assert profile.modes["imsi"] == "keep_mcc_mnc_mask_msin"
+        assert profile.modes["msisdn"] == "keep_cc_ndc_mask_subscriber"
+        assert profile.modes["imei"] == "keep_tac_mask_serial"
         assert profile.modes["token"] == "remove"
         assert profile.modes["ip"] == "pseudonymize"
         assert profile.modes["hostname"] == "pseudonymize"
@@ -55,7 +57,9 @@ class TestLoadBuiltinPrivacyProfiles:
         assert profile.name == "llm-telecom-safe"
         assert profile.modes["ip"] == "pseudonymize"
         assert profile.modes["hostname"] == "pseudonymize"
-        assert profile.modes["imsi"] == "pseudonymize"
+        assert profile.modes["imsi"] == "keep_mcc_mnc_mask_msin"
+        assert profile.modes["msisdn"] == "keep_cc_ndc_mask_subscriber"
+        assert profile.modes["imei"] == "keep_tac_mask_serial"
         assert profile.modes["token"] == "remove"
         assert profile.modes["payload_text"] == "remove"
 
@@ -164,7 +168,7 @@ class TestBuildPrivacyModesPrecedence:
 
         base = load_privacy_profile("share").modes
         result = build_privacy_modes(base, {})
-        assert result["imsi"] == "pseudonymize"
+        assert result["imsi"] == "keep_mcc_mnc_mask_msin"
         assert result["token"] == "remove"
 
     def test_config_overrides_take_priority_over_base(self) -> None:

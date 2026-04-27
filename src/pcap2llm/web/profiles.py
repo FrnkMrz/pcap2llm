@@ -21,7 +21,15 @@ class ProfileStore:
         self.profiles_dir.mkdir(parents=True, exist_ok=True)
         self._migrate_legacy_profiles()
 
-    def create(self, name: str, description: str, modes: dict[str, str] | None = None) -> SecurityProfile:
+    def create(
+        self,
+        name: str,
+        description: str,
+        modes: dict[str, str] | None = None,
+        *,
+        source: str = "local",
+        builtin_name: str | None = None,
+    ) -> SecurityProfile:
         """Create a new local privacy profile."""
         profile_id = str(uuid4())
         profile = SecurityProfile(
@@ -31,6 +39,8 @@ class ProfileStore:
             modes=build_privacy_modes({}, modes or {}),
             created_at=now_utc_iso(),
             updated_at=now_utc_iso(),
+            source=source,
+            builtin_name=builtin_name,
         )
         self.save(profile)
         return profile
@@ -72,9 +82,47 @@ class ProfileStore:
                     continue
         return sorted(profiles, key=lambda p: p.name)
 
+    def list_local_profiles(self) -> list[SecurityProfile]:
+        return [profile for profile in self.list_all() if profile.source != "built-in-override"]
+
+    def list_builtin_overrides(self) -> list[SecurityProfile]:
+        return [profile for profile in self.list_all() if profile.source == "built-in-override"]
+
+    def load_builtin_override(self, builtin_name: str) -> SecurityProfile | None:
+        for profile in self.list_builtin_overrides():
+            if profile.builtin_name == builtin_name:
+                return profile
+        return None
+
+    def save_builtin_override(self, builtin_name: str, name: str, description: str, modes: dict[str, str]) -> SecurityProfile:
+        profile = self.load_builtin_override(builtin_name)
+        if profile is None:
+            return self.create(
+                name,
+                description,
+                modes,
+                source="built-in-override",
+                builtin_name=builtin_name,
+            )
+        profile.name = name
+        profile.description = description
+        profile.modes = modes
+        profile.source = "built-in-override"
+        profile.builtin_name = builtin_name
+        self.save(profile)
+        return profile
+
+    def delete_builtin_override(self, builtin_name: str) -> bool:
+        profile = self.load_builtin_override(builtin_name)
+        if profile is None:
+            return False
+        return self.delete(profile.id)
+
     def exists_by_name(self, name: str, exclude_id: str | None = None) -> bool:
         """Check if a profile with this name already exists."""
         for profile in self.list_all():
+            if profile.source == "built-in-override":
+                continue
             if profile.name == name and profile.id != exclude_id:
                 return True
         return False
@@ -89,9 +137,12 @@ class ProfileStore:
     def get_stats(self) -> dict[str, int]:
         """Get privacy profile statistics for the dashboard."""
         profiles = self.list_all()
+        local_profiles = self.list_local_profiles()
+        builtin_overrides = self.list_builtin_overrides()
         return {
             "total_profiles": len(profiles),
-            "local_profiles": len(profiles),
+            "local_profiles": len(local_profiles),
+            "built_in_overrides": len(builtin_overrides),
             "built_in_profiles": len(list_privacy_profiles()),
         }
 

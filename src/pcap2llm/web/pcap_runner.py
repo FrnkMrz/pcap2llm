@@ -32,8 +32,26 @@ class Pcap2LlmRunner:
         self.command_timeout_seconds = command_timeout_seconds
         self.default_tshark_path = default_tshark_path.strip()
 
-    def discover(self, capture_path: Path, out_dir: Path, logs_dir: Path) -> RunResult:
+    def discover(
+        self,
+        capture_path: Path,
+        out_dir: Path,
+        logs_dir: Path,
+        *,
+        hosts_file: str | None = None,
+        mapping_file: str | None = None,
+        subnets_file: str | None = None,
+        ss7pcs_file: str | None = None,
+    ) -> RunResult:
         cmd = ["pcap2llm", "discover", str(capture_path), "--out", str(out_dir)]
+        if hosts_file:
+            cmd.extend(["--hosts-file", _safe_argv_value(hosts_file)])
+        if mapping_file:
+            cmd.extend(["--mapping-file", _safe_argv_value(mapping_file)])
+        if subnets_file:
+            cmd.extend(["--subnets-file", _safe_argv_value(subnets_file)])
+        if ss7pcs_file:
+            cmd.extend(["--ss7pcs-file", _safe_argv_value(ss7pcs_file)])
         if self.default_tshark_path:
             cmd.extend(["--tshark-path", _safe_argv_value(self.default_tshark_path)])
         return self._run(cmd, logs_dir=logs_dir, artifacts_dir=out_dir, log_prefix="discovery")

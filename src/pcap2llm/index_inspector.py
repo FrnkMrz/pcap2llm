@@ -25,6 +25,7 @@ from pcap2llm.app_anomaly import detect_app_anomalies
 from pcap2llm.index_models import PacketIndexRecord, SelectedFrames
 from pcap2llm.models import CaptureMetadata, InspectResult, ProfileDefinition
 from pcap2llm.normalizer import pick_top_protocol
+from pcap2llm.resolver import EndpointResolver, ResolvedEndpoint
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +103,11 @@ def inspect_index_records(
     capture_path: Path,
     display_filter: str | None,
     profile: ProfileDefinition,
+    resolver: EndpointResolver | None = None,
+    hosts_file_used: bool = False,
+    mapping_file_used: bool = False,
+    subnets_file_used: bool = False,
+    ss7pcs_file_used: bool = False,
 ) -> InspectResult:
     """Build an :class:`~models.InspectResult` from pass-1 packet-index records.
 
@@ -131,6 +137,31 @@ def inspect_index_records(
     _dns_qry_names_seen: set[str] = set()
     _DNS_QRY_SAMPLE_LIMIT = 30
 
+    resolver = resolver or EndpointResolver()
+    resolved_peers: dict[str, dict[str, Any]] = {}
+
+    def _remember_endpoint(endpoint: ResolvedEndpoint) -> None:
+        name = endpoint.alias or endpoint.hostname
+        if not endpoint.ip or not name:
+            return
+        row: dict[str, Any] = {"ip": endpoint.ip, "name": name}
+        if endpoint.hostname and endpoint.hostname != name:
+            row["hostname"] = endpoint.hostname
+        if endpoint.role:
+            row["role"] = endpoint.role
+        for label in (
+            "network_element_type",
+            "network_element_confidence",
+            "network_element_source",
+            "network_element_warning",
+            "network_element_override",
+            "ss7_point_code",
+            "ss7_point_code_alias",
+        ):
+            if endpoint.labels.get(label) is not None:
+                row[label] = endpoint.labels[label]
+        resolved_peers[endpoint.ip] = row
+
     for record in records:
         try:
             raw_protocols.update(record.protocols)
@@ -146,6 +177,15 @@ def inspect_index_records(
             src = record.src_ip or "unknown"
             dst = record.dst_ip or "unknown"
             conversations[(transport, src, dst, top_protocol)] += 1
+
+            if record.src_ip:
+                _remember_endpoint(
+                    resolver.resolve(record.src_ip, service_port=record.src_port)
+                )
+            if record.dst_ip:
+                _remember_endpoint(
+                    resolver.resolve(record.dst_ip, service_port=record.dst_port)
+                )
 
             if first_packet_number is None:
                 first_packet_number = record.frame_no
@@ -207,6 +247,11 @@ def inspect_index_records(
         relevant_protocols=sorted(relevant_protocols),
         raw_protocols=sorted(raw_protocols),
         display_filter=display_filter,
+        hosts_file_used=hosts_file_used,
+        mapping_file_used=mapping_file_used,
+        subnets_file_used=subnets_file_used,
+        ss7pcs_file_used=ss7pcs_file_used,
+        resolved_peers=sorted(resolved_peers.values(), key=lambda item: (item["name"], item["ip"])),
         dns_qry_names=sorted(_dns_qry_names_seen),
     )
     return InspectResult(

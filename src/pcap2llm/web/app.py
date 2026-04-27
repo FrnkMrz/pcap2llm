@@ -198,7 +198,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 out_fp.write(chunk)
 
         if auto_discover:
-            _run_discovery(store=store, runner=runner, record=record)
+            _run_discovery(store=store, runner=runner, record=record, settings=settings)
 
         return RedirectResponse(url=f"/jobs/{record.job_id}", status_code=303)
 
@@ -235,6 +235,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             "profiles": list_profile_names(),
             "privacy_profiles": _privacy_profile_options(profile_store),
             "name_resolution_usage": _discovery_name_resolution(store.discovery_dir(job_id)),
+            "discover_defaults": _build_discover_defaults(record, local_support_defaults),
             "network_element_overview": _network_element_overview(store.artifacts_dir(job_id)),
             "default_profiles": ["lte-core", "5g-core", "volte-ims-core", "vonr-ims-core", "2g3g-ss7-geran"],
             "preview": preview,
@@ -248,7 +249,18 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         return templates.TemplateResponse(request=request, name="job.html", context=context)
 
     @app.post("/jobs/{job_id}/discover")
-    async def run_discover(request: Request, job_id: str) -> RedirectResponse:
+    async def run_discover(
+        request: Request,
+        job_id: str,
+        hosts_file: str = Form(""),
+        mapping_file: str = Form(""),
+        subnets_file: str = Form(""),
+        ss7pcs_file: str = Form(""),
+        hosts_file_upload: UploadFile | None = File(None),
+        mapping_file_upload: UploadFile | None = File(None),
+        subnets_file_upload: UploadFile | None = File(None),
+        ss7pcs_file_upload: UploadFile | None = File(None),
+    ) -> RedirectResponse:
         store: JobStore = request.app.state.store
         runner: Pcap2LlmRunner = request.app.state.runner
 
@@ -257,7 +269,40 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         except FileNotFoundError:
             raise HTTPException(status_code=404, detail="Job not found.")
 
-        _run_discovery(store=store, runner=runner, record=record)
+        try:
+            local_support_defaults = _local_support_file_defaults(settings)
+            hosts_path = await _resolve_support_file(
+                store=store, settings=settings, record=record, label="hosts",
+                raw_path=hosts_file, uploaded=hosts_file_upload,
+                default_path=local_support_defaults["hosts_file"],
+            )
+            mapping_path = await _resolve_support_file(
+                store=store, settings=settings, record=record, label="mapping",
+                raw_path=mapping_file, uploaded=mapping_file_upload,
+                default_path=local_support_defaults["mapping_file"],
+            )
+            subnets_path = await _resolve_support_file(
+                store=store, settings=settings, record=record, label="subnets",
+                raw_path=subnets_file, uploaded=subnets_file_upload,
+                default_path=local_support_defaults["subnets_file"],
+            )
+            ss7pcs_path = await _resolve_support_file(
+                store=store, settings=settings, record=record, label="ss7pcs",
+                raw_path=ss7pcs_file, uploaded=ss7pcs_file_upload,
+                default_path=local_support_defaults["ss7pcs_file"],
+            )
+        except WebValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        record.discover_form = {
+            "hosts_file": hosts_path or "",
+            "mapping_file": mapping_path or "",
+            "subnets_file": subnets_path or "",
+            "ss7pcs_file": ss7pcs_path or "",
+        }
+        store.save(record)
+
+        _run_discovery(store=store, runner=runner, record=record, settings=settings)
         return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
 
     @app.post("/jobs/{job_id}/analyze")
@@ -835,17 +880,29 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
 
 
-def _run_discovery(*, store: JobStore, runner: Pcap2LlmRunner, record: JobRecord) -> None:
+def _run_discovery(
+    *,
+    store: JobStore,
+    runner: Pcap2LlmRunner,
+    record: JobRecord,
+    settings: WebSettings,
+) -> None:
     store.set_status(record.job_id, "discovering")
     capture_path = store.capture_path(record)
     if not capture_path.exists():
         store.set_status(record.job_id, "failed", last_error="Uploaded file is missing.")
         return
 
+    support = _discovery_support_files(store=store, settings=settings, record=record)
+
     result = runner.discover(
         capture_path=capture_path,
         out_dir=store.discovery_dir(record.job_id),
         logs_dir=store.logs_dir(record.job_id),
+        hosts_file=support.get("hosts_file"),
+        mapping_file=support.get("mapping_file"),
+        subnets_file=support.get("subnets_file"),
+        ss7pcs_file=support.get("ss7pcs_file"),
     )
     if not result.ok:
         err, err_code = _friendly_error(result.stderr, default_message="Discovery failed. See stderr.log.")
@@ -997,7 +1054,11 @@ def _discovery_name_resolution(folder: Path) -> dict[str, bool | int] | None:
         "ss7pcs_file_used": bool(name_resolution.get("ss7pcs_file_used")),
         "resolved_peer_count": int(name_resolution.get("resolved_peer_count", 0) or 0),
     }
-    if any(bool(flags[key]) for key in ("hosts_file_used", "mapping_file_used", "subnets_file_used", "ss7pcs_file_used")):
+    file_used = any(
+        bool(flags[key])
+        for key in ("hosts_file_used", "mapping_file_used", "subnets_file_used", "ss7pcs_file_used")
+    )
+    if file_used or flags["resolved_peer_count"] > 0:
         return flags
     return None
 
@@ -1179,6 +1240,20 @@ def _build_analyze_defaults(record: JobRecord, local_support_defaults: dict[str,
     return defaults
 
 
+def _build_discover_defaults(record: JobRecord, local_support_defaults: dict[str, str]) -> dict[str, str]:
+    keys = ("hosts_file", "mapping_file", "subnets_file", "ss7pcs_file")
+    discover_form = record.discover_form or {}
+    analyze_form = record.analyze_form or {}
+    out: dict[str, str] = {}
+    for key in keys:
+        out[key] = (
+            str(discover_form.get(key, "") or "")
+            or str(analyze_form.get(key, "") or "")
+            or local_support_defaults.get(key, "")
+        )
+    return out
+
+
 def _build_preview_options(
     profile_store: ProfileStore,
     analyze_defaults: dict[str, object],
@@ -1210,6 +1285,41 @@ def _build_preview_options(
         tshark_path=_string_or_none(analyze_defaults.get("tshark_path")),
         two_pass=bool(analyze_defaults.get("two_pass")),
     )
+
+
+def _discovery_support_files(
+    *,
+    store: JobStore,
+    settings: WebSettings,
+    record: JobRecord,
+) -> dict[str, str | None]:
+    """Resolve hosts/mapping/subnets/ss7pcs paths to use for a discovery run.
+
+    Lookup order: previously submitted analyze form on the job → local workspace
+    defaults. Paths are validated against the allowed support roots; invalid
+    entries are silently dropped so discovery still runs.
+    """
+    defaults = _local_support_file_defaults(settings)
+    discover_form = record.discover_form or {}
+    analyze_form = record.analyze_form or {}
+    keys = ("hosts_file", "mapping_file", "subnets_file", "ss7pcs_file")
+    resolved: dict[str, str | None] = {}
+    for key in keys:
+        candidate = (
+            str(discover_form.get(key, "") or "").strip()
+            or str(analyze_form.get(key, "") or "").strip()
+            or defaults.get(key, "")
+        )
+        if not candidate:
+            resolved[key] = None
+            continue
+        try:
+            resolved[key] = str(
+                _validate_support_path(candidate, store=store, settings=settings, record=record)
+            )
+        except WebValidationError:
+            resolved[key] = None
+    return resolved
 
 
 def _local_support_file_defaults(settings: WebSettings) -> dict[str, str]:

@@ -19,7 +19,43 @@
 
 <section class="panel" id="discovery" data-discovery-panel>
   <h2>Discovery</h2>
-  <form method="post" action="/jobs/{{ job.job_id }}/discover" data-run-action="discovery">
+  <form method="post" action="/jobs/{{ job.job_id }}/discover" enctype="multipart/form-data" data-run-action="discovery" class="stack">
+    <details {% if discover_defaults.hosts_file or discover_defaults.mapping_file or discover_defaults.subnets_file or discover_defaults.ss7pcs_file %}open{% endif %}>
+      <summary>Name resolution support files (optional)</summary>
+      <p class="hint">Supplied files (or local-workspace defaults) are passed to <code>pcap2llm discover</code> so the resolver can label peers by name, role, or alias.</p>
+      <label>
+        Hosts file path
+        <input type="text" name="hosts_file" value="{{ discover_defaults.hosts_file }}" placeholder="optional path"/>
+      </label>
+      <label>
+        Hosts file upload
+        <input type="file" name="hosts_file_upload"/>
+      </label>
+      <label>
+        Mapping file path
+        <input type="text" name="mapping_file" value="{{ discover_defaults.mapping_file }}" placeholder="optional path"/>
+      </label>
+      <label>
+        Mapping file upload
+        <input type="file" name="mapping_file_upload"/>
+      </label>
+      <label>
+        Subnets file path
+        <input type="text" name="subnets_file" value="{{ discover_defaults.subnets_file }}" placeholder="optional path"/>
+      </label>
+      <label>
+        Subnets file upload
+        <input type="file" name="subnets_file_upload"/>
+      </label>
+      <label>
+        SS7 point-code file path
+        <input type="text" name="ss7pcs_file" value="{{ discover_defaults.ss7pcs_file }}" placeholder="optional path"/>
+      </label>
+      <label>
+        SS7 point-code file upload
+        <input type="file" name="ss7pcs_file_upload"/>
+      </label>
+    </details>
     <button type="submit">Run discovery</button>
   </form>
   <p class="run-feedback" data-run-feedback="discovery"></p>

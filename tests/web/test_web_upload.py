@@ -175,7 +175,7 @@ def test_download_blocks_nested_filename(tmp_path: Path) -> None:
 def test_auto_discover_uses_recommendation_fallback(tmp_path: Path) -> None:
     client = _build_client(tmp_path)
 
-    def fake_discover(capture_path, out_dir, logs_dir):
+    def fake_discover(capture_path, out_dir, logs_dir, **kwargs):
         out_dir.mkdir(parents=True, exist_ok=True)
         payload = {
             "candidate_profiles": [],

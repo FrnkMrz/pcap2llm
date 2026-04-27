@@ -174,19 +174,25 @@ def analyze_capture(
         two_pass=two_pass,
     )
 
-    _step(f"Pass 1: inspecting {len(index_records):,} packets…", 1)
-    inspect_result = inspect_index_records(
-        index_records,
-        capture_path=capture_path,
-        display_filter=display_filter,
-        profile=profile,
-    )
     resolver = EndpointResolver(
         hosts_file=hosts_file,
         mapping_file=mapping_file,
         subnets_file=subnets_file,
         ss7pcs_file=ss7pcs_file,
         network_element_mapping_file=network_element_mapping_file,
+    )
+
+    _step(f"Pass 1: inspecting {len(index_records):,} packets…", 1)
+    inspect_result = inspect_index_records(
+        index_records,
+        capture_path=capture_path,
+        display_filter=display_filter,
+        profile=profile,
+        resolver=resolver,
+        hosts_file_used=hosts_file is not None,
+        mapping_file_used=mapping_file is not None,
+        subnets_file_used=subnets_file is not None,
+        ss7pcs_file_used=ss7pcs_file is not None,
     )
 
     # Normalise privacy_modes so the rest of the pipeline always sees a dict.

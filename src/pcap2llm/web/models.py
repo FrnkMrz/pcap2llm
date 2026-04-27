@@ -68,13 +68,16 @@ class JobRecord:
     last_error: str | None = None
     last_error_code: str | None = None
     analyze_form: dict[str, Any] = field(default_factory=dict)
+    discover_form: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "JobRecord":
-        return cls(**payload)
+        # Tolerate manifests written before optional fields existed.
+        known = set(cls.__dataclass_fields__)
+        return cls(**{k: v for k, v in payload.items() if k in known})
 
 
 

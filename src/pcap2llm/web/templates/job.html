@@ -20,7 +20,7 @@
 <section class="panel" id="discovery" data-discovery-panel>
   <h2>Discovery</h2>
   <form method="post" action="/jobs/{{ job.job_id }}/discover" enctype="multipart/form-data" data-run-action="discovery" class="stack">
-    <details {% if discover_defaults.hosts_file or discover_defaults.mapping_file or discover_defaults.subnets_file or discover_defaults.ss7pcs_file %}open{% endif %}>
+    <details {% if job.discover_form and (job.discover_form.hosts_file or job.discover_form.mapping_file or job.discover_form.subnets_file or job.discover_form.ss7pcs_file) %}open{% endif %}>
       <summary>Name resolution support files (optional)</summary>
       <p class="hint">Supplied files (or local-workspace defaults) are passed to <code>pcap2llm discover</code> so the resolver can label peers by name, role, or alias.</p>
       <label>

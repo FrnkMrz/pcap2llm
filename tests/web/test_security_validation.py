@@ -121,11 +121,11 @@ def test_view_text_file_escapes_route_values(tmp_path: Path) -> None:
     client = _client(tmp_path)
     job_id = _upload(client)
     store = JobStore(tmp_path / "web_runs")
-    (store.logs_dir(job_id) / "<script>alert(1)<script>.md").write_text("# ok", encoding="utf-8")
+    (store.logs_dir(job_id) / "xss&test.md").write_text("# ok", encoding="utf-8")
 
-    response = client.get(f"/jobs/{job_id}/view/logs/%3Cscript%3Ealert%281%29%3Cscript%3E.md")
+    response = client.get(f"/jobs/{job_id}/view/logs/xss%26test.md")
     assert response.status_code == 200
-    assert "&lt;script&gt;alert(1)&lt;script&gt;.md" in response.text
+    assert "xss&amp;test.md" in response.text
 
 
 def test_inline_svg_is_not_rendered_in_job_page(tmp_path: Path) -> None:

@@ -105,6 +105,11 @@ body {
   object-fit: contain;
 }
 
+.brand-mark-image[hidden],
+.brand-mark-fallback[hidden] {
+  display: none !important;
+}
+
 .brand-mark-fallback {
   display: grid;
   grid-template-columns: 1fr;

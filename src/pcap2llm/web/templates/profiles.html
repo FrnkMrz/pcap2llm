@@ -10,7 +10,7 @@
       <p class="profiles-subtitle">Choose a built-in policy or create a local profile with explicit handling for each data class.</p>
     </div>
     <div class="header-actions">
-      <button class="btn-primary" type="button" onclick="newProfile()">+ New Profile</button>
+      <button id="newProfileButton" class="btn-primary" type="button">+ New Profile</button>
     </div>
   </div>
 
@@ -43,7 +43,6 @@
         class="search-box"
         type="text"
         placeholder="Search profile..."
-        onkeyup="filterProfiles()"
       />
 
       <div class="profile-list">
@@ -55,7 +54,6 @@
               data-profile-kind="built-in"
               data-profile-id="{{ profile.name }}"
               class="profile-item {% if selected_kind == 'built-in' and selected_builtin_name == profile.name %}active{% endif %}"
-              onclick="selectBuiltin({{ profile.name | tojson }})"
             >
               <div class="profile-item-top">
                 <strong class="profile-name">{{ profile.name }}</strong>
@@ -63,7 +61,7 @@
                 {% if profile.has_override == "true" %}
                 <span class="profile-override-dot" title="Modified locally"></span>
                 {% endif %}
-                <button type="button" class="profile-edit-button" onclick="event.stopPropagation(); selectBuiltin({{ profile.name | tojson }})">Edit</button>
+                <button type="button" class="profile-edit-button" data-select-kind="built-in" data-select-id="{{ profile.name }}">Edit</button>
                 </span>
               </div>
             </div>
@@ -80,11 +78,10 @@
             data-profile-kind="local"
             data-profile-id="{{ profile.id }}"
             class="profile-item {% if selected_kind == 'local' and selected_profile and selected_profile.id == profile.id %}active{% endif %}"
-            onclick="selectProfile({{ profile.id | tojson }})"
           >
             <div class="profile-item-top">
               <strong class="profile-name">{{ profile.name }}</strong>
-              <button type="button" class="profile-edit-button" onclick="event.stopPropagation(); selectProfile({{ profile.id | tojson }})">Edit</button>
+              <button type="button" class="profile-edit-button" data-select-kind="local" data-select-id="{{ profile.id }}">Edit</button>
             </div>
           </div>
         </div>
@@ -179,6 +176,15 @@
 <script id="profileEditorData" type="application/json">{{ profile_editor_data | tojson }}</script>
 <script>
   const profileEditorData = JSON.parse(document.getElementById("profileEditorData").textContent);
+
+  function activateProfile(kind, id) {
+    if (kind === "built-in") {
+      selectBuiltin(id);
+      return;
+    }
+    selectProfile(id);
+  }
+
   function selectProfile(profileId) {
     const profile = profileEditorData.find((item) => item.kind === "local" && item.id === profileId);
     if (!profile) return;
@@ -291,6 +297,37 @@
   }
 
   formatLocalDateTimes();
+
+  function initProfileInteractions() {
+    const searchInput = document.getElementById("searchInput");
+    if (searchInput) {
+      searchInput.addEventListener("input", filterProfiles);
+    }
+
+    const newProfileButton = document.getElementById("newProfileButton");
+    if (newProfileButton) {
+      newProfileButton.addEventListener("click", newProfile);
+    }
+
+    document.querySelectorAll(".profile-item").forEach((item) => {
+      item.addEventListener("click", () => {
+        activateProfile(item.dataset.profileKind || "", item.dataset.profileId || "");
+      });
+    });
+
+    document.querySelectorAll(".profile-edit-button").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const target = event.currentTarget;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+        activateProfile(target.dataset.selectKind || "", target.dataset.selectId || "");
+      });
+    });
+  }
+
+  initProfileInteractions();
 
   function filterProfiles() {
     const query = document.getElementById("searchInput").value.toLowerCase();

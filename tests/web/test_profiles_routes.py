@@ -25,6 +25,9 @@ def test_profiles_page_loads(tmp_path: Path) -> None:
     assert "Built-in Profiles" in response.text
     assert "Save Local Override" in response.text
     assert "Edit" in response.text
+    assert 'id="newProfileButton"' in response.text
+    assert 'data-select-kind="built-in"' in response.text
+    assert 'onclick="event.stopPropagation();' not in response.text
     assert "Export JSON" not in response.text
     assert "Bulk Delete" not in response.text
 
@@ -227,6 +230,64 @@ def test_builtin_override_save_and_reset(tmp_path: Path) -> None:
     page_after = client.get("/profiles?builtin=share")
     assert page_after.status_code == 200
     assert "Read-only base, save creates local override" in page_after.text
+
+
+def test_builtin_profile_full_editor_flow_override_duplicate_reset(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+
+    save_resp = client.post(
+        "/profiles/privacy/share/override",
+        data={
+            "name": "share tuned",
+            "description": "customized built-in override",
+            "mode_subscriber_id": "encrypt",
+            "mode_token": "mask",
+        },
+        follow_redirects=False,
+    )
+    assert save_resp.status_code == 303
+    assert save_resp.headers["location"] == "/profiles?builtin=share"
+
+    share_page = client.get("/profiles?builtin=share")
+    assert share_page.status_code == 200
+    assert "share tuned" in share_page.text
+    assert "customized built-in override" in share_page.text
+    assert "Local override active" in share_page.text
+
+    duplicate_resp = client.post(
+        "/profiles/privacy/share/duplicate",
+        data={
+            "name": "share tuned",
+            "description": "customized built-in override",
+            "mode_subscriber_id": "encrypt",
+            "mode_token": "mask",
+        },
+        follow_redirects=False,
+    )
+    assert duplicate_resp.status_code == 303
+
+    profiles = client.get("/api/profiles").json()
+    assert len(profiles) == 1
+    duplicated = profiles[0]
+    assert duplicated["name"].startswith("share tuned Copy")
+    assert duplicated["description"] == "customized built-in override"
+    assert duplicated["modes"]["subscriber_id"] == "encrypt"
+    assert duplicated["modes"]["token"] == "mask"
+
+    duplicate_page = client.get(f"/profiles?id={duplicated['id']}")
+    assert duplicate_page.status_code == 200
+    assert duplicated["name"] in duplicate_page.text
+    assert "Save Profile" in duplicate_page.text
+
+    reset_resp = client.post("/profiles/privacy/share/reset", follow_redirects=False)
+    assert reset_resp.status_code == 303
+    assert reset_resp.headers["location"] == "/profiles?builtin=share"
+
+    reset_page = client.get("/profiles?builtin=share")
+    assert reset_page.status_code == 200
+    assert "Read-only base, save creates local override" in reset_page.text
+    assert 'action="/profiles/privacy/share/override"' in reset_page.text
+    assert 'id="resetButton" type="button" class="btn-secondary" hidden' in reset_page.text
 
 
 def test_export_profiles_json_and_csv(tmp_path: Path) -> None:

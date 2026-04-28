@@ -21,7 +21,7 @@
   <h2>Recent Jobs</h2>
   <form method="post" action="/jobs/bulk-delete" class="jobs-list-form">
     <div class="jobs-actions">
-      <button type="submit" class="btn btn-danger" onclick="return confirm('Delete selected jobs?');">Delete Selected</button>
+      <button type="submit" class="btn btn-danger" data-confirm-message="Delete selected jobs?">Delete Selected</button>
       <span class="jobs-count"><span id="selected-count">0</span> selected</span>
     </div>
     <table class="jobs-table">
@@ -59,6 +59,20 @@ document.getElementById('select-all').addEventListener('change', function() {
 document.querySelectorAll('.job-checkbox').forEach(cb => {
   cb.addEventListener('change', updateSelectedCount);
 });
+
+const jobsListForm = document.querySelector('.jobs-list-form');
+if (jobsListForm) {
+  jobsListForm.addEventListener('submit', function(event) {
+    const submitter = event.submitter;
+    if (!(submitter instanceof HTMLElement)) {
+      return;
+    }
+    const message = submitter.dataset.confirmMessage;
+    if (message && !window.confirm(message)) {
+      event.preventDefault();
+    }
+  });
+}
 
 function updateSelectedCount() {
   const checked = document.querySelectorAll('.job-checkbox:checked').length;

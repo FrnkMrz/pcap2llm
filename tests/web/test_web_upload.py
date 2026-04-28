@@ -35,11 +35,26 @@ def test_index_route_returns_200(tmp_path: Path) -> None:
     assert "pcap2llm Web GUI" in response.text
 
 
+def test_index_page_uses_data_confirm_attribute_for_bulk_delete(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    client.post(
+        "/jobs",
+        files={"capture": ("trace.pcapng", io.BytesIO(b"pcap"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+
+    response = client.get("/")
+    assert response.status_code == 200
+    assert 'data-confirm-message="Delete selected jobs?"' in response.text
+    assert 'onclick="return confirm(' not in response.text
+
+
 def test_dashboard_route_returns_200(tmp_path: Path) -> None:
     client = _build_client(tmp_path)
     response = client.get("/dashboard")
     assert response.status_code == 200
     assert "Dashboard" in response.text
+    assert "with LLMs using an appropriate privacy profile." in response.text
 
 
 def test_chrome_devtools_probe_returns_no_content(tmp_path: Path) -> None:
@@ -134,6 +149,8 @@ def test_job_page_renders_status(tmp_path: Path) -> None:
     assert "data-job-id" in response.text
     assert "data-job-status" in response.text
     assert "/static/job.js" in response.text
+    assert 'data-confirm-message="Delete this job and all generated files?"' in response.text
+    assert 'onsubmit="return confirm(' not in response.text
 
 
 def test_bulk_delete_jobs_route(tmp_path: Path) -> None:

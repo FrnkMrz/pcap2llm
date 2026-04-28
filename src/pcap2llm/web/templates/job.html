@@ -10,7 +10,7 @@
     <dt>Created</dt><dd>{{ job.created_at }}</dd>
     <dt>Updated</dt><dd>{{ job.updated_at }}</dd>
   </dl>
-  <form method="post" action="/jobs/{{ job.job_id }}/delete" onsubmit="return confirm('Delete this job and all generated files?');">
+  <form method="post" action="/jobs/{{ job.job_id }}/delete" data-confirm-message="Delete this job and all generated files?">
     <button type="submit">Delete job</button>
   </form>
   <p class="error" data-job-error>{% if job.last_error %}{{ job.last_error }}{% endif %}</p>
@@ -269,7 +269,7 @@
   <h2>Downloads</h2>
   <div class="downloads-actions">
     <a href="/jobs/{{ job.job_id }}/files.zip">Download all as ZIP</a>
-    <form method="post" action="/jobs/{{ job.job_id }}/outputs/delete" onsubmit="return confirm('Delete all generated outputs for this job? The uploaded capture stays available.');">
+    <form method="post" action="/jobs/{{ job.job_id }}/outputs/delete" data-confirm-message="Delete all generated outputs for this job? The uploaded capture stays available.">
       <button type="submit" class="danger-button">Delete All</button>
     </form>
   </div>

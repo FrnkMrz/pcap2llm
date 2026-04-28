@@ -153,8 +153,8 @@
         <div class="form-actions">
           <button id="saveButton" type="submit" class="btn-primary">{% if selected_kind == "built-in" %}Save Local Override{% else %}Save Profile{% endif %}</button>
           <button id="duplicateButton" type="submit" class="btn-secondary" formaction="{% if selected_kind == "built-in" %}/profiles/privacy/{{ selected_builtin_name }}/duplicate{% else %}/profiles/{{ selected_profile.id }}/duplicate{% endif %}">Duplicate Profile</button>
-          <button id="resetButton" type="button" class="btn-secondary" {% if selected_kind != "built-in" or not selected_has_override %}hidden{% endif %} onclick="document.getElementById('resetBuiltinForm').submit()">{% if selected_kind == "built-in" and selected_has_override %}Reset to Built-in{% endif %}</button>
-          <button id="deleteButton" type="button" class="btn-danger" {% if selected_kind == "built-in" %}hidden{% endif %} onclick="if(confirm('Delete this profile?')) document.getElementById('deleteForm').submit()">{% if selected_kind == "local" %}Delete Profile{% endif %}</button>
+          <button id="resetButton" type="button" class="btn-secondary" {% if selected_kind != "built-in" or not selected_has_override %}hidden{% endif %}>{% if selected_kind == "built-in" and selected_has_override %}Reset to Built-in{% endif %}</button>
+          <button id="deleteButton" type="button" class="btn-danger" {% if selected_kind == "built-in" %}hidden{% endif %} data-confirm-message="Delete this profile?">{% if selected_kind == "local" %}Delete Profile{% endif %}</button>
         </div>
       </form>
 
@@ -307,6 +307,30 @@
     const newProfileButton = document.getElementById("newProfileButton");
     if (newProfileButton) {
       newProfileButton.addEventListener("click", newProfile);
+    }
+
+    const resetButton = document.getElementById("resetButton");
+    if (resetButton) {
+      resetButton.addEventListener("click", () => {
+        const resetForm = document.getElementById("resetBuiltinForm");
+        if (resetForm instanceof HTMLFormElement) {
+          resetForm.submit();
+        }
+      });
+    }
+
+    const deleteButton = document.getElementById("deleteButton");
+    if (deleteButton) {
+      deleteButton.addEventListener("click", () => {
+        const message = deleteButton.dataset.confirmMessage || "Delete this profile?";
+        if (!window.confirm(message)) {
+          return;
+        }
+        const deleteForm = document.getElementById("deleteForm");
+        if (deleteForm instanceof HTMLFormElement) {
+          deleteForm.submit();
+        }
+      });
     }
 
     document.querySelectorAll(".profile-item").forEach((item) => {

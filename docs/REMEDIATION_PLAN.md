@@ -151,6 +151,10 @@ Diese drei Findings betreffen direkt das zentrale Versprechen des Tools (Privacy
 - **Acceptance**: `tests/test_chatgpt.py` ergänzen — Aufruf mit `--privacy-profile share` ohne `--allow-keep` → Exit 1.
 
 ### 4.4 `/admin/cleanup` und destruktive POSTs ohne CSRF-Schutz
+
+**Status**: Implementiert per Same-Origin-Check für `Origin` / `Referer` auf
+allen POST-Routen. CSRF-Token bleiben optionale spätere Härtung für
+nicht-lokale Nutzung.
 - **Severity**: low (Localhost-Kontext) · **Effort**: M
 - **Files**: `src/pcap2llm/web/app.py:527-550`, alle `POST /jobs/.../delete`, `/profiles/.../delete`, `/jobs/bulk-delete`
 - **Fix**: Einer der folgenden Wege:
@@ -160,6 +164,11 @@ Diese drei Findings betreffen direkt das zentrale Versprechen des Tools (Privacy
 - **Acceptance**: `tests/web/test_security_validation.py`: POST ohne korrekten Origin → 403.
 
 ### 4.5 `pseudonym_mapping.json` und `vault.json` Download-Gating
+
+**Status**: Implementiert. Sensible Sidecars brauchen explizite Bestätigung
+für direkte Downloads und werden aus Bulk-Downloads entfernt, solange kein
+explizites Allow gesetzt ist. Remote-Bind erfordert
+`PCAP2LLM_WEB_ALLOW_REMOTE=1`.
 - **Severity**: low (gemäß Workflow-Doku) · **Effort**: S
 - **Files**: `src/pcap2llm/web/app.py:355-389`, `src/pcap2llm/web/jobs.py:179-180`
 - **Fix**:

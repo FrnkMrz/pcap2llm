@@ -15,6 +15,7 @@ CI currently tests:
 
 - Python 3.11
 - Python 3.12
+- Python 3.13
 
 ## TShark
 
@@ -27,6 +28,6 @@ This means:
 
 ## Current Position
 
-- Supported and verified: Python 3.11 and 3.12 in CI
+- Supported and verified: Python 3.11, 3.12, and 3.13 in CI
 - Regularly exercised: one CI-installed TShark version on Ubuntu
 - Not yet broadly validated: cross-version TShark compatibility matrix across multiple distributions

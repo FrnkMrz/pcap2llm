@@ -6,6 +6,26 @@ The format is intentionally simple and optimized for humans reading repo history
 
 ## Unreleased
 
+### Fixed - 2026-06-19 (web hardening and release validation)
+
+- Hardened the local Web GUI:
+  - all POST routes now require a same-origin `Origin` or `Referer` header.
+  - non-localhost binding now requires explicit `PCAP2LLM_WEB_ALLOW_REMOTE=1`.
+  - helper-file uploads now have their own configurable size limit via
+    `PCAP2LLM_WEB_MAX_SUPPORT_UPLOAD_MB`.
+  - analysis limits reject invalid negative values and too-small flow SVG widths.
+- Reduced memory pressure when hashing captures by streaming SHA-256 reads in
+  CLI, discovery, and pipeline code.
+- Strengthened release validation:
+  - CI now tests Python 3.11, 3.12, and 3.13.
+  - CI uses read-only repository token permissions by default.
+  - packaging checks now validate required wheel contents and console scripts.
+  - the packaging job installs the built wheel in a clean environment and runs a
+    CLI/Web import smoke test.
+- Fixed packaging so Web GUI PNG assets are included in the wheel.
+- Updated Web GUI, release, supported-environment, and security documentation to
+  match the current behavior.
+
 ### Changed — 2026-04-25 (web GUI brand polish)
 
 - Updated the local Web GUI to a Telekom-inspired magenta/neutral visual theme.

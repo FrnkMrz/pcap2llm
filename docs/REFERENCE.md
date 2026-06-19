@@ -1042,6 +1042,11 @@ The CI pipeline runs a `local-files-guard` job on every push and pull request.
 It fails if any disallowed file under `.local/` is tracked in the repository —
 even if someone bypassed the local hook with `git add -f`.
 
+The packaging job also builds wheel and sdist artifacts, validates package
+metadata, checks that required profiles, privacy profiles, Web GUI templates,
+static assets, and console scripts are present in the wheel, and installs the
+wheel in a clean environment for a CLI/Web import smoke test.
+
 ### Safety note
 
 This design strongly reduces accidental publication risk, but it is not an absolute guarantee against intentional bypass. A file stored inside the repository tree is not as isolated as a file stored fully outside of it.

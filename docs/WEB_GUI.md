@@ -101,11 +101,15 @@ Currently exposed in the Analyze form:
 - `PCAP2LLM_WEB_PORT` (default `8765`)
 - `PCAP2LLM_WEB_WORKDIR` (default `./web_runs`)
 - `PCAP2LLM_WEB_MAX_UPLOAD_MB` (default `1`)
+- `PCAP2LLM_WEB_MAX_SUPPORT_UPLOAD_MB` (default: same value as
+  `PCAP2LLM_WEB_MAX_UPLOAD_MB`)
 - `PCAP2LLM_WEB_COMMAND_TIMEOUT_SECONDS` (default `600`)
 - `PCAP2LLM_WEB_TSHARK_PATH` (optional)
 - `PCAP2LLM_TSHARK_PATH` (optional generic fallback used by CLI and Web GUI)
 - `PCAP2LLM_WEB_SETTINGS_FILE` (optional path to persistent JSON settings file)
 - `PCAP2LLM_WEB_DEFAULT_PRIVACY_PROFILE` (default `share`)
+- `PCAP2LLM_WEB_ALLOW_REMOTE` (default `false`) to allow binding outside
+  localhost
 - `PCAP2LLM_WEB_CLEANUP_ENABLED` (default `true`) to enable automatic cleanup of
   old jobs
 - `PCAP2LLM_WEB_CLEANUP_MAX_AGE_DAYS` (default `7`) to delete jobs older than N
@@ -136,9 +140,10 @@ Default location:
 Supported keys include:
 
 - `host`, `port`, `workdir`
-- `max_upload_mb`, `command_timeout_seconds`
+- `max_upload_mb`, `max_support_upload_mb`, `command_timeout_seconds`
 - `tshark_path`, `support_files_root`
 - `default_privacy_profile`
+- `allow_remote`
 - `cleanup_enabled`, `cleanup_max_age_days`
 
 Environment variables still override values from the JSON file.
@@ -177,9 +182,12 @@ loaded again on restart. Older profiles from the legacy path
 - Local bind by default (`127.0.0.1`)
 - Accepts only `.pcap` and `.pcapng`
 - Configurable upload size limit
+- Separate helper-file upload size limit
 - Sanitized filenames
 - Downloads scoped to the current job directory
 - No external API calls from the Web GUI itself
+- POST requests require a matching same-origin `Origin` or `Referer` header
+- binding to non-localhost addresses requires `PCAP2LLM_WEB_ALLOW_REMOTE=1`
 - security headers:
   - `X-Frame-Options`
   - `X-Content-Type-Options`
@@ -188,6 +196,7 @@ loaded again on restart. Older profiles from the legacy path
 - input validation:
   - profile names: alphanumeric, `_`, `-`, spaces, `.`, length `1..255`
   - descriptions: max 1000 characters
+  - analysis limits reject negative values and invalid flow widths
   - protection modes limited to supported values such as `keep`, `mask`,
     `pseudonymize`, `encrypt`, `remove`
 
@@ -195,16 +204,17 @@ loaded again on restart. Older profiles from the legacy path
 
 See [docs/SECURITY_AUDIT_WEB_GUI.md](SECURITY_AUDIT_WEB_GUI.md) for details.
 
-- missing CSRF protection
 - missing authentication and authorization
 - missing rate limiting
+- CSRF exposure is reduced through same-origin POST checks
 - path traversal prevention is implemented
 - file upload validation is implemented
 - input validation and length limits are implemented
 - security headers are implemented
 
 This app is designed for local-only use by default. Remote or production-facing
-deployment needs additional hardening.
+deployment still needs authentication, authorization, rate limiting, and a
+review of artifact exposure.
 
 ## Logs
 

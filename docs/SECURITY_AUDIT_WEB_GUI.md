@@ -1,12 +1,39 @@
 # Security Audit: Web GUI Changes (2026-04-24)
 
+## Current Status (2026-06-19)
+
+This file originally documented the first Web GUI hardening pass. Some older
+sections below are kept as historical notes, but the current implementation has
+moved on:
+
+- Same-origin checks now protect POST routes through `Origin` / `Referer`
+  validation.
+- Binding outside localhost is blocked unless `PCAP2LLM_WEB_ALLOW_REMOTE=1` is
+  set explicitly.
+- Upload limits exist for captures and helper files.
+- Profile names, descriptions, file paths, support files, and analysis limits
+  have validation.
+- Security headers, filename sanitization, path traversal prevention, and
+  subprocess list invocation are implemented.
+
+Open items:
+
+- No authentication or authorization.
+- No rate limiting.
+- No per-user quota model.
+- No production deployment profile.
+
+The Web GUI remains local-first. Treat any remote deployment as unsupported
+until authentication, authorization, rate limiting, and artifact access controls
+are designed and tested.
+
 ## Executive Summary
 
 Der Web GUI sind grundlegende Sicherheitsmaßnahmen implementiert (Path Traversal Prevention, Upload Validation), aber es gibt kritische Lücken:
 
-- ⚠️ **CSRF-Protection:** FEHLT
+- ✅ **CSRF-Exposure:** Same-origin POST checks implementiert
 - ⚠️ **Authentication/Authorization:** FEHLT (jeder hat Zugriff auf alle Jobs/Profile)
-- ⚠️ **Input Length Limits:** FEHLT (sehr lange Strings möglich)
+- ✅ **Input Length Limits:** Implementiert für relevante Web-Formulare
 - ⚠️ **Rate Limiting:** FEHLT
 - ✅ Path Traversal Prevention: OK
 - ✅ File Upload Validation: OK
@@ -14,11 +41,11 @@ Der Web GUI sind grundlegende Sicherheitsmaßnahmen implementiert (Path Traversa
 
 ## Details & Empfehlungen
 
-### 1. CSRF-Protection (KRITISCH)
+### 1. CSRF-Exposure (MITTEL)
 
 **Problem:**
-- POST-Routes haben keine CSRF-Token Validierung
-- Ein Attacker könnte POST-Requests von einer anderen Domain triggern
+- POST-Routes haben keine klassischen CSRF-Token.
+- Die Middleware prüft aber `Origin` / `Referer` gegen die lokale Ziel-Origin.
 
 **Beispiel-Angriff:**
 ```html
@@ -31,11 +58,11 @@ Der Web GUI sind grundlegende Sicherheitsmaßnahmen implementiert (Path Traversa
 ```
 
 **Lösung:**
-- CSRF-Token in alle Forms einbauen
-- Token in Session speichern
-- Token bei POST validieren
+- Same-origin POST-Checks sind implementiert.
+- CSRF-Token bleiben eine mögliche spätere Härtung, falls die Web-GUI über den
+  lokalen Einzelplatzbetrieb hinausgeht.
 
-**Status:** 🔴 NICHT IMPLEMENTIERT
+**Status:** ✅ TEILWEISE IMPLEMENTIERT
 
 ---
 
@@ -83,7 +110,7 @@ description: str = Form(..., max_length=1000)
 comment: str = Form(..., max_length=500)
 ```
 
-**Status:** 🔴 NICHT IMPLEMENTIERT
+**Status:** ✅ IMPLEMENTIERT FÜR WEB-FORMULARE
 
 ---
 
@@ -238,11 +265,11 @@ if not re.match(r'^[A-Za-z0-9_\-\s\.]{1,255}$', name):
 
 | Priorität | Issue | Status |
 |-----------|-------|--------|
-| 🔴 Kritisch | CSRF-Protection | ❌ TODO |
+| 🟠 Mittel | CSRF-Exposure | ✅ Same-origin POST checks |
 | 🔴 Kritisch | Authentication/Authorization | ❌ TODO |
-| 🟠 Mittel | Input Length Limits | ❌ TODO |
+| 🟢 Niedrig | Input Length Limits | ✅ OK |
 | 🟠 Mittel | Rate Limiting | ❌ TODO |
-| 🟠 Mittel | Profile Name Validation | ⚠️ TODO |
+| 🟢 Niedrig | Profile Name Validation | ✅ OK |
 | 🟢 Niedrig | XSS/Output Escaping | ✅ OK |
 | 🟢 Niedrig | Command Injection | ✅ OK |
 | 🟢 Niedrig | Directory Traversal | ✅ OK |
@@ -259,10 +286,10 @@ if not re.match(r'^[A-Za-z0-9_\-\s\.]{1,255}$', name):
 ## Recommended Action Plan
 
 ### Phase 1 (MVP) - Sofort
-- [ ] CSRF-Token hinzufügen
-- [ ] Input Length Limits für Profile
-- [ ] Profile Name Validation (Regex)
-- [ ] Security Headers (X-Frame-Options, etc.)
+- [x] Same-origin POST checks hinzufügen
+- [x] Input Length Limits für Profile
+- [x] Profile Name Validation (Regex)
+- [x] Security Headers (X-Frame-Options, etc.)
 
 ### Phase 2 (Production) - Vor Deployment
 - [ ] Simple API-Key Auth implementieren

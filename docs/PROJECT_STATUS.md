@@ -82,9 +82,9 @@ Related docs:
 - TShark version drift can affect raw extraction, which is why public serializer contracts are validated.
 - `--llm-mode` is currently available on `analyze`; `inspect`, `discover`, and `session` commands still target human operators first.
 - The CLI contract is stable enough for integration work, but still young enough that downstream consumers should pin versions and run contract tests.
-- The Web GUI is local-first. Missing CSRF protection, authentication, and rate
-  limiting mean it should not be treated as remotely exposed production software
-  without follow-up hardening.
+- The Web GUI is local-first. Same-origin POST checks reduce CSRF exposure, but
+  missing authentication, authorization, and rate limiting mean it should not be
+  treated as remotely exposed production software without follow-up hardening.
 
 ## Near-Term Direction
 

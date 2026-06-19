@@ -4,9 +4,13 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   restored-feature-guard:
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -37,6 +41,7 @@ jobs:
 
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -53,9 +58,10 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11", "3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v6
@@ -93,6 +99,7 @@ jobs:
 
   local-files-guard:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
       - name: Block tracked local runtime artifacts
@@ -113,6 +120,7 @@ jobs:
 
   packaging:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -126,6 +134,27 @@ jobs:
         run: python -m build --no-isolation
       - name: Validate wheel metadata
         run: python scripts/check_package_metadata.py dist/*.whl dist/*.tar.gz
+      - name: Validate wheel contents
+        run: python scripts/check_package_contents.py dist/*.whl
+      - name: Install wheel smoke test
+        run: |
+          python -m venv .package-smoke
+          . .package-smoke/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install "$(ls dist/*.whl)[encrypt]"
+          pcap2llm --help
+          python - <<'PY'
+          from pathlib import Path
+          from pcap2llm.privacy_profiles import load_privacy_profile
+          from pcap2llm.profiles import load_profile
+          from pcap2llm.web.app import create_app
+          from pcap2llm.web.config import WebSettings
+
+          assert load_profile("lte-core").name == "lte-core"
+          assert load_privacy_profile("share").name == "share"
+          create_app(WebSettings(host="127.0.0.1", workdir=Path(".package-smoke-runs")))
+          print("wheel smoke test passed")
+          PY
       - name: Upload packaging artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4

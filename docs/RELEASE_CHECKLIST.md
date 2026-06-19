@@ -17,12 +17,17 @@ Automated in CI:
 - CI green on supported Python versions
 - Packaging build succeeds
 - Package metadata validation passes
+- Wheel content validation passes for bundled profiles, privacy profiles, templates, static assets, and console scripts
+- Built wheel installs in a clean virtual environment and passes a CLI/Web import smoke test
 - Schema validation tests pass
 - Golden regression tests pass
 - Privacy and encryption tests pass
 
 Manual release review:
 
+- Run `python -m build --no-isolation`
+- Run `python scripts/check_package_metadata.py dist/*.whl dist/*.tar.gz`
+- Run `python scripts/check_package_contents.py dist/*.whl`
 - Golden corpus changes are intentionally reviewed when snapshots move
 - Docs are updated for any behavior or contract change
 - Known limitations still match actual behavior

@@ -16,6 +16,17 @@ REQUIRED_PROJECT_URL_LABELS = ("Homepage", "Repository", "Issues")
 EXPECTED_DESCRIPTION_CONTENT_TYPE = "text/markdown"
 
 
+def _expand_paths(raw_paths: list[str]) -> list[Path]:
+    paths: list[Path] = []
+    for raw in raw_paths:
+        matches = sorted(Path().glob(raw)) if any(char in raw for char in "*?[") else []
+        if matches:
+            paths.extend(matches)
+        else:
+            paths.append(Path(raw))
+    return paths
+
+
 def _read_metadata_text(path: Path) -> str:
     if path.suffix == ".whl":
         with zipfile.ZipFile(path) as zf:
@@ -71,9 +82,9 @@ def validate_metadata(path: Path) -> None:
 def main(argv: list[str]) -> None:
     if len(argv) < 2:
         raise SystemExit("usage: python scripts/check_package_metadata.py <wheel-metadata-path-or-wheel>")
-    for raw in argv[1:]:
-        validate_metadata(Path(raw))
-        print(f"validated {raw}")
+    for path in _expand_paths(argv[1:]):
+        validate_metadata(path)
+        print(f"validated {path}")
 
 
 if __name__ == "__main__":

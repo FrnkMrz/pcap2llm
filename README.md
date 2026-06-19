@@ -227,6 +227,9 @@ This README is intentionally the **entrypoint**, not the complete manual.
 ```bash
 pytest
 ruff check .
+python -m build --no-isolation
+python scripts/check_package_metadata.py dist/*.whl dist/*.tar.gz
+python scripts/check_package_contents.py dist/*.whl
 ```
 
 ## License

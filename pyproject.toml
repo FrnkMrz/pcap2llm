@@ -67,4 +67,11 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-pcap2llm = ["profiles/*.yaml", "privacy_profiles/*.yaml", "web/templates/*.html", "web/static/*.css", "web/static/*.js"]
+pcap2llm = [
+  "profiles/*.yaml",
+  "privacy_profiles/*.yaml",
+  "web/templates/*.html",
+  "web/static/*.css",
+  "web/static/*.js",
+  "web/static/*.png",
+]

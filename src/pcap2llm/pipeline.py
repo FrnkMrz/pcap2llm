@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import hashlib
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from pcap2llm.hash_utils import file_sha256
 from pcap2llm.index_inspector import inspect_index_records, select_frame_numbers
 from pcap2llm.models import AnalyzeArtifacts, ProfileDefinition
 from pcap2llm.normalizer import normalize_packets
@@ -298,7 +298,7 @@ def analyze_capture(
         summary_payload["privacy_audit"] = {"pseudonymized_unique_values": audit}
 
     try:
-        sha256 = hashlib.sha256(capture_path.read_bytes()).hexdigest()
+        sha256 = file_sha256(capture_path)
     except OSError:
         sha256 = None  # PCAP may not be accessible after export (e.g. stdin pipe)
 

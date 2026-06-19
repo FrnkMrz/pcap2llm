@@ -11,7 +11,9 @@ from pcap2llm.web.profiles import ProfileStore
 
 def _build_client(tmp_path: Path) -> TestClient:
     settings = WebSettings(workdir=tmp_path / "web_runs")
-    return TestClient(create_app(settings))
+    client = TestClient(create_app(settings))
+    client.headers.update({"Origin": "http://testserver"})
+    return client
 
 
 def test_profiles_page_loads(tmp_path: Path) -> None:

@@ -11,20 +11,31 @@ from pcap2llm.web.config import WebSettings
 from pcap2llm.web.jobs import JobStore
 
 
-def _client(tmp_path: Path, *, support_files_root: Path | None = None) -> TestClient:
-    return TestClient(
+def _client(
+    tmp_path: Path,
+    *,
+    support_files_root: Path | None = None,
+    include_origin: bool = True,
+    max_upload_mb: int = 10,
+    max_support_upload_mb: int = 10,
+) -> TestClient:
+    client = TestClient(
         create_app(
             WebSettings(
                 host="127.0.0.1",
                 port=8765,
                 workdir=tmp_path / "web_runs",
-                max_upload_mb=10,
+                max_upload_mb=max_upload_mb,
+                max_support_upload_mb=max_support_upload_mb,
                 command_timeout_seconds=30,
                 support_files_root=support_files_root,
                 default_privacy_profile="share",
             )
         )
     )
+    if include_origin:
+        client.headers.update({"Origin": "http://testserver"})
+    return client
 
 
 def _upload(client: TestClient) -> str:
@@ -143,9 +154,76 @@ def test_inline_svg_is_not_rendered_in_job_page(tmp_path: Path) -> None:
 def test_destructive_post_without_origin_is_forbidden(tmp_path: Path) -> None:
     client = _client(tmp_path)
     job_id = _upload(client)
+    client.headers.pop("Origin", None)
 
     response = client.post(f"/jobs/{job_id}/delete", follow_redirects=False)
     assert response.status_code == 403
+
+
+def test_create_job_without_origin_is_forbidden(tmp_path: Path) -> None:
+    client = _client(tmp_path, include_origin=False)
+
+    response = client.post(
+        "/jobs",
+        files={"capture": ("trace.pcap", io.BytesIO(b"abc"), "application/octet-stream")},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 403
+
+
+def test_create_profile_without_origin_is_forbidden(tmp_path: Path) -> None:
+    client = _client(tmp_path, include_origin=False)
+
+    response = client.post(
+        "/profiles",
+        data={"name": "No Origin", "description": "blocked"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 403
+
+
+def test_support_file_upload_rejects_size_limit(tmp_path: Path) -> None:
+    client = _client(tmp_path, max_upload_mb=10, max_support_upload_mb=0)
+    job_id = _upload(client)
+
+    response = client.post(
+        f"/jobs/{job_id}/analyze",
+        data={"profile": "lte-core", "privacy_profile": "share"},
+        files={"hosts_file_upload": ("hosts.txt", io.BytesIO(b"x"), "text/plain")},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+
+
+def test_analyze_rejects_negative_limits(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    job_id = _upload(client)
+
+    response = client.post(
+        f"/jobs/{job_id}/analyze",
+        data={"profile": "lte-core", "privacy_profile": "share", "max_packets": "-1"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+
+
+def test_remote_binding_requires_explicit_opt_in(tmp_path: Path) -> None:
+    try:
+        create_app(
+            WebSettings(
+                host="0.0.0.0",
+                port=8765,
+                workdir=tmp_path / "web_runs",
+            )
+        )
+    except RuntimeError as exc:
+        assert "PCAP2LLM_WEB_ALLOW_REMOTE" in str(exc)
+    else:
+        raise AssertionError("remote binding should require explicit opt-in")
 
 
 def test_sensitive_sidecar_download_requires_confirmation(tmp_path: Path) -> None:

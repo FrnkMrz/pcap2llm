@@ -6,7 +6,6 @@ import sys
 from collections.abc import Callable
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from hashlib import sha256
 from pathlib import Path
 from typing import Generator
 
@@ -24,6 +23,7 @@ from pcap2llm.gemini import request_gemini_response, write_gemini_handoff_files
 from pcap2llm.config import build_privacy_modes, load_config_file, normalize_mode, sample_config_text
 from pcap2llm.discovery import discover_capture, write_discovery_artifacts
 from pcap2llm.error_codes import map_error
+from pcap2llm.hash_utils import file_sha256
 from pcap2llm.inspector import inspect_capture
 from pcap2llm.output_metadata import semantic_artifact_filename
 from pcap2llm.pipeline import analyze_capture, describe_output_paths, write_artifacts
@@ -68,6 +68,29 @@ def _refuse_external_llm_keep_modes(privacy_modes: dict[str, str], *, allow_keep
             f"Privacy modes {unsafe} are 'keep' - refusing external LLM handoff. "
             "Use --privacy-profile llm-telecom-safe or pass --allow-keep to override."
         )
+
+
+def _validate_analysis_limits(
+    *,
+    all_packets: bool,
+    max_packets: int,
+    max_capture_size_mb: int,
+    oversize_factor: float,
+    flow_max_events: int | None = None,
+    flow_svg_width: int | None = None,
+) -> None:
+    if not all_packets and max_packets <= 0:
+        raise typer.BadParameter(
+            "--max-packets must be greater than 0. Use --all-packets for unlimited detail export."
+        )
+    if max_capture_size_mb < 0:
+        raise typer.BadParameter("--max-capture-size-mb must be 0 or greater.")
+    if oversize_factor < 0:
+        raise typer.BadParameter("--oversize-factor must be 0 or greater.")
+    if flow_max_events is not None and flow_max_events < 0:
+        raise typer.BadParameter("--flow-max-events must be 0 or greater.")
+    if flow_svg_width is not None and flow_svg_width < 400:
+        raise typer.BadParameter("--flow-svg-width must be at least 400.")
 
 
 def _resolve_inspect_output_path(
@@ -426,7 +449,7 @@ def _resolve_network_element_mapping_file(
 
 def _capture_sha256(capture: Path) -> str | None:
     try:
-        return sha256(capture.read_bytes()).hexdigest()
+        return file_sha256(capture)
     except OSError:
         return None
 
@@ -794,6 +817,14 @@ def analyze_command(
     diameter_identity_mode: str | None = typer.Option(None, "--diameter-identity-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
     payload_text_mode: str | None = typer.Option(None, "--payload-text-mode", help=_MODE_HELP, callback=lambda value: normalize_mode(value) if value else None),
 ) -> None:
+    _validate_analysis_limits(
+        all_packets=all_packets,
+        max_packets=max_packets,
+        max_capture_size_mb=max_capture_size_mb,
+        oversize_factor=oversize_factor,
+        flow_max_events=flow_max_events,
+        flow_svg_width=flow_svg_width,
+    )
     config_data = load_config_file(config_path)
     profile = load_profile(profile_name)
     effective_verbatim_protocols, verbatim_overlay = _merge_verbatim_protocols(
@@ -1027,7 +1058,7 @@ def analyze_command(
 
     capture_hash = None
     try:
-        capture_hash = sha256(capture.read_bytes()).hexdigest()
+        capture_hash = file_sha256(capture)
     except OSError:
         pass
 
@@ -1097,6 +1128,12 @@ def ask_chatgpt_command(
     runner = TSharkRunner(binary=tshark_path)
     extra_args = list(config_data.get("tshark_extra_args", [])) + list(tshark_arg or [])
     effective_max_packets = 0 if all_packets else max_packets
+    _validate_analysis_limits(
+        all_packets=all_packets,
+        max_packets=max_packets,
+        max_capture_size_mb=max_capture_size_mb,
+        oversize_factor=oversize_factor,
+    )
 
     if dry_run:
         typer.echo(
@@ -1257,6 +1294,12 @@ def ask_claude_command(
     runner = TSharkRunner(binary=tshark_path)
     extra_args = list(config_data.get("tshark_extra_args", [])) + list(tshark_arg or [])
     effective_max_packets = 0 if all_packets else max_packets
+    _validate_analysis_limits(
+        all_packets=all_packets,
+        max_packets=max_packets,
+        max_capture_size_mb=max_capture_size_mb,
+        oversize_factor=oversize_factor,
+    )
 
     if dry_run:
         typer.echo(
@@ -1419,6 +1462,12 @@ def ask_gemini_command(
     runner = TSharkRunner(binary=tshark_path)
     extra_args = list(config_data.get("tshark_extra_args", [])) + list(tshark_arg or [])
     effective_max_packets = 0 if all_packets else max_packets
+    _validate_analysis_limits(
+        all_packets=all_packets,
+        max_packets=max_packets,
+        max_capture_size_mb=max_capture_size_mb,
+        oversize_factor=oversize_factor,
+    )
 
     if dry_run:
         typer.echo(

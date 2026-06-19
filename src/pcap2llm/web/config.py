@@ -12,16 +12,22 @@ class WebSettings:
     port: int = 8765
     workdir: Path = Path("./web_runs")
     max_upload_mb: int = 1
+    max_support_upload_mb: int = 1
     command_timeout_seconds: int = 600
     tshark_path: str = ""
     support_files_root: Path | None = None
     default_privacy_profile: str = "share"
     cleanup_enabled: bool = True
     cleanup_max_age_days: int = 7
+    allow_remote: bool = False
 
     @property
     def max_upload_bytes(self) -> int:
         return self.max_upload_mb * 1024 * 1024
+
+    @property
+    def max_support_upload_bytes(self) -> int:
+        return self.max_support_upload_mb * 1024 * 1024
 
     @property
     def local_workspace_dir(self) -> Path:
@@ -61,6 +67,10 @@ def load_settings() -> WebSettings:
     max_upload_mb = int(
         os.getenv("PCAP2LLM_WEB_MAX_UPLOAD_MB") or int(settings_file.get("max_upload_mb", 1))
     )
+    max_support_upload_mb = int(
+        os.getenv("PCAP2LLM_WEB_MAX_SUPPORT_UPLOAD_MB")
+        or int(settings_file.get("max_support_upload_mb", max_upload_mb))
+    )
     command_timeout_seconds = int(
         os.getenv("PCAP2LLM_WEB_COMMAND_TIMEOUT_SECONDS")
         or int(settings_file.get("command_timeout_seconds", 600))
@@ -90,18 +100,24 @@ def load_settings() -> WebSettings:
         os.getenv("PCAP2LLM_WEB_CLEANUP_MAX_AGE_DAYS")
         or int(settings_file.get("cleanup_max_age_days", 7))
     )
+    allow_remote = _parse_bool(
+        os.getenv("PCAP2LLM_WEB_ALLOW_REMOTE"),
+        bool(settings_file.get("allow_remote", False)),
+    )
 
     return WebSettings(
         host=host,
         port=port,
         workdir=workdir,
         max_upload_mb=max_upload_mb,
+        max_support_upload_mb=max_support_upload_mb,
         command_timeout_seconds=command_timeout_seconds,
         tshark_path=tshark_path,
         support_files_root=support_files_root,
         default_privacy_profile=default_privacy_profile,
         cleanup_enabled=cleanup_enabled,
         cleanup_max_age_days=cleanup_max_age_days,
+        allow_remote=allow_remote,
     )
 
 

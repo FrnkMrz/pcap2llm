@@ -25,7 +25,9 @@ def _build_client(tmp_path: Path, *, max_upload_mb: int = 1) -> TestClient:
         default_privacy_profile="share",
     )
     app = create_app(settings)
-    return TestClient(app)
+    client = TestClient(app)
+    client.headers.update({"Origin": "http://testserver"})
+    return client
 
 
 def test_index_route_returns_200(tmp_path: Path) -> None:
@@ -501,6 +503,7 @@ def test_job_page_prefills_local_support_file_defaults(tmp_path: Path) -> None:
         default_privacy_profile="share",
     )
     client = TestClient(create_app(settings))
+    client.headers.update({"Origin": "http://testserver"})
 
     upload = client.post(
         "/jobs",
@@ -571,6 +574,7 @@ def test_analyze_uses_local_support_file_defaults_when_form_is_blank(tmp_path: P
         default_privacy_profile="share",
     )
     client = TestClient(create_app(settings))
+    client.headers.update({"Origin": "http://testserver"})
 
     upload = client.post(
         "/jobs",
@@ -601,9 +605,9 @@ def test_analyze_uses_local_support_file_defaults_when_form_is_blank(tmp_path: P
     assert response.status_code == 303
 
     options = captured["options"]
-    assert options.hosts_file == str(local_root / "hosts")
-    assert options.ss7pcs_file == str(local_root / "ss7pcs")
-    assert options.network_element_mapping_file == str(local_root / "network_element_mapping.csv")
+    assert options.hosts_file == str((local_root / "hosts").resolve())
+    assert options.ss7pcs_file == str((local_root / "ss7pcs").resolve())
+    assert options.network_element_mapping_file == str((local_root / "network_element_mapping.csv").resolve())
 
 
 def test_job_page_shows_detected_network_element_types(tmp_path: Path) -> None:

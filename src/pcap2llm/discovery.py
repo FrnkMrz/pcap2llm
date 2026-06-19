@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 from typing import Any
 
+from pcap2llm.hash_utils import file_sha256
 from pcap2llm.inspector import inspect_capture
 from pcap2llm.models import InspectResult, ProfileDefinition
 from pcap2llm.output_metadata import (
@@ -62,7 +62,7 @@ def build_discovery_profile() -> ProfileDefinition:
 
 def _capture_sha256(capture_path: Path) -> str | None:
     try:
-        return hashlib.sha256(capture_path.read_bytes()).hexdigest()
+        return file_sha256(capture_path)
     except OSError:
         return None
 

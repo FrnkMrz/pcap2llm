@@ -58,9 +58,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 class OriginCheckMiddleware(BaseHTTPMiddleware):
     """Reject cross-origin destructive form posts in the localhost web UI."""
 
-    _PROTECTED_PREFIXES = ("/jobs/", "/profiles/")
-    _PROTECTED_EXACT = {"/jobs/bulk-delete", "/profiles/actions/bulk-delete", "/admin/cleanup"}
-
     async def dispatch(self, request: Request, call_next: ASGIApp) -> StreamingResponse:  # type: ignore
         if request.method == "POST" and self._needs_origin_check(request.url.path):
             allowed = _allowed_origin_values(request)
@@ -78,11 +75,7 @@ class OriginCheckMiddleware(BaseHTTPMiddleware):
 
     @classmethod
     def _needs_origin_check(cls, path: str) -> bool:
-        if path in cls._PROTECTED_EXACT:
-            return True
-        if not path.startswith(cls._PROTECTED_PREFIXES):
-            return False
-        return path.endswith("/delete") or path.endswith("/outputs/delete")
+        return True
 
 
 def _allowed_origin_values(request: Request) -> set[str]:
@@ -121,6 +114,11 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         default_tshark_path=settings.tshark_path,
     )
     if settings.host not in {"127.0.0.1", "::1", "localhost"}:
+        if not settings.allow_remote:
+            raise RuntimeError(
+                "Refusing to bind pcap2llm Web GUI outside localhost without "
+                "PCAP2LLM_WEB_ALLOW_REMOTE=1. The local Web GUI has no authentication."
+            )
         print("[WARN] pcap2llm Web GUI is not bound to localhost; keep sensitive artifacts local.")
 
     @app.exception_handler(WebValidationError)
@@ -411,15 +409,15 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 verbatim_protocols_add=_parse_protocol_list(verbatim_protocols_add),
                 verbatim_protocols_remove=_parse_protocol_list(verbatim_protocols_remove),
                 keep_raw_avps=_parse_optional_bool_string(keep_raw_avps),
-                max_packets=_parse_optional_int(max_packets),
+                max_packets=_parse_optional_int(max_packets, min_value=1, field_name="Max packets"),
                 all_packets=all_packets,
                 fail_on_truncation=fail_on_truncation,
-                max_capture_size_mb=_parse_optional_int(max_capture_size_mb),
-                oversize_factor=_parse_optional_float(oversize_factor),
+                max_capture_size_mb=_parse_optional_int(max_capture_size_mb, min_value=0, field_name="Max capture size"),
+                oversize_factor=_parse_optional_float(oversize_factor, min_value=0, field_name="Oversize factor"),
                 render_flow_svg=render_flow_svg,
                 flow_title=flow_title.strip() or None,
-                flow_max_events=_parse_optional_int(flow_max_events),
-                flow_svg_width=_parse_optional_int(flow_svg_width),
+                flow_max_events=_parse_optional_int(flow_max_events, min_value=0, field_name="Flow max events"),
+                flow_svg_width=_parse_optional_int(flow_svg_width, min_value=400, field_name="Flow SVG width"),
                 collapse_repeats=collapse_repeats,
                 hosts_file=hosts_path,
                 mapping_file=mapping_path,
@@ -1108,18 +1106,24 @@ def _default_profile(record: JobRecord) -> str:
 
 
 
-def _parse_optional_int(value: str) -> int | None:
+def _parse_optional_int(value: str, *, min_value: int | None = None, field_name: str = "Value") -> int | None:
     text = value.strip()
     if not text:
         return None
-    return int(text)
+    parsed = int(text)
+    if min_value is not None and parsed < min_value:
+        raise WebValidationError(f"{field_name} must be at least {min_value}.")
+    return parsed
 
 
-def _parse_optional_float(value: str) -> float | None:
+def _parse_optional_float(value: str, *, min_value: float | None = None, field_name: str = "Value") -> float | None:
     text = value.strip()
     if not text:
         return None
-    return float(text)
+    parsed = float(text)
+    if min_value is not None and parsed < min_value:
+        raise WebValidationError(f"{field_name} must be at least {min_value:g}.")
+    return parsed
 
 
 async def _resolve_support_file(
@@ -1137,11 +1141,17 @@ async def _resolve_support_file(
         support_dir = store.support_dir(record.job_id)
         support_dir.mkdir(parents=True, exist_ok=True)
         target = support_dir / f"{label}_{safe_name}"
+        total_size = 0
         with target.open("wb") as out_fp:
             while True:
                 chunk = await uploaded.read(1024 * 1024)
                 if not chunk:
                     break
+                total_size += len(chunk)
+                if total_size > settings.max_support_upload_bytes:
+                    out_fp.close()
+                    target.unlink(missing_ok=True)
+                    raise WebValidationError("Support file upload exceeds configured size limit.")
                 out_fp.write(chunk)
         return str(ensure_within(support_dir, target))
 
@@ -1406,15 +1416,15 @@ def _build_preview_options(
         verbatim_protocols_add=_parse_protocol_list(analyze_defaults.get("verbatim_protocols_add")),
         verbatim_protocols_remove=_parse_protocol_list(analyze_defaults.get("verbatim_protocols_remove")),
         keep_raw_avps=_parse_optional_bool_string(analyze_defaults.get("keep_raw_avps")),
-        max_packets=_parse_optional_int(str(analyze_defaults.get("max_packets", ""))),
+        max_packets=_parse_optional_int(str(analyze_defaults.get("max_packets", "")), min_value=1, field_name="Max packets"),
         all_packets=bool(analyze_defaults.get("all_packets")),
         fail_on_truncation=bool(analyze_defaults.get("fail_on_truncation")),
-        max_capture_size_mb=_parse_optional_int(str(analyze_defaults.get("max_capture_size_mb", ""))),
-        oversize_factor=_parse_optional_float(str(analyze_defaults.get("oversize_factor", ""))),
+        max_capture_size_mb=_parse_optional_int(str(analyze_defaults.get("max_capture_size_mb", "")), min_value=0, field_name="Max capture size"),
+        oversize_factor=_parse_optional_float(str(analyze_defaults.get("oversize_factor", "")), min_value=0, field_name="Oversize factor"),
         render_flow_svg=bool(analyze_defaults.get("render_flow_svg")),
         flow_title=_string_or_none(analyze_defaults.get("flow_title")),
-        flow_max_events=_parse_optional_int(str(analyze_defaults.get("flow_max_events", ""))),
-        flow_svg_width=_parse_optional_int(str(analyze_defaults.get("flow_svg_width", ""))),
+        flow_max_events=_parse_optional_int(str(analyze_defaults.get("flow_max_events", "")), min_value=0, field_name="Flow max events"),
+        flow_svg_width=_parse_optional_int(str(analyze_defaults.get("flow_svg_width", "")), min_value=400, field_name="Flow SVG width"),
         collapse_repeats=bool(analyze_defaults.get("collapse_repeats", True)),
         hosts_file=_string_or_none(analyze_defaults.get("hosts_file")),
         mapping_file=_string_or_none(analyze_defaults.get("mapping_file")),

@@ -1,5 +1,7 @@
 # pcap2llm
 
+[![CI](https://github.com/FrnkMrz/pcap2llm/actions/workflows/ci.yml/badge.svg)](https://github.com/FrnkMrz/pcap2llm/actions/workflows/ci.yml)
+
 `pcap2llm` converts `.pcap` and `.pcapng` network captures into structured,
 privacy-controlled JSON artifacts for telecom troubleshooting.
 
@@ -17,23 +19,16 @@ capture with `inspect`, `discover`, or a tighter `-Y` filter.
 
 Requirements:
 
-- Python 3.11+
+- Python 3.11, 3.12, or 3.13
 - `tshark` in PATH (Wireshark package)
 
+Install from the repository:
+
 ```bash
-# 1. Install
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .[dev]
-
-# 2. Get a first view without writing artifacts
-pcap2llm inspect sample.pcapng --profile lte-core
-
-# 3. If the trace is still unclear, scout it broadly
-pcap2llm discover sample.pcapng
-
-# 4. Run the focused analysis that writes artifacts
-pcap2llm analyze sample.pcapng --profile lte-core --out ./artifacts
+python -m pip install --upgrade pip
+python -m pip install -e .[dev]
 ```
 
 Windows PowerShell:
@@ -41,8 +36,30 @@ Windows PowerShell:
 ```powershell
 py -3 -m venv .venv
 .\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 python -m pip install -e .[dev]
 ```
+
+CLI flow:
+
+```bash
+# Get a first view without writing artifacts
+pcap2llm inspect sample.pcapng --profile lte-core
+
+# If the trace is still unclear, scout it broadly
+pcap2llm discover sample.pcapng
+
+# Run the focused analysis that writes artifacts
+pcap2llm analyze sample.pcapng --profile lte-core --out ./artifacts
+```
+
+Local Web GUI:
+
+```bash
+pcap2llm-web
+```
+
+Open `http://127.0.0.1:8765`.
 
 ## Start With `inspect` Or `discover`?
 

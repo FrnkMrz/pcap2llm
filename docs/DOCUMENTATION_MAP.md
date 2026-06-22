@@ -102,6 +102,7 @@ Use it when you want to know:
 |---|---|---|---|
 | [`PROJECT_STATUS.md`](PROJECT_STATUS.md) | all readers, especially integrators | maturity, intended use, public interface, known limits | [`SUPPORTED_ENVIRONMENTS.md`](SUPPORTED_ENVIRONMENTS.md), [`REFERENCE.md`](REFERENCE.md), [`LLM_MODE.md`](LLM_MODE.md) |
 | [`SUPPORTED_ENVIRONMENTS.md`](SUPPORTED_ENVIRONMENTS.md) | users, maintainers | tested Python and TShark environment baseline | [`PROJECT_STATUS.md`](PROJECT_STATUS.md), [`REFERENCE.md`](REFERENCE.md) |
+| [`GITHUB_ISSUES.md`](GITHUB_ISSUES.md) | maintainers | copy-ready issue drafts for post-release work | [`REMEDIATION_PLAN.md`](REMEDIATION_PLAN.md), [`PROJECT_STATUS.md`](PROJECT_STATUS.md), [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md) |
 | [`schema/detail.schema.md`](schema/detail.schema.md) | integrators, contributors | stable contract for `detail.json` | [`schema/summary.schema.md`](schema/summary.schema.md), [`REFERENCE.md`](REFERENCE.md), [`architecture/current_pipeline.md`](architecture/current_pipeline.md) |
 | [`schema/summary.schema.md`](schema/summary.schema.md) | integrators, contributors | stable contract for `summary.json` | [`schema/detail.schema.md`](schema/detail.schema.md), [`REFERENCE.md`](REFERENCE.md), [`architecture/current_pipeline.md`](architecture/current_pipeline.md) |
 
@@ -113,6 +114,7 @@ Use it when you want to know:
 | [`architecture/scaling_plan.md`](architecture/scaling_plan.md) | contributors | two-pass scaling behavior, guards, and future work | [`architecture/current_pipeline.md`](architecture/current_pipeline.md), [`REFERENCE.md`](REFERENCE.md), [`PROJECT_STATUS.md`](PROJECT_STATUS.md) |
 | [`golden_corpus.md`](golden_corpus.md) | contributors, reviewers | regression fixture policy for stable public artifact behavior | [`schema/detail.schema.md`](schema/detail.schema.md), [`schema/summary.schema.md`](schema/summary.schema.md), [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md) |
 | [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md) | maintainers | release readiness checks for contract, docs, tests, and corpus | [`golden_corpus.md`](golden_corpus.md), [`PROJECT_STATUS.md`](PROJECT_STATUS.md), [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md) |
+| [`releases/v0.1.0.md`](releases/v0.1.0.md) | users, maintainers | prepared release notes for `v0.1.0` | [`CHANGELOG.md`](../CHANGELOG.md), [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md) |
 
 ## What Is Documented Overall
 

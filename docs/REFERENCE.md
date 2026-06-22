@@ -28,7 +28,7 @@ The tool does **no AI analysis itself**. It formats and prepares. The LLM step i
 ## Requirements and Installation
 
 **Requirements:**
-- Python 3.11 or newer
+- Python 3.11, 3.12, or 3.13
 - `tshark` in PATH (Wireshark package)
 
 ```bash

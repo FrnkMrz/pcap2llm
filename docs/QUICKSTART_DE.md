@@ -11,7 +11,7 @@ Wenn du danach tiefer einsteigen willst:
 
 ## Voraussetzungen
 
-- Python 3.11+
+- Python 3.11, 3.12 oder 3.13
 - `tshark` im PATH
 
 ```bash

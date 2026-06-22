@@ -6,6 +6,10 @@ The format is intentionally simple and optimized for humans reading repo history
 
 ## Unreleased
 
+No unreleased changes yet.
+
+## 0.1.0 - 2026-06-22
+
 ### Fixed - 2026-06-19 (web hardening and release validation)
 
 - Hardened the local Web GUI:

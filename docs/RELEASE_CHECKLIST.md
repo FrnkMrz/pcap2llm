@@ -8,6 +8,8 @@ Related docs:
 - [`DOCUMENTATION_MAP.md`](DOCUMENTATION_MAP.md)
 - [`PROJECT_STATUS.md`](PROJECT_STATUS.md)
 - [`golden_corpus.md`](golden_corpus.md)
+- [`GITHUB_ISSUES.md`](GITHUB_ISSUES.md)
+- [`releases/v0.1.0.md`](releases/v0.1.0.md)
 - [`schema/detail.schema.md`](schema/detail.schema.md)
 - [`schema/summary.schema.md`](schema/summary.schema.md)
 
@@ -25,6 +27,7 @@ Automated in CI:
 
 Manual release review:
 
+- Verify `pyproject.toml` version matches the planned tag
 - Run `python -m build --no-isolation`
 - Run `python scripts/check_package_metadata.py dist/*.whl dist/*.tar.gz`
 - Run `python scripts/check_package_contents.py dist/*.whl`
@@ -32,6 +35,13 @@ Manual release review:
 - Docs are updated for any behavior or contract change
 - Known limitations still match actual behavior
 - Release notes / changelog entries reflect user-visible changes
+- Open post-release work is captured in `docs/GITHUB_ISSUES.md`
+
+Tagging:
+
+- Create an annotated tag, for example `git tag -a v0.1.0 -m "pcap2llm v0.1.0"`
+- Push the tag with `git push origin v0.1.0`
+- Create the GitHub Release using `docs/releases/v0.1.0.md`
 
 Restored feature regression review:
 

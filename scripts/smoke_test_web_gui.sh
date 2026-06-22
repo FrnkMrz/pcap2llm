@@ -56,6 +56,7 @@ curl -fsS "${BASE_URL}/dashboard" >/dev/null
 curl -fsS "${BASE_URL}/profiles" >/dev/null
 
 curl -fsS -D "${HEADERS_FILE}" -o /dev/null \
+  -H "Origin: ${BASE_URL}" \
   -F "capture=@${UPLOAD_FILE};type=application/octet-stream" \
   "${BASE_URL}/jobs"
 
